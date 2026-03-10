@@ -14,6 +14,12 @@ function WebRedirect() {
   return <Navigate to={`${newPath}${location.search}`} replace />;
 }
 
+// Redirige rutas CRM antiguas sin prefijo /crm → /crm/*
+function LegacyCRMRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/crm${location.pathname}${location.search}`} replace />;
+}
+
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
@@ -130,6 +136,43 @@ function AppRoutes() {
       <Route path="/seguimiento" element={<SeguimientoRedirect />} />
       <Route path="/web/*" element={<WebRedirect />} />
       <Route path="/login" element={<Navigate to="/crm/login" replace />} />
+      
+      {/* Redirecciones de rutas CRM antiguas sin prefijo /crm */}
+      <Route path="/dashboard" element={<LegacyCRMRedirect />} />
+      <Route path="/ordenes/*" element={<LegacyCRMRedirect />} />
+      <Route path="/ordenes" element={<LegacyCRMRedirect />} />
+      <Route path="/clientes/*" element={<LegacyCRMRedirect />} />
+      <Route path="/clientes" element={<LegacyCRMRedirect />} />
+      <Route path="/inventario" element={<LegacyCRMRedirect />} />
+      <Route path="/proveedores" element={<LegacyCRMRedirect />} />
+      <Route path="/calendario" element={<LegacyCRMRedirect />} />
+      <Route path="/notificaciones" element={<LegacyCRMRedirect />} />
+      <Route path="/configuracion" element={<LegacyCRMRedirect />} />
+      <Route path="/empresa" element={<LegacyCRMRedirect />} />
+      <Route path="/usuarios" element={<LegacyCRMRedirect />} />
+      <Route path="/scanner" element={<LegacyCRMRedirect />} />
+      <Route path="/restos" element={<LegacyCRMRedirect />} />
+      <Route path="/incidencias" element={<LegacyCRMRedirect />} />
+      <Route path="/master" element={<LegacyCRMRedirect />} />
+      <Route path="/analiticas" element={<LegacyCRMRedirect />} />
+      <Route path="/ordenes-compra" element={<LegacyCRMRedirect />} />
+      <Route path="/iso" element={<LegacyCRMRedirect />} />
+      <Route path="/contabilidad/*" element={<LegacyCRMRedirect />} />
+      <Route path="/contabilidad" element={<LegacyCRMRedirect />} />
+      <Route path="/logistica" element={<LegacyCRMRedirect />} />
+      <Route path="/pre-registros" element={<LegacyCRMRedirect />} />
+      <Route path="/comisiones" element={<LegacyCRMRedirect />} />
+      <Route path="/kits" element={<LegacyCRMRedirect />} />
+      <Route path="/liquidaciones" element={<LegacyCRMRedirect />} />
+      <Route path="/email-config" element={<LegacyCRMRedirect />} />
+      <Route path="/etiquetas-envio" element={<LegacyCRMRedirect />} />
+      <Route path="/insurama" element={<LegacyCRMRedirect />} />
+      <Route path="/agente-aria" element={<LegacyCRMRedirect />} />
+      <Route path="/buscar-siniestro" element={<LegacyCRMRedirect />} />
+      <Route path="/peticiones-exteriores" element={<LegacyCRMRedirect />} />
+      <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
+      <Route path="/mobilesentrix" element={<LegacyCRMRedirect />} />
+      <Route path="/utopya" element={<LegacyCRMRedirect />} />
       
       {/* ===== CRM (www.revix.es/crm) ===== */}
       <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />

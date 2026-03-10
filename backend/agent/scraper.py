@@ -81,7 +81,8 @@ class SumbrokerClient:
                 raise Exception("Authentication failed after retries")
             try:
                 async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                    kwargs.setdefault("headers", self._headers())
+                    # Always use fresh headers with current token
+                    kwargs["headers"] = self._headers()
                     resp = await getattr(client, method)(url, **kwargs)
                     if resp.status_code == 401:
                         logger.warning("Token expired, re-authenticating (attempt %d)", attempt + 1)
@@ -285,6 +286,23 @@ class SumbrokerClient:
         except Exception as e:
             logger.error(f"find_budget_by_service_code({codigo}) exception: {e}")
             return None
+
+    async def get_claim_store_budgets(self, claim_budget_id: int) -> list[dict]:
+        """Get all store budgets for a claim (competitors)."""
+        if not await self._ensure_auth():
+            return []
+        try:
+            resp = await self._request_with_retry(
+                "get", f"{API_BASE}/claim-budget/{claim_budget_id}/store-budgets")
+            if resp.status_code != 200:
+                logger.error(f"get_claim_store_budgets({claim_budget_id}) error: {resp.status_code}")
+                return []
+            data = resp.json()
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.error(f"get_claim_store_budgets({claim_budget_id}) exception: {e}")
+            return []
+
 
     # ── photos & documents ──────────────────────────────────
 

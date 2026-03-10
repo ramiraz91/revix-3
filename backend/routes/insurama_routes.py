@@ -143,20 +143,19 @@ async def debug_budgets_por_codigo(codigo: str, user: dict = Depends(require_adm
     try:
         client = await get_sumbroker_client()
         
-        # Hacer la búsqueda directamente sin filtrar
-        import httpx
-        if not client._token:
-            await client.authenticate()
+        # Usar el método con retry del cliente
+        if not await client._ensure_auth():
+            return {"error": "Authentication failed"}
         
-        async with httpx.AsyncClient(timeout=120.0) as http_client:
-            resp = await http_client.get(
-                "https://api.sumbroker.es/api/v2/store-budget",
-                params={"search": codigo, "limit": 50},
-                headers=client._headers(),
-            )
-            
-            if resp.status_code != 200:
-                return {"error": f"API error: {resp.status_code}", "raw": resp.text[:500]}
+        try:
+            resp = await client._request_with_retry(
+                "get", f"https://api.sumbroker.es/api/v2/store-budget",
+                params={"search": codigo, "limit": 50})
+        except Exception as e:
+            return {"error": f"Request failed: {str(e)}"}
+        
+        if resp.status_code != 200:
+            return {"error": f"API error: {resp.status_code}", "raw": resp.text[:500]}
             
             data = resp.json()
             all_budgets = data.get("store_budgets", [])
@@ -245,17 +244,10 @@ async def debug_competidores_raw(codigo: str, user: dict = Depends(require_admin
         if not claim_budget_id:
             return {"error": "No se pudo obtener claim_budget_id"}
         
-        import httpx
-        async with httpx.AsyncClient(timeout=120.0) as http:
-            resp = await http.get(
-                f"https://api.sumbroker.es/api/v2/claim-budget/{claim_budget_id}/store-budgets",
-                headers=client._headers()
-            )
-            
-            if resp.status_code != 200:
-                return {"error": f"Error API: {resp.status_code}"}
-            
-            all_budgets = resp.json()
+        all_budgets = await client.get_claim_store_budgets(claim_budget_id)
+        
+        if not all_budgets:
+            return {"error": "No se pudieron obtener los presupuestos de competidores"}
         
         # Extraer TODAS las claves de cada presupuesto para análisis
         budget_keys_analysis = []
@@ -398,125 +390,118 @@ async def busqueda_multiple_presupuestos(data: BusquedaMultipleRequest, user: di
         client = await get_sumbroker_client()
         resultados_finales = []
         
-        # Usar una sola sesión HTTP para todas las búsquedas
-        async with httpx.AsyncClient(timeout=180.0) as http:
-            for codigo in codigos:
-                resultado = {
-                    "codigo": codigo,
-                    "status": "loading",
-                    "presupuesto": None,
-                    "competidores": None,
-                    "error": None
+        for codigo in codigos:
+            resultado = {
+                "codigo": codigo,
+                "status": "loading",
+                "presupuesto": None,
+                "competidores": None,
+                "error": None
+            }
+            
+            try:
+                # Buscar el presupuesto
+                budget = await client.find_budget_by_service_code(codigo)
+                
+                if not budget:
+                    resultado["status"] = "not_found"
+                    resultado["error"] = "No encontrado en Sumbroker"
+                    resultados_finales.append(resultado)
+                    continue
+                
+                # Extraer datos básicos del presupuesto encontrado
+                claim = budget.get("claim_budget") or {}
+                prc = claim.get("policy_risk_claim") or {}
+                policy = claim.get("policy") or {}
+                
+                # Datos básicos del presupuesto (versión simplificada)
+                resultado["presupuesto"] = {
+                    "budget_id": budget.get("id"),
+                    "claim_budget_id": budget.get("claim_budget_id"),
+                    "claim_identifier": codigo,
+                    "device_brand": budget.get("brand") or (policy.get("mobile_terminals_active", [{}])[0].get("brand") if policy.get("mobile_terminals_active") else ""),
+                    "device_model": budget.get("model") or (policy.get("mobile_terminals_active", [{}])[0].get("model") if policy.get("mobile_terminals_active") else ""),
+                    "device_imei": budget.get("imei") or (policy.get("mobile_terminals_active", [{}])[0].get("imei") if policy.get("mobile_terminals_active") else ""),
+                    "damage_type_text": prc.get("description", "")[:100] if prc.get("description") else "",
+                    "damage_description": prc.get("description", ""),
+                    "client_full_name": policy.get("complete_name") or f"{policy.get('name', '')} {policy.get('last_name_1', '')}".strip(),
+                    "client_phone": policy.get("phone_number"),
+                    "status": budget.get("status"),
+                    "status_text": budget.get("status_text"),
+                    "price": budget.get("price"),
                 }
                 
-                try:
-                    # Buscar el presupuesto
-                    budget = await client.find_budget_by_service_code(codigo)
-                    
-                    if not budget:
-                        resultado["status"] = "not_found"
-                        resultado["error"] = "No encontrado en Sumbroker"
-                        resultados_finales.append(resultado)
-                        continue
-                    
-                    # Extraer datos básicos del presupuesto encontrado
-                    claim = budget.get("claim_budget") or {}
-                    prc = claim.get("policy_risk_claim") or {}
-                    policy = claim.get("policy") or {}
-                    
-                    # Datos básicos del presupuesto (versión simplificada)
-                    resultado["presupuesto"] = {
-                        "budget_id": budget.get("id"),
-                        "claim_budget_id": budget.get("claim_budget_id"),
-                        "claim_identifier": codigo,
-                        "device_brand": budget.get("brand") or (policy.get("mobile_terminals_active", [{}])[0].get("brand") if policy.get("mobile_terminals_active") else ""),
-                        "device_model": budget.get("model") or (policy.get("mobile_terminals_active", [{}])[0].get("model") if policy.get("mobile_terminals_active") else ""),
-                        "device_imei": budget.get("imei") or (policy.get("mobile_terminals_active", [{}])[0].get("imei") if policy.get("mobile_terminals_active") else ""),
-                        "damage_type_text": prc.get("description", "")[:100] if prc.get("description") else "",
-                        "damage_description": prc.get("description", ""),
-                        "client_full_name": policy.get("complete_name") or f"{policy.get('name', '')} {policy.get('last_name_1', '')}".strip(),
-                        "client_phone": policy.get("phone_number"),
-                        "status": budget.get("status"),
-                        "status_text": budget.get("status_text"),
-                        "price": budget.get("price"),
-                    }
-                    
-                    # Obtener competidores/mercado si tenemos claim_budget_id
-                    claim_budget_id = budget.get("claim_budget_id")
-                    my_budget_id = budget.get("id")
-                    
-                    if claim_budget_id:
-                        try:
-                            resp = await http.get(
-                                f"https://api.sumbroker.es/api/v2/claim-budget/{claim_budget_id}/store-budgets",
-                                headers=client._headers()
-                            )
-                            
-                            if resp.status_code == 200:
-                                all_budgets = resp.json()
-                                
-                                # Procesar competidores
-                                competidores = []
-                                mi_presupuesto = None
-                                precios_validos = []
-                                
-                                for b in all_budgets:
-                                    store = b.get("store", {})
-                                    precio = float(b.get("price", 0) or 0)
-                                    budget_id = b.get("id")
-                                    
-                                    budget_info = {
-                                        "id": budget_id,
-                                        "tienda_nombre": store.get("name", "N/A"),
-                                        "tienda_ciudad": store.get("city", ""),
-                                        "precio": b.get("price"),
-                                        "precio_num": precio,
-                                        "estado": b.get("status_text"),
-                                        "estado_codigo": b.get("status"),
-                                        "es_mio": budget_id == my_budget_id
-                                    }
-                                    
-                                    if b.get("id") == my_budget_id:
-                                        mi_presupuesto = budget_info
-                                    else:
-                                        competidores.append(budget_info)
-                                    
-                                    if precio > 0:
-                                        precios_validos.append(precio)
-                                
-                                # Ordenar competidores por precio
-                                competidores.sort(key=lambda x: (x["precio_num"] == 0, x["precio_num"]))
-                                
-                                # Calcular estadísticas
-                                estadisticas = None
-                                if precios_validos:
-                                    mi_precio = float(mi_presupuesto.get("precio", 0) or 0) if mi_presupuesto else 0
-                                    mi_posicion = sum(1 for p in precios_validos if p < mi_precio) + 1 if mi_precio > 0 else None
-                                    
-                                    estadisticas = {
-                                        "total_participantes": len(all_budgets),
-                                        "con_precio": len(precios_validos),
-                                        "precio_minimo": min(precios_validos),
-                                        "precio_maximo": max(precios_validos),
-                                        "precio_medio": round(sum(precios_validos) / len(precios_validos), 2),
-                                        "mi_posicion": mi_posicion
-                                    }
-                                
-                                resultado["competidores"] = {
-                                    "mi_presupuesto": mi_presupuesto,
-                                    "competidores": competidores[:10],
-                                    "estadisticas": estadisticas
-                                }
-                        except Exception as comp_err:
-                            logger.warning(f"Error obteniendo competidores para {codigo}: {comp_err}")
-                    
-                    resultado["status"] = "success"
-                    
-                except Exception as e:
-                    resultado["status"] = "error"
-                    resultado["error"] = str(e)
+                # Obtener competidores/mercado si tenemos claim_budget_id
+                claim_budget_id = budget.get("claim_budget_id")
+                my_budget_id = budget.get("id")
                 
-                resultados_finales.append(resultado)
+                if claim_budget_id:
+                    try:
+                        all_budgets = await client.get_claim_store_budgets(claim_budget_id)
+                        
+                        if all_budgets:
+                            # Procesar competidores
+                            competidores = []
+                            mi_presupuesto = None
+                            precios_validos = []
+                            
+                            for b in all_budgets:
+                                store = b.get("store", {})
+                                precio = float(b.get("price", 0) or 0)
+                                budget_id = b.get("id")
+                                
+                                budget_info = {
+                                    "id": budget_id,
+                                    "tienda_nombre": store.get("name", "N/A"),
+                                    "tienda_ciudad": store.get("city", ""),
+                                    "precio": b.get("price"),
+                                    "precio_num": precio,
+                                    "estado": b.get("status_text"),
+                                    "estado_codigo": b.get("status"),
+                                    "es_mio": budget_id == my_budget_id
+                                }
+                                
+                                if b.get("id") == my_budget_id:
+                                    mi_presupuesto = budget_info
+                                else:
+                                    competidores.append(budget_info)
+                                
+                                if precio > 0:
+                                    precios_validos.append(precio)
+                            
+                            # Ordenar competidores por precio
+                            competidores.sort(key=lambda x: (x["precio_num"] == 0, x["precio_num"]))
+                            
+                            # Calcular estadísticas
+                            estadisticas = None
+                            if precios_validos:
+                                mi_precio = float(mi_presupuesto.get("precio", 0) or 0) if mi_presupuesto else 0
+                                mi_posicion = sum(1 for p in precios_validos if p < mi_precio) + 1 if mi_precio > 0 else None
+                                
+                                estadisticas = {
+                                    "total_participantes": len(all_budgets),
+                                    "con_precio": len(precios_validos),
+                                    "precio_minimo": min(precios_validos),
+                                    "precio_maximo": max(precios_validos),
+                                    "precio_medio": round(sum(precios_validos) / len(precios_validos), 2),
+                                    "mi_posicion": mi_posicion
+                                }
+                            
+                            resultado["competidores"] = {
+                                "mi_presupuesto": mi_presupuesto,
+                                "competidores": competidores[:10],
+                                "estadisticas": estadisticas
+                            }
+                    except Exception as comp_err:
+                        logger.warning(f"Error obteniendo competidores para {codigo}: {comp_err}")
+                
+                resultado["status"] = "success"
+                
+            except Exception as e:
+                resultado["status"] = "error"
+                resultado["error"] = str(e)
+            
+            resultados_finales.append(resultado)
         
         # Estadísticas generales
         encontrados = sum(1 for r in resultados_finales if r["status"] == "success")
@@ -563,28 +548,19 @@ async def obtener_competidores_presupuesto(codigo: str, user: dict = Depends(req
             }
         
         # Obtener todos los presupuestos del siniestro
-        import httpx
-        import asyncio
+        all_budgets = await client.get_claim_store_budgets(claim_budget_id)
         
-        async with httpx.AsyncClient(timeout=120.0) as http:
-            resp = await http.get(
-                f"https://api.sumbroker.es/api/v2/claim-budget/{claim_budget_id}/store-budgets",
-                headers=client._headers()
-            )
-            
-            if resp.status_code != 200:
-                return {
-                    "mi_presupuesto": {
-                        "id": my_budget_id,
-                        "precio": budget.get("price"),
-                        "estado": budget.get("status_text")
-                    },
-                    "competidores": [],
-                    "estadisticas": None,
-                    "error": f"Error al obtener competidores: {resp.status_code}"
-                }
-            
-            all_budgets = resp.json()
+        if not all_budgets:
+            return {
+                "mi_presupuesto": {
+                    "id": my_budget_id,
+                    "precio": budget.get("price"),
+                    "estado": budget.get("status_text")
+                },
+                "competidores": [],
+                "estadisticas": None,
+                "error": f"No se pudieron obtener los presupuestos de competidores"
+            }
         
         # Obtener observaciones del siniestro UNA sola vez (son por siniestro, no por presupuesto)
         all_observations = []

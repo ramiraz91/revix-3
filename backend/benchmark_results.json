@@ -1,0 +1,168 @@
+{
+  "timestamp": "2026-03-01T21:31:43.313030",
+  "api_url": "https://iso-repair-crm-1.preview.emergentagent.com",
+  "results": [
+    {
+      "endpoint": "/api/ordenes",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 116.0,
+      "p95_ms": 229.9,
+      "p99_ms": 229.9,
+      "avg_ms": 123.5,
+      "min_ms": 88.4,
+      "max_ms": 229.9,
+      "avg_size_kb": 2044.1
+    },
+    {
+      "endpoint": "/api/admin/audit-logs?limit=50",
+      "iterations": 10,
+      "errors": 10,
+      "p50_ms": 76.9,
+      "p95_ms": 138.0,
+      "p99_ms": 138.0,
+      "avg_ms": 62.2,
+      "min_ms": 32.4,
+      "max_ms": 138.0,
+      "avg_size_kb": 0.0
+    },
+    {
+      "endpoint": "/api/ordenes/dashboard-stats",
+      "iterations": 10,
+      "errors": 10,
+      "p50_ms": 42.5,
+      "p95_ms": 84.8,
+      "p99_ms": 84.8,
+      "avg_ms": 51.1,
+      "min_ms": 35.6,
+      "max_ms": 84.8,
+      "avg_size_kb": 0.0
+    },
+    {
+      "endpoint": "/api/transportistas",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 38.9,
+      "p95_ms": 79.4,
+      "p99_ms": 79.4,
+      "avg_ms": 46.7,
+      "min_ms": 33.4,
+      "max_ms": 79.4,
+      "avg_size_kb": 0.5
+    },
+    {
+      "endpoint": "/api/repuestos",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 58.7,
+      "p95_ms": 75.5,
+      "p99_ms": 75.5,
+      "avg_ms": 60.7,
+      "min_ms": 52.1,
+      "max_ms": 75.5,
+      "avg_size_kb": 23.1
+    },
+    {
+      "endpoint": "/api/insurama/expedientes",
+      "iterations": 10,
+      "errors": 10,
+      "p50_ms": 42.0,
+      "p95_ms": 73.2,
+      "p99_ms": 73.2,
+      "avg_ms": 44.1,
+      "min_ms": 31.5,
+      "max_ms": 73.2,
+      "avg_size_kb": 0.0
+    },
+    {
+      "endpoint": "/api/ordenes/d146a59b-16d0-4f52-8c7b-607579064842",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 40.0,
+      "p95_ms": 67.9,
+      "p99_ms": 67.9,
+      "avg_ms": 41.6,
+      "min_ms": 32.3,
+      "max_ms": 67.9,
+      "avg_size_kb": 12.9
+    },
+    {
+      "endpoint": "/api/ordenes?search=OT-2026",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 56.3,
+      "p95_ms": 64.9,
+      "p99_ms": 64.9,
+      "avg_ms": 56.1,
+      "min_ms": 49.3,
+      "max_ms": 64.9,
+      "avg_size_kb": 475.5
+    },
+    {
+      "endpoint": "/api/ordenes?estado=pendiente_recibir",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 42.6,
+      "p95_ms": 55.1,
+      "p99_ms": 55.1,
+      "avg_ms": 44.6,
+      "min_ms": 37.9,
+      "max_ms": 55.1,
+      "avg_size_kb": 123.6
+    },
+    {
+      "endpoint": "/api/clientes?search=test",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 41.0,
+      "p95_ms": 53.6,
+      "p99_ms": 53.6,
+      "avg_ms": 41.8,
+      "min_ms": 32.7,
+      "max_ms": 53.6,
+      "avg_size_kb": 5.1
+    },
+    {
+      "endpoint": "/api/ordenes?estado=reparado",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 38.4,
+      "p95_ms": 53.1,
+      "p99_ms": 53.1,
+      "avg_ms": 41.3,
+      "min_ms": 35.4,
+      "max_ms": 53.1,
+      "avg_size_kb": 28.5
+    },
+    {
+      "endpoint": "/api/clientes",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 47.2,
+      "p95_ms": 52.2,
+      "p99_ms": 52.2,
+      "avg_ms": 45.2,
+      "min_ms": 32.4,
+      "max_ms": 52.2,
+      "avg_size_kb": 7.1
+    },
+    {
+      "endpoint": "/api/ordenes?estado=en_taller",
+      "iterations": 10,
+      "errors": 0,
+      "p50_ms": 44.6,
+      "p95_ms": 50.8,
+      "p99_ms": 50.8,
+      "avg_ms": 44.7,
+      "min_ms": 38.7,
+      "max_ms": 50.8,
+      "avg_size_kb": 79.0
+    }
+  ],
+  "summary": {
+    "total_endpoints": 13,
+    "slow_count": 0,
+    "medium_count": 1,
+    "fast_count": 12
+  }
+}

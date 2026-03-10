@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario - NEXORA CRM/ERP</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; background: white; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 40px; text-align: center; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        header p { font-size: 1.2em; opacity: 0.9; }
+        .version-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 5px 15px; border-radius: 20px; margin-top: 15px; font-size: 0.9em; }
+        nav { background: #f8fafc; padding: 20px 40px; border-bottom: 1px solid #e2e8f0; }
+        nav h3 { color: #64748b; margin-bottom: 15px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+        nav ul { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        nav a { color: #1e3a5f; text-decoration: none; padding: 8px 12px; border-radius: 6px; display: block; transition: background 0.2s; }
+        nav a:hover { background: #e2e8f0; }
+        main { padding: 40px; }
+        section { margin-bottom: 50px; page-break-inside: avoid; }
+        h2 { color: #1e3a5f; font-size: 1.8em; padding-bottom: 10px; border-bottom: 3px solid #2563eb; margin-bottom: 20px; }
+        h3 { color: #334155; font-size: 1.3em; margin: 25px 0 15px; }
+        h4 { color: #475569; font-size: 1.1em; margin: 20px 0 10px; }
+        p { margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border: 1px solid #e2e8f0; }
+        th { background: #f1f5f9; font-weight: 600; color: #334155; }
+        tr:nth-child(even) { background: #f8fafc; }
+        .info-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .success-box { background: #dcfce7; border-left: 4px solid #22c55e; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .flow-diagram { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; font-family: monospace; }
+        .flow-diagram .step { display: inline-block; background: white; padding: 10px 20px; border: 2px solid #2563eb; border-radius: 8px; margin: 5px; }
+        .flow-diagram .arrow { color: #2563eb; font-size: 1.5em; margin: 0 5px; }
+        ol, ul { margin: 15px 0 15px 30px; }
+        li { margin-bottom: 8px; }
+        code { background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-yellow { background: #fef3c7; color: #92400e; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-purple { background: #f3e8ff; color: #7c3aed; }
+        .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 20px 0; }
+        .feature-card { background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .feature-card h4 { margin-top: 0; color: #1e3a5f; }
+        footer { background: #1e3a5f; color: white; padding: 30px 40px; text-align: center; }
+        @media print { nav { display: none; } .container { box-shadow: none; } section { page-break-inside: avoid; } }
+        @media (max-width: 768px) { nav ul { grid-template-columns: 1fr; } .feature-grid { grid-template-columns: 1fr; } header { padding: 30px 20px; } main { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📘 NEXORA</h1>
+            <p>Manual de Usuario - CRM/ERP para Servicios Técnicos</p>
+            <span class="version-badge">Versión 2.0 - Febrero 2026</span>
+        </header>
+        
+        <nav>
+            <h3>📑 Índice de Contenidos</h3>
+            <ul>
+                <li><a href="#intro">1. Introducción</a></li>
+                <li><a href="#acceso">2. Acceso al Sistema</a></li>
+                <li><a href="#dashboard">3. Panel de Control</a></li>
+                <li><a href="#ordenes">4. Órdenes de Trabajo</a></li>
+                <li><a href="#clientes">5. Gestión de Clientes</a></li>
+                <li><a href="#inventario">6. Inventario</a></li>
+                <li><a href="#insurama">7. Integración Insurama</a></li>
+                <li><a href="#preregistros">8. Pre-Registros</a></li>
+                <li><a href="#notificaciones">9. Notificaciones</a></li>
+                <li><a href="#calendario">10. Calendario</a></li>
+                <li><a href="#flujos">11. Flujos Automáticos</a></li>
+                <li><a href="#tecnicos">12. Guía para Técnicos</a></li>
+            </ul>
+        </nav>
+        
+        <main>
+            <!-- 1. INTRODUCCIÓN -->
+            <section id="intro">
+                <h2>1. Introducción</h2>
+                <h3>¿Qué es NEXORA?</h3>
+                <p>NEXORA es un sistema CRM/ERP diseñado específicamente para talleres de reparación de dispositivos móviles. Permite gestionar de forma integral todas las operaciones del negocio.</p>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>🔄 Automatización</h4>
+                        <p>Polling automático de Insurama, notificaciones en tiempo real, sincronización de estados.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🤖 Asistente IA</h4>
+                        <p>Diagnósticos y sugerencias de reparación con inteligencia artificial Gemini.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>📱 Multi-dispositivo</h4>
+                        <p>Acceso desde ordenador, tablet o móvil con interfaz adaptable.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>👥 Multi-usuario</h4>
+                        <p>Roles diferenciados: Master, Admin y Técnico con permisos específicos.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 2. ACCESO -->
+            <section id="acceso">
+                <h2>2. Acceso al Sistema</h2>
+                <h3>Pantalla de Login</h3>
+                <ol>
+                    <li>Abrir el navegador y acceder a la URL del sistema</li>
+                    <li>Introducir <strong>Email</strong> y <strong>Contraseña</strong></li>
+                    <li>Pulsar <strong>"Iniciar Sesión"</strong></li>
+                </ol>
+                <h3>Roles de Usuario</h3>
+                <table>
+                    <tr><th>Rol</th><th>Permisos</th></tr>
+                    <tr><td><span class="badge badge-red">Master</span></td><td>Acceso total: configuración, usuarios, integraciones</td></tr>
+                    <tr><td><span class="badge badge-blue">Admin</span></td><td>Gestión completa de órdenes, clientes, inventario</td></tr>
+                    <tr><td><span class="badge badge-green">Técnico</span></td><td>Ver órdenes asignadas, actualizar estado, añadir materiales</td></tr>
+                </table>
+            </section>
+            
+            <!-- 3. DASHBOARD -->
+            <section id="dashboard">
+                <h2>3. Panel de Control (Dashboard)</h2>
+                <p>El Dashboard muestra un resumen del estado del taller con indicadores clave.</p>
+                <h3>Indicadores Principales</h3>
+                <table>
+                    <tr><th>Indicador</th><th>Significado</th></tr>
+                    <tr><td>📋 Órdenes</td><td>Total de órdenes activas</td></tr>
+                    <tr><td>👥 Clientes</td><td>Número de clientes registrados</td></tr>
+                    <tr><td>📦 Repuestos</td><td>Productos en inventario</td></tr>
+                    <tr><td>🔔 Notificaciones</td><td>Alertas pendientes de leer</td></tr>
+                </table>
+                <div class="info-box">
+                    <strong>💡 Tip:</strong> Usa el escáner rápido en la parte superior para abrir órdenes escaneando su código QR.
+                </div>
+            </section>
+            
+            <!-- 4. ÓRDENES -->
+            <section id="ordenes">
+                <h2>4. Órdenes de Trabajo</h2>
+                <h3>Estados de una Orden</h3>
+                <div class="flow-diagram">
+                    <span class="step">Pendiente Recibir</span>
+                    <span class="arrow">→</span>
+                    <span class="step">En Diagnóstico</span>
+                    <span class="arrow">→</span>
+                    <span class="step">Presupuesto Enviado</span>
+                    <span class="arrow">→</span>
+                    <span class="step">En Reparación</span>
+                    <span class="arrow">→</span>
+                    <span class="step">Reparado</span>
+                    <span class="arrow">→</span>
+                    <span class="step">Entregado</span>
+                </div>
+                <h3>Crear Nueva Orden</h3>
+                <ol>
+                    <li>Pulsar <strong>"+ Nueva Orden"</strong></li>
+                    <li>Buscar o crear cliente</li>
+                    <li>Rellenar datos del dispositivo (marca, modelo, IMEI)</li>
+                    <li>Describir el problema</li>
+                    <li>Seleccionar tipo de servicio</li>
+                    <li>Pulsar <strong>"Crear Orden"</strong></li>
+                </ol>
+                <h3>Pestañas de la Ficha de Orden</h3>
+                <table>
+                    <tr><th>Pestaña</th><th>Contenido</th></tr>
+                    <tr><td>📄 Información</td><td>Datos del cliente y dispositivo</td></tr>
+                    <tr><td>🔄 Estado</td><td>Cambiar estado de la orden</td></tr>
+                    <tr><td>🔧 Materiales</td><td>Repuestos utilizados</td></tr>
+                    <tr><td>📷 Evidencias</td><td>Fotos del dispositivo</td></tr>
+                    <tr><td>💬 Mensajes</td><td>Comunicación interna</td></tr>
+                    <tr><td>📜 Historial</td><td>Registro de cambios</td></tr>
+                </table>
+            </section>
+            
+            <!-- 5. CLIENTES -->
+            <section id="clientes">
+                <h2>5. Gestión de Clientes</h2>
+                <h3>Lista de Clientes</h3>
+                <p>Muestra todos los clientes registrados con su información de contacto y historial.</p>
+                <table>
+                    <tr><th>Campo</th><th>Descripción</th></tr>
+                    <tr><td>Nombre completo</td><td>Nombre y apellidos del cliente</td></tr>
+                    <tr><td>DNI/NIF</td><td>Documento de identificación</td></tr>
+                    <tr><td>Teléfono</td><td>Para notificaciones SMS</td></tr>
+                    <tr><td>Email</td><td>Para notificaciones por correo</td></tr>
+                    <tr><td>Dirección</td><td>Dirección completa de envío</td></tr>
+                </table>
+                <h3>Crear Nuevo Cliente</h3>
+                <ol>
+                    <li>Pulsar <strong>"+ Nuevo Cliente"</strong></li>
+                    <li>Rellenar nombre y apellidos</li>
+                    <li>Introducir DNI/NIF</li>
+                    <li>Añadir teléfono (para SMS)</li>
+                    <li>Añadir email (para notificaciones)</li>
+                    <li>Completar dirección</li>
+                    <li>Pulsar <strong>"Guardar"</strong></li>
+                </ol>
+                <h3>Ficha de Cliente</h3>
+                <p>Al abrir un cliente se muestra:</p>
+                <ul>
+                    <li><strong>Datos personales:</strong> Toda la información de contacto</li>
+                    <li><strong>Historial de órdenes:</strong> Todas sus reparaciones anteriores</li>
+                    <li><strong>Métricas:</strong> Total gastado, número de órdenes completadas</li>
+                    <li><strong>Notas:</strong> Observaciones especiales sobre el cliente</li>
+                </ul>
+                <div class="info-box">
+                    <strong>💡 Tip:</strong> Al crear una orden, puedes buscar clientes existentes por nombre, teléfono o DNI.
+                </div>
+            </section>
+            
+            <!-- 6. INVENTARIO -->
+            <section id="inventario">
+                <h2>6. Inventario</h2>
+                <h3>Gestión de Repuestos</h3>
+                <p>El inventario permite controlar todo el stock de repuestos del taller.</p>
+                <h3>Añadir Nuevo Repuesto</h3>
+                <ol>
+                    <li>Pulsar <strong>"+ Nuevo Repuesto"</strong></li>
+                    <li>Introducir <strong>nombre</strong> del producto</li>
+                    <li>Seleccionar <strong>categoría</strong></li>
+                    <li>El <strong>SKU se genera automáticamente</strong></li>
+                    <li>Añadir precios y stock inicial</li>
+                    <li>Pulsar <strong>"Guardar"</strong></li>
+                </ol>
+                <div class="info-box">
+                    <strong>📝 SKU Automático:</strong> El código SKU se genera basándose en la categoría y nombre del producto. Ejemplo: <code>PANT-IPHO-PRO-A1B2</code>
+                </div>
+                <h3>Categorías de Repuestos</h3>
+                <ul>
+                    <li><strong>Pantallas:</strong> LCDs, OLEDs, táctiles</li>
+                    <li><strong>Baterías:</strong> Originales y compatibles</li>
+                    <li><strong>Conectores:</strong> Puertos de carga, flex</li>
+                    <li><strong>Cámaras:</strong> Frontales y traseras</li>
+                    <li><strong>Altavoces:</strong> Auriculares y altavoces</li>
+                    <li><strong>Carcasas:</strong> Tapas traseras, marcos</li>
+                </ul>
+                <div class="warning-box">
+                    <strong>⚠️ Alerta de Stock:</strong> El sistema notifica automáticamente cuando el stock de un producto baja del mínimo configurado.
+                </div>
+            </section>
+            
+            <!-- 7. INSURAMA -->
+            <section id="insurama">
+                <h2>7. Integración Insurama/Sumbroker</h2>
+                <h3>¿Qué es Insurama?</h3>
+                <p>Insurama es el portal de gestión de siniestros de seguros de móviles. NEXORA se integra directamente para automatizar el proceso.</p>
+                <div class="success-box">
+                    <strong>✅ Funcionalidades:</strong>
+                    <ul>
+                        <li>Recibir automáticamente nuevos siniestros</li>
+                        <li>Enviar presupuestos completos al portal</li>
+                        <li>Sincronizar estados de reparación</li>
+                        <li>Gestionar fotos y evidencias</li>
+                    </ul>
+                </div>
+                <h3>Enviar Presupuesto a Insurama</h3>
+                <p>Campos obligatorios del formulario:</p>
+                <table>
+                    <tr><th>Campo</th><th>Descripción</th></tr>
+                    <tr><td>Precio (€)</td><td>Coste total de la reparación</td></tr>
+                    <tr><td>Disponibilidad</td><td>Inmediata, 24h, 48h, 7 días, Sin stock</td></tr>
+                    <tr><td>Tiempo en Horas</td><td>Horas estimadas de trabajo</td></tr>
+                    <tr><td>Tipo de Recambio</td><td>Original, Compatible, Reacondicionado</td></tr>
+                    <tr><td>Tipo de Garantía</td><td>Fabricante, Taller, Sin garantía</td></tr>
+                    <tr><td>Descripción</td><td>Detalle de la reparación a realizar</td></tr>
+                </table>
+            </section>
+            
+            <!-- 8. PRE-REGISTROS -->
+            <section id="preregistros">
+                <h2>8. Pre-Registros</h2>
+                <h3>¿Qué son los Pre-Registros?</h3>
+                <p>Los Pre-Registros son siniestros de Insurama que aún no tienen orden de trabajo creada. Representan trabajos potenciales que el sistema ha detectado automáticamente.</p>
+                
+                <h3>Lista de Pre-Registros</h3>
+                <p>Muestra todos los siniestros pendientes con:</p>
+                <table>
+                    <tr><th>Campo</th><th>Descripción</th></tr>
+                    <tr><td>Código de siniestro</td><td>Identificador único (26BE...)</td></tr>
+                    <tr><td>Cliente</td><td>Nombre del asegurado</td></tr>
+                    <tr><td>Dispositivo</td><td>Modelo del móvil</td></tr>
+                    <tr><td>Estado</td><td>Pendiente, Enviado, Aceptado, etc.</td></tr>
+                    <tr><td>Fecha</td><td>Cuándo se recibió el siniestro</td></tr>
+                </table>
+                
+                <h3>Acciones Disponibles</h3>
+                <table>
+                    <tr><th>Botón</th><th>Acción</th></tr>
+                    <tr><td><span class="badge badge-blue">Enviar Presupuesto</span></td><td>Ir a Insurama para enviar precio</td></tr>
+                    <tr><td><span class="badge badge-green">Crear Orden</span></td><td>Generar orden de trabajo directamente</td></tr>
+                    <tr><td><span class="badge badge-gray">Ver Orden</span></td><td>Abrir orden existente (si ya se creó)</td></tr>
+                </table>
+                
+                <h3>Estados de Pre-Registro</h3>
+                <ul>
+                    <li><span class="badge badge-yellow">Pendiente Presupuesto</span> - Sin precio enviado</li>
+                    <li><span class="badge badge-blue">Presupuesto Enviado</span> - Esperando respuesta del cliente</li>
+                    <li><span class="badge badge-green">Aceptado</span> - Cliente aprobó → Crear orden</li>
+                    <li><span class="badge badge-red">Rechazado</span> - Cliente no aceptó</li>
+                    <li><span class="badge badge-purple">Orden Creada</span> - Ya tiene orden de trabajo</li>
+                    <li><span class="badge badge-gray">Cancelado</span> - Siniestro anulado</li>
+                </ul>
+                
+                <div class="info-box">
+                    <strong>🗑️ Limpieza Automática:</strong> Los pre-registros cancelados, rechazados y archivados se eliminan automáticamente después de <strong>7 días</strong>.
+                </div>
+            </section>
+            
+            <!-- 9. NOTIFICACIONES -->
+            <section id="notificaciones">
+                <h2>9. Notificaciones</h2>
+                <h3>Centro de Notificaciones</h3>
+                <p>Muestra todas las alertas del sistema en tiempo real, permitiendo gestión individual o masiva.</p>
+                
+                <h3>Tipos de Notificaciones</h3>
+                <table>
+                    <tr><th>Tipo</th><th>Color</th><th>Significado</th></tr>
+                    <tr><td>Presupuesto Aceptado</td><td><span class="badge badge-green">Verde</span></td><td>Cliente aprobó, crear orden</td></tr>
+                    <tr><td>Presupuesto Rechazado</td><td><span class="badge badge-red">Rojo</span></td><td>Cliente no aceptó</td></tr>
+                    <tr><td>Nuevo Siniestro</td><td><span class="badge badge-blue">Azul</span></td><td>Llegó trabajo de Insurama</td></tr>
+                    <tr><td>Material Pendiente</td><td><span class="badge badge-yellow">Amarillo</span></td><td>Técnico solicita repuesto</td></tr>
+                    <tr><td>Orden Completada</td><td><span class="badge badge-green">Verde</span></td><td>Reparación terminada</td></tr>
+                    <tr><td>Mensaje Admin</td><td><span class="badge badge-purple">Morado</span></td><td>Comunicación interna</td></tr>
+                </table>
+                
+                <h3>Acciones Individuales</h3>
+                <ul>
+                    <li><strong>Ver Ficha:</strong> Ir directamente a la orden relacionada</li>
+                    <li><strong>Marcar Leída:</strong> Quitar de notificaciones nuevas</li>
+                    <li><strong>Eliminar:</strong> Borrar notificación</li>
+                </ul>
+                
+                <h3>Selección Múltiple</h3>
+                <p>Para gestionar varias notificaciones a la vez:</p>
+                <ol>
+                    <li>Pulsar el botón <strong>"Seleccionar"</strong></li>
+                    <li>Marcar las notificaciones deseadas con los checkboxes</li>
+                    <li>Usar <strong>"Seleccionar todas"</strong> o <strong>"Deseleccionar"</strong></li>
+                    <li>Pulsar <strong>"Eliminar (N)"</strong> o <strong>"Marcar leídas"</strong></li>
+                </ol>
+                
+                <div class="info-box">
+                    <strong>💡 Tip:</strong> Las notificaciones importantes aparecen como popup en tiempo real para que no te pierdas ninguna alerta urgente.
+                </div>
+            </section>
+            
+            <!-- 10. CALENDARIO -->
+            <section id="calendario">
+                <h2>10. Calendario</h2>
+                <h3>Vista de Calendario</h3>
+                <p>Muestra una vista mensual con todos los eventos y asignaciones del taller.</p>
+                
+                <h3>Tipos de Eventos</h3>
+                <table>
+                    <tr><th>Color</th><th>Tipo de Evento</th></tr>
+                    <tr><td><span class="badge badge-green">Verde</span></td><td>Orden Asignada</td></tr>
+                    <tr><td><span class="badge badge-blue">Azul</span></td><td>Llegada de Dispositivo</td></tr>
+                    <tr><td><span class="badge badge-yellow">Naranja</span></td><td>Llegada de Repuesto</td></tr>
+                    <tr><td><span class="badge badge-purple">Morado</span></td><td>Reunión</td></tr>
+                    <tr><td><span class="badge badge-gray">Gris</span></td><td>Ausencia</td></tr>
+                    <tr><td><span class="badge badge-red">Rojo</span></td><td>Vacaciones</td></tr>
+                </table>
+                
+                <h3>Crear Evento</h3>
+                <ol>
+                    <li>Pulsar <strong>"+ Nuevo Evento"</strong></li>
+                    <li>Seleccionar tipo de evento</li>
+                    <li>Elegir fecha y hora</li>
+                    <li>Añadir descripción</li>
+                    <li>Asignar técnico (si aplica)</li>
+                    <li>Pulsar <strong>"Guardar"</strong></li>
+                </ol>
+                
+                <h3>Asignar Orden a Fecha</h3>
+                <ol>
+                    <li>Pulsar <strong>"Asignar Orden"</strong></li>
+                    <li>Seleccionar la orden de la lista</li>
+                    <li>Elegir fecha estimada de entrega</li>
+                    <li>Asignar técnico responsable</li>
+                </ol>
+                
+                <div class="info-box">
+                    <strong>💡 Tip:</strong> Usa el calendario para planificar la carga de trabajo del taller y evitar cuellos de botella.
+                </div>
+            </section>
+            
+            <!-- 11. FLUJOS AUTOMÁTICOS -->
+            <section id="flujos">
+                <h2>11. Flujos Automáticos</h2>
+                <h3>🔄 Polling de Insurama</h3>
+                <div class="info-box">
+                    <strong>¿Qué hace?</strong> Cada 5 minutos el sistema consulta automáticamente el portal de Sumbroker buscando nuevos siniestros y cambios de estado.
+                </div>
+                <div class="flow-diagram">
+                    <span class="step">1. Sumbroker envía siniestro</span>
+                    <span class="arrow">→</span>
+                    <span class="step">2. NEXORA detecta (polling)</span>
+                    <span class="arrow">→</span>
+                    <span class="step">3. Se crea Pre-Registro</span>
+                    <span class="arrow">→</span>
+                    <span class="step">4. Notificación al admin</span>
+                    <span class="arrow">→</span>
+                    <span class="step">5. Envío de presupuesto</span>
+                    <span class="arrow">→</span>
+                    <span class="step">6. Cliente acepta</span>
+                    <span class="arrow">→</span>
+                    <span class="step">7. Orden creada automáticamente</span>
+                </div>
+                <h3>📧 Notificaciones Automáticas</h3>
+                <table>
+                    <tr><th>Evento</th><th>Email</th><th>SMS</th><th>App</th></tr>
+                    <tr><td>Nueva orden creada</td><td>✅</td><td>❌</td><td>✅</td></tr>
+                    <tr><td>Presupuesto enviado</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                    <tr><td>Presupuesto aceptado</td><td>✅</td><td>❌</td><td>✅</td></tr>
+                    <tr><td>Reparación completada</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                </table>
+                <h3>🗑️ Limpieza Automática</h3>
+                <ul>
+                    <li><strong>Pre-registros cancelados:</strong> Se eliminan tras 7 días</li>
+                    <li><strong>Notificaciones antiguas:</strong> Según configuración del sistema</li>
+                </ul>
+            </section>
+            
+            <!-- 12. GUÍA TÉCNICOS -->
+            <section id="tecnicos">
+                <h2>12. Guía para Técnicos</h2>
+                
+                <h3>Acceso al Panel de Técnico</h3>
+                <ol>
+                    <li>Iniciar sesión con credenciales de técnico</li>
+                    <li>Acceder a <strong>"Panel Técnico"</strong> en el menú</li>
+                    <li>Ver solo las órdenes asignadas a ti</li>
+                </ol>
+                
+                <h3>✅ Validar Materiales Usados</h3>
+                <p>Sistema de "picking" para confirmar que los materiales asignados realmente fueron utilizados:</p>
+                <ol>
+                    <li>Ir a la pestaña <strong>"Materiales"</strong> de la orden</li>
+                    <li>Pulsar <strong>"Validar (N pendientes)"</strong></li>
+                    <li>Escanear el <strong>SKU o código de barras</strong> de cada material</li>
+                    <li>El sistema confirma automáticamente al detectar el código</li>
+                    <li>Se registra quién validó y cuándo</li>
+                </ol>
+                <div class="success-box">
+                    <strong>Progreso visible:</strong>
+                    <ul>
+                        <li>Barra de progreso: X/Y materiales validados</li>
+                        <li><span class="badge badge-green">Verde</span> = Material validado</li>
+                        <li><span class="badge badge-gray">Gris</span> = Pendiente de validar</li>
+                    </ul>
+                </div>
+                
+                <h3>Añadir Materiales</h3>
+                <h4>Desde Inventario:</h4>
+                <ol>
+                    <li>Pulsar <strong>"Existente"</strong></li>
+                    <li>Buscar el repuesto por nombre o SKU</li>
+                    <li>Confirmar (la orden se bloquea hasta aprobación del admin)</li>
+                </ol>
+                <h4>Material No Registrado:</h4>
+                <ol>
+                    <li>Pulsar <strong>"Nuevo"</strong></li>
+                    <li>Escribir nombre del material</li>
+                    <li>Indicar cantidad</li>
+                    <li>El admin asignará los precios</li>
+                </ol>
+                <div class="warning-box">
+                    <strong>⚠️ Importante:</strong> Cuando un técnico añade material, la orden queda <strong>BLOQUEADA</strong> hasta que el administrador lo apruebe.
+                </div>
+                
+                <h3>Subir Evidencias (Fotos)</h3>
+                <ol>
+                    <li>Ir a la pestaña <strong>"Evidencias"</strong></li>
+                    <li>Pulsar <strong>"Subir Foto"</strong></li>
+                    <li>Seleccionar imagen del dispositivo</li>
+                    <li>Añadir descripción</li>
+                    <li>La foto se guarda con la orden</li>
+                </ol>
+                
+                <h3>Comunicación con Admin</h3>
+                <ol>
+                    <li>Ir a la pestaña <strong>"Mensajes"</strong></li>
+                    <li>Escribir mensaje</li>
+                    <li>Pulsar <strong>"Enviar"</strong></li>
+                    <li>El admin recibe notificación en tiempo real</li>
+                </ol>
+            </section>
+        </main>
+        
+        <footer>
+            <p>© 2026 NEXORA - Sistema de Gestión para Servicios Técnicos</p>
+            <p style="margin-top: 10px; opacity: 0.7;">
+                📧 soporte@nexora.es | 📱 +34 XXX XXX XXX
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

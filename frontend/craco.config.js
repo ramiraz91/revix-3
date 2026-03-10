@@ -9,7 +9,17 @@ const isDevServer = process.env.NODE_ENV !== "production";
 // Environment variable overrides
 const config = {
   enableHealthCheck: process.env.ENABLE_HEALTH_CHECK === "true",
+  enableVisualEdits: isDevServer, // Only enable during dev server
 };
+
+// Conditionally load visual edits modules only in dev mode
+let setupDevServer;
+let babelMetadataPlugin;
+
+if (config.enableVisualEdits) {
+  setupDevServer = require("./plugins/visual-edits/dev-server-setup");
+  babelMetadataPlugin = require("./plugins/visual-edits/babel-metadata-plugin");
+}
 
 // Conditionally load health check modules only if enabled
 let WebpackHealthPlugin;
@@ -22,7 +32,7 @@ if (config.enableHealthCheck) {
   healthPluginInstance = new WebpackHealthPlugin();
 }
 
-let webpackConfig = {
+const webpackConfig = {
   eslint: {
     configure: {
       extends: ["plugin:react-hooks/recommended"],
@@ -60,7 +70,60 @@ let webpackConfig = {
   },
 };
 
+// Only add babel metadata plugin during dev server
+if (config.enableVisualEdits && babelMetadataPlugin) {
+  const problematicFiles = ['Layout.jsx', 'Liquidaciones.jsx', 'OrdenesCompra.jsx'];
+
+  const safePlugin = (api, options, dirname) => {
+    let original;
+    try {
+      original = typeof babelMetadataPlugin === 'function'
+        ? babelMetadataPlugin(api, options, dirname)
+        : babelMetadataPlugin;
+    } catch(e) {
+      return { visitor: {} };
+    }
+
+    const visitor = original && original.visitor ? original.visitor : (original || {});
+    const safeVisitor = {};
+
+    for (const key of Object.keys(visitor)) {
+      const fn = visitor[key];
+      if (typeof fn !== 'function') {
+        safeVisitor[key] = fn;
+        continue;
+      }
+      safeVisitor[key] = function(nodePath, state) {
+        try {
+          const filename = (state && state.filename) || (this && this.filename) || '';
+          if (problematicFiles.some(f => filename.includes(f))) return;
+          return fn.call(this, nodePath, state);
+        } catch(e) {
+          // silently skip files that cause plugin errors
+        }
+      };
+    }
+
+    return { ...(original || {}), visitor: safeVisitor };
+  };
+
+  webpackConfig.babel = {
+    plugins: [safePlugin],
+  };
+}
+
 webpackConfig.devServer = (devServerConfig) => {
+  // Disable error overlay to prevent blocking UI with plugin-level errors
+  devServerConfig.client = {
+    ...devServerConfig.client,
+    overlay: false,
+  };
+
+  // Apply visual edits dev server setup only if enabled
+  if (config.enableVisualEdits && setupDevServer) {
+    devServerConfig = setupDevServer(devServerConfig);
+  }
+
   // Add health check endpoints if enabled
   if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
     const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
@@ -80,21 +143,5 @@ webpackConfig.devServer = (devServerConfig) => {
 
   return devServerConfig;
 };
-
-// Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
-  try {
-    const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
-    webpackConfig = withVisualEdits(webpackConfig);
-  } catch (err) {
-    if (err.code === 'MODULE_NOT_FOUND' && err.message.includes('@emergentbase/visual-edits/craco')) {
-      console.warn(
-        "[visual-edits] @emergentbase/visual-edits not installed — visual editing disabled."
-      );
-    } else {
-      throw err;
-    }
-  }
-}
 
 module.exports = webpackConfig;

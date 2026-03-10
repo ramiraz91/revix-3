@@ -1,53 +1,325 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Redirige /seguimiento?codigo=X → /consulta?codigo=X (ahora en raíz)
+function SeguimientoRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/consulta${location.search}`} replace />;
+}
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+// Redirige /web/* → /* (compatibilidad con links antiguos)
+function WebRedirect() {
+  const location = useLocation();
+  const newPath = location.pathname.replace('/web', '') || '/';
+  return <Navigate to={`${newPath}${location.search}`} replace />;
+}
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import Layout from "@/components/Layout";
+import Login from "@/pages/Login";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import Dashboard from "@/pages/Dashboard";
+import Ordenes from "@/pages/Ordenes";
+import OrdenDetalle from "@/pages/OrdenDetalle";
+import OrdenTecnico from "@/pages/OrdenTecnico";
+import NuevaOrden from "@/pages/NuevaOrden";
+import Clientes from "@/pages/Clientes";
+import ClienteDetalle from "@/pages/ClienteDetalle";
+import Inventario from "@/pages/Inventario";
+import Proveedores from "@/pages/Proveedores";
+import Scanner from "@/pages/Scanner";
+import Notificaciones from "@/pages/Notificaciones";
+import Seguimiento from "@/pages/Seguimiento";
+import Configuracion from "@/pages/Configuracion";
+import EmpresaConfig from "@/pages/EmpresaConfig";
+import PanelMaster from "@/pages/PanelMaster";
+import Restos from "@/pages/Restos";
+import Usuarios from "@/pages/Usuarios";
+import Calendario from "@/pages/Calendario";
+import OrdenesCompra from "@/pages/OrdenesCompra";
+import Incidencias from "@/pages/Incidencias";
+import Analiticas from "@/pages/Analiticas";
+import EmailConfig from "@/pages/EmailConfig";
+import Comisiones from "@/pages/Comisiones";
+import EtiquetasEnvio from "@/pages/EtiquetasEnvio";
+import NotificacionesTecnico from "@/pages/NotificacionesTecnico";
+import Insurama from "@/pages/Insurama";
+import Logistica from "@/pages/Logistica";
+import PreRegistros from "@/pages/PreRegistros";
+import MobileSentrixConfig from "@/pages/MobileSentrixConfig";
+import UtopyaConfig from "@/pages/UtopyaConfig";
+import Contabilidad from "@/pages/Contabilidad";
+import FacturaDetalle from "@/pages/FacturaDetalle";
+import Modelo347 from "@/pages/Modelo347";
+import Kits from "@/pages/Kits";
+import BuscarSiniestro from "@/pages/BuscarSiniestro";
+import Liquidaciones from "@/pages/Liquidaciones";
+import ISOModule from "@/pages/ISOModule";
+import PeticionesExteriores from "@/pages/PeticionesExteriores";
+import FAQsAdmin from "@/pages/FAQsAdmin";
+import AgentARIA from "@/pages/AgentARIA";
 
+// Public website pages
+import PublicLayout from "@/components/public/PublicLayout";
+import PublicHome from "@/pages/public/PublicHome";
+import PublicServicios from "@/pages/public/PublicServicios";
+import PublicContacto from "@/pages/public/PublicContacto";
+import PublicPresupuesto from "@/pages/public/PublicPresupuesto";
+import PublicAseguradoras from "@/pages/public/PublicAseguradoras";
+import PublicGarantia from "@/pages/public/PublicGarantia";
+import PublicGarantiaExtendida from "@/pages/public/PublicGarantiaExtendida";
+import PublicPartners from "@/pages/public/PublicPartners";
+import PublicFAQs from "@/pages/public/PublicFAQs";
+
+// Protected Route component
+function ProtectedRoute({ children, adminOnly = false, masterOnly = false }) {
+  const { user, loading, isAdmin, isMaster } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/crm/login" replace />;
+  }
+  
+  if (masterOnly && !isMaster()) {
+    return <Navigate to="/crm/dashboard" replace />;
+  }
+  
+  if (adminOnly && !isAdmin()) {
+    return <Navigate to="/crm/dashboard" replace />;
+  }
+  
+  return children;
+}
+
+// Route that redirects based on role
+function OrdenRoute() {
+  const { isTecnico } = useAuth();
+  return isTecnico() ? <OrdenTecnico /> : <OrdenDetalle />;
+}
+
+function AppRoutes() {
+  const { user } = useAuth();
+  
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <Routes>
+      {/* ===== WEB PÚBLICA (www.revix.es/) ===== */}
+      <Route path="/" element={<PublicLayout />}>
+        <Route index element={<PublicHome />} />
+        <Route path="servicios" element={<PublicServicios />} />
+        <Route path="contacto" element={<PublicContacto />} />
+        <Route path="presupuesto" element={<PublicPresupuesto />} />
+        <Route path="aseguradoras" element={<PublicAseguradoras />} />
+        <Route path="partners" element={<PublicPartners />} />
+        <Route path="garantia" element={<PublicGarantia />} />
+        <Route path="garantia-extendida" element={<PublicGarantiaExtendida />} />
+        <Route path="consulta" element={<Seguimiento />} />
+        <Route path="faqs" element={<PublicFAQs />} />
+        <Route path="preguntas-frecuentes" element={<PublicFAQs />} />
+      </Route>
+
+      {/* Redirecciones de compatibilidad con URLs antiguas */}
+      <Route path="/seguimiento" element={<SeguimientoRedirect />} />
+      <Route path="/web/*" element={<WebRedirect />} />
+      <Route path="/login" element={<Navigate to="/crm/login" replace />} />
+      
+      {/* ===== CRM (www.revix.es/crm) ===== */}
+      <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />
+      <Route path="/crm/forgot-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ForgotPassword />} />
+      <Route path="/crm/reset-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ResetPassword />} />
+      
+      <Route path="/crm" element={
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      }>
+        <Route index element={<Navigate to="/crm/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="ordenes" element={<Ordenes />} />
+        <Route path="ordenes/nueva" element={
+          <ProtectedRoute adminOnly>
+            <NuevaOrden />
+          </ProtectedRoute>
+        } />
+        <Route path="ordenes/:id" element={<OrdenRoute />} />
+        <Route path="clientes" element={
+          <ProtectedRoute adminOnly>
+            <Clientes />
+          </ProtectedRoute>
+        } />
+        <Route path="clientes/:id" element={
+          <ProtectedRoute adminOnly>
+            <ClienteDetalle />
+          </ProtectedRoute>
+        } />
+        <Route path="inventario" element={
+          <ProtectedRoute adminOnly>
+            <Inventario />
+          </ProtectedRoute>
+        } />
+        <Route path="proveedores" element={
+          <ProtectedRoute adminOnly>
+            <Proveedores />
+          </ProtectedRoute>
+        } />
+        <Route path="scanner" element={<Scanner />} />
+        <Route path="notificaciones" element={
+          <ProtectedRoute>
+            <Notificaciones />
+          </ProtectedRoute>
+        } />
+        <Route path="configuracion" element={
+          <ProtectedRoute masterOnly>
+            <Configuracion />
+          </ProtectedRoute>
+        } />
+        <Route path="empresa" element={
+          <ProtectedRoute masterOnly>
+            <EmpresaConfig />
+          </ProtectedRoute>
+        } />
+        <Route path="restos" element={
+          <ProtectedRoute adminOnly>
+            <Restos />
+          </ProtectedRoute>
+        } />
+        <Route path="usuarios" element={
+          <ProtectedRoute masterOnly>
+            <Usuarios />
+          </ProtectedRoute>
+        } />
+        <Route path="calendario" element={<Calendario />} />
+        <Route path="iso" element={
+          <ProtectedRoute adminOnly>
+            <ISOModule />
+          </ProtectedRoute>
+        } />
+        <Route path="ordenes-compra" element={
+          <ProtectedRoute adminOnly>
+            <OrdenesCompra />
+          </ProtectedRoute>
+        } />
+        <Route path="incidencias" element={
+          <ProtectedRoute>
+            <Incidencias />
+          </ProtectedRoute>
+        } />
+        <Route path="master" element={
+          <ProtectedRoute masterOnly>
+            <PanelMaster />
+          </ProtectedRoute>
+        } />
+        <Route path="analiticas" element={
+          <ProtectedRoute masterOnly>
+            <Analiticas />
+          </ProtectedRoute>
+        } />
+        <Route path="email-config" element={
+          <ProtectedRoute adminOnly>
+            <EmailConfig />
+          </ProtectedRoute>
+        } />
+        <Route path="comisiones" element={
+          <ProtectedRoute adminOnly>
+            <Comisiones />
+          </ProtectedRoute>
+        } />
+        <Route path="etiquetas-envio" element={
+          <ProtectedRoute adminOnly>
+            <EtiquetasEnvio />
+          </ProtectedRoute>
+        } />
+        <Route path="insurama" element={
+          <ProtectedRoute masterOnly>
+            <Insurama />
+          </ProtectedRoute>
+        } />
+        <Route path="peticiones-exteriores" element={
+          <ProtectedRoute adminOnly>
+            <PeticionesExteriores />
+          </ProtectedRoute>
+        } />
+        <Route path="faqs-admin" element={
+          <ProtectedRoute masterOnly>
+            <FAQsAdmin />
+          </ProtectedRoute>
+        } />
+        <Route path="agente-aria" element={
+          <ProtectedRoute adminOnly>
+            <AgentARIA />
+          </ProtectedRoute>
+        } />
+        <Route path="liquidaciones" element={
+          <ProtectedRoute masterOnly>
+            <Liquidaciones />
+          </ProtectedRoute>
+        } />
+        <Route path="buscar-siniestro" element={
+          <ProtectedRoute adminOnly>
+            <BuscarSiniestro />
+          </ProtectedRoute>
+        } />
+        <Route path="pre-registros" element={
+          <ProtectedRoute adminOnly>
+            <PreRegistros />
+          </ProtectedRoute>
+        } />
+        <Route path="logistica" element={
+          <ProtectedRoute adminOnly>
+            <Logistica />
+          </ProtectedRoute>
+        } />
+        <Route path="mobilesentrix" element={
+          <ProtectedRoute masterOnly>
+            <MobileSentrixConfig />
+          </ProtectedRoute>
+        } />
+        <Route path="utopya" element={
+          <ProtectedRoute masterOnly>
+            <UtopyaConfig />
+          </ProtectedRoute>
+        } />
+        <Route path="contabilidad" element={
+          <ProtectedRoute adminOnly>
+            <Contabilidad />
+          </ProtectedRoute>
+        } />
+        <Route path="contabilidad/factura/:id" element={
+          <ProtectedRoute adminOnly>
+            <FacturaDetalle />
+          </ProtectedRoute>
+        } />
+        <Route path="contabilidad/informe/modelo347" element={
+          <ProtectedRoute adminOnly>
+            <Modelo347 />
+          </ProtectedRoute>
+        } />
+        <Route path="kits" element={
+          <ProtectedRoute adminOnly>
+            <Kits />
+          </ProtectedRoute>
+        } />
+      </Route>
+    </Routes>
   );
-};
+}
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <Toaster position="top-right" richColors />
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

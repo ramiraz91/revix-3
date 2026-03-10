@@ -16,25 +16,9 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 2. **Admin (admin@techrepair.local)**: Order management, clients, inventory, operations
 3. **Tecnico (tecnico@techrepair.local)**: Repair work orders, diagnostics, material requests
 
-## Core Requirements
-- Multi-role authentication (master/admin/tecnico)
-- Work order management (full lifecycle)
-- Client management
-- Inventory/spare parts management
-- Calendar and scheduling
-- ISO 9001 compliance module
-- AI assistant (Gemini-based diagnostics)
-- Public website (revix.es)
-- Order tracking for customers
-- Notification system (email, SMS)
-- Accounting/invoicing
-- Supplier management
-- Purchase orders
-- Incidents/CAPA management
-- Insurance integration (Insurama/Sumbroker)
-- Logistics management (GLS, etc.)
+## What's Been Implemented
 
-## What's Been Implemented (Jan 2026)
+### Session 1 (Jan 2026) - Initial Import
 - [x] Code imported from GitHub repository
 - [x] Database configured as 'production'
 - [x] 3 users created (master, admin, tecnico)
@@ -42,31 +26,42 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] Frontend compiled and serving
 - [x] AI integration (Gemini via Emergent LLM Key)
 - [x] SMTP email service configured
-- [x] All services verified and tested (100% backend, 95% frontend)
 
-## Test Results
-- All 14 backend tests passed (100%)
-- Frontend: All major functionality working (95%)
-- Minor cosmetic: chart dimension warnings, WebSocket in test env
+### Session 2 - Bug Fixes
+- [x] Fixed legacy URL redirects (/ordenes/nueva → /crm/ordenes/nueva etc.)
+
+### Session 3 - Insurama/Sumbroker Improvements
+- [x] Increased all Sumbroker API timeouts (120s → 180s backend, 200s frontend)
+- [x] Added retry with re-authentication (MAX_RETRIES=2) on auth failures and timeouts
+- [x] Created API_SLOW axios instance for Insurama/Sumbroker calls
+- [x] Fixed competitor prices bug (httpx direct calls → scraper with retry)
+- [x] Added `get_claim_store_budgets()` method to scraper
+- [x] Removed all direct httpx calls to Sumbroker API from routes
+- [x] Added `reserve_value` (max claim amount) to budget listings and search
+- [x] Added `claim_real_value`, `product_name`, `internal_status_text`, `external_status_text` to API responses
+- [x] Added `device_purchase_date`, `device_purchase_price` to budget details
+- [x] Updated InsuramaPresupuestosTable: shows reserve_value column with margin badge
+- [x] Updated InsuramaDetalleTab: reserve_value banner, policy number, repair type, warranty type, purchase info
+- [x] Updated competitor view: winner badge, price difference badges, improved layout
+- [x] Updated search results: reserve_value display, product info, internal states
 
 ## Prioritized Backlog
 ### P0 (Critical)
-- [x] Import and setup complete
-- [x] User authentication working
-- [x] Dashboard functional
+- [x] All above completed
 
 ### P1 (High)
+- Configure correct Sumbroker credentials (current ones are invalid)
 - Configure custom domain revix.es after deploy
 - Set up SMTP password for email sending
-- Production JWT_SECRET (currently using secure default)
 
 ### P2 (Medium)
+- GLS API real integration (currently UI only, no API connection)
 - WebSocket notifications setup
 - Full ISO 9001 module testing
-- Performance optimization for large datasets
+- Status history endpoint integration
 
 ## Next Tasks
-1. Deploy to Emergent production
-2. Connect revix.es domain
-3. Configure SMTP credentials for email notifications
-4. Test all modules end-to-end with real data
+1. Fix Sumbroker credentials to enable full Insurama functionality
+2. Deploy to Emergent production
+3. Connect revix.es domain
+4. GLS integration if needed

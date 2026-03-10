@@ -870,7 +870,7 @@ export default function Insurama() {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div>
                               <p className="text-xs text-muted-foreground">Dispositivo</p>
                               <p className="font-medium">
@@ -895,6 +895,43 @@ export default function Insurama() {
                                 {getResultadoSeleccionado()?.presupuesto?.price || 0}€
                               </p>
                             </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Máx. Siniestro</p>
+                              {getResultadoSeleccionado()?.presupuesto?.reserve_value ? (
+                                <p className="font-bold text-lg text-blue-600">
+                                  {parseFloat(getResultadoSeleccionado()?.presupuesto?.reserve_value).toFixed(2)}€
+                                </p>
+                              ) : (
+                                <p className="text-muted-foreground">-</p>
+                              )}
+                            </div>
+                          </div>
+                          {/* Extra info row */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 pt-3 border-t">
+                            {getResultadoSeleccionado()?.presupuesto?.product_name && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Producto/Seguro</p>
+                                <p className="text-sm">{getResultadoSeleccionado()?.presupuesto?.product_name}</p>
+                              </div>
+                            )}
+                            {getResultadoSeleccionado()?.presupuesto?.internal_status_text && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Estado interno</p>
+                                <Badge variant="outline" className="text-xs">{getResultadoSeleccionado()?.presupuesto?.internal_status_text}</Badge>
+                              </div>
+                            )}
+                            {getResultadoSeleccionado()?.presupuesto?.repair_time_text && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Tiempo reparación</p>
+                                <p className="text-sm">{getResultadoSeleccionado()?.presupuesto?.repair_time_text}</p>
+                              </div>
+                            )}
+                            {getResultadoSeleccionado()?.presupuesto?.device_purchase_price && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Precio compra dispositivo</p>
+                                <p className="text-sm font-medium">{getResultadoSeleccionado()?.presupuesto?.device_purchase_price}€</p>
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -909,7 +946,7 @@ export default function Insurama() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                               <div className="text-center p-3 bg-white rounded-lg border">
                                 <p className="text-2xl font-bold text-purple-700">
                                   {getResultadoSeleccionado()?.competidores?.estadisticas?.total_participantes || 0}
@@ -940,6 +977,14 @@ export default function Insurama() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">Máximo</p>
                               </div>
+                              {getResultadoSeleccionado()?.presupuesto?.reserve_value && (
+                                <div className="text-center p-3 bg-white rounded-lg border border-blue-300">
+                                  <p className="text-lg font-bold text-blue-700">
+                                    {parseFloat(getResultadoSeleccionado()?.presupuesto?.reserve_value).toFixed(0)}€
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Máx. Siniestro</p>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -955,36 +1000,56 @@ export default function Insurama() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                              {getResultadoSeleccionado()?.competidores?.competidores?.map((comp, idx) => (
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                              {getResultadoSeleccionado()?.competidores?.competidores?.map((comp, idx) => {
+                                const miPrecio = parseFloat(getResultadoSeleccionado()?.competidores?.mi_presupuesto?.precio || 0);
+                                const compPrecio = comp.precio_num || 0;
+                                const diff = miPrecio > 0 && compPrecio > 0 ? compPrecio - miPrecio : null;
+                                return (
                                 <div 
                                   key={comp.id}
                                   className={`flex items-center justify-between p-3 rounded-lg border ${
+                                    comp.estado_codigo === 3 ? 'bg-yellow-50 border-yellow-300' :
                                     comp.estado_codigo === 7 ? 'bg-gray-50 opacity-60' : 'bg-white'
                                   }`}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                                      comp.estado_codigo === 3 ? 'bg-yellow-400 text-white' : 'bg-slate-200'
+                                    }`}>
                                       {idx + 1}
                                     </div>
                                     <div>
-                                      <p className="font-medium text-sm">{comp.tienda_nombre}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-sm">{comp.tienda_nombre}</p>
+                                        {comp.estado_codigo === 3 && (
+                                          <Badge variant="destructive" className="text-[9px] px-1">GANADOR</Badge>
+                                        )}
+                                      </div>
                                       <p className="text-xs text-muted-foreground">{comp.tienda_ciudad}</p>
                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                    <p className={`font-bold ${comp.precio_num > 0 ? 'text-slate-900' : 'text-gray-400'}`}>
-                                      {comp.precio_num > 0 ? `${comp.precio}€` : 'Sin precio'}
-                                    </p>
-                                    <Badge 
-                                      variant={comp.estado_codigo === 3 ? 'default' : comp.estado_codigo === 7 ? 'destructive' : 'secondary'}
-                                      className="text-[10px]"
-                                    >
-                                      {comp.estado}
-                                    </Badge>
+                                  <div className="text-right flex items-center gap-3">
+                                    {diff !== null && (
+                                      <Badge className={`text-[10px] ${diff < 0 ? 'bg-red-100 text-red-700' : diff > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        {diff > 0 ? '+' : ''}{diff.toFixed(0)}€
+                                      </Badge>
+                                    )}
+                                    <div>
+                                      <p className={`font-bold ${comp.precio_num > 0 ? 'text-slate-900' : 'text-gray-400'}`}>
+                                        {comp.precio_num > 0 ? `${comp.precio}€` : 'Sin precio'}
+                                      </p>
+                                      <Badge 
+                                        variant={comp.estado_codigo === 3 ? 'default' : comp.estado_codigo === 7 ? 'destructive' : 'secondary'}
+                                        className="text-[10px]"
+                                      >
+                                        {comp.estado}
+                                      </Badge>
+                                    </div>
                                   </div>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </CardContent>
                         </Card>
@@ -1221,55 +1286,75 @@ export default function Insurama() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                          {competidores.competidores?.map((comp, idx) => (
+                          {competidores.competidores?.map((comp, idx) => {
+                            const miPrecio = parseFloat(competidores.mi_presupuesto?.precio || 0);
+                            const compPrecio = comp.precio_num || 0;
+                            const diff = miPrecio > 0 && compPrecio > 0 ? compPrecio - miPrecio : null;
+                            return (
                             <div 
                               key={comp.id}
                               className={`p-3 rounded-lg border ${
+                                comp.estado_codigo === 3 ? 'bg-yellow-50 border-yellow-300' :
                                 comp.estado_codigo === 7 ? 'bg-gray-50 opacity-60' : 'bg-white'
                               }`}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                                    comp.estado_codigo === 3 ? 'bg-yellow-400 text-white' : 'bg-slate-200'
+                                  }`}>
                                     {idx + 1}
                                   </div>
                                   <div>
-                                    <p className="font-medium text-sm">{comp.tienda_nombre}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-sm">{comp.tienda_nombre}</p>
+                                      {comp.estado_codigo === 3 && (
+                                        <Badge variant="destructive" className="text-[9px] px-1">GANADOR</Badge>
+                                      )}
+                                    </div>
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       <MapPin className="w-3 h-3" />
-                                      {comp.tienda_ciudad}, {comp.tienda_provincia}
+                                      {comp.tienda_ciudad}{comp.tienda_provincia ? `, ${comp.tienda_provincia}` : ''}
                                       {comp.distancia_km && (
                                         <span className="text-blue-600">({comp.distancia_km} km)</span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className={`font-bold ${comp.precio_num > 0 ? 'text-slate-900' : 'text-gray-400'}`}>
-                                    {comp.precio_num > 0 ? `${comp.precio}€` : 'Sin precio'}
-                                  </p>
-                                  <Badge 
-                                    variant={
-                                      comp.estado_codigo === 3 ? 'default' : 
-                                      comp.estado_codigo === 7 ? 'destructive' : 
-                                      'secondary'
-                                    }
-                                    className="text-[10px]"
-                                  >
-                                    {comp.estado}
-                                  </Badge>
+                                <div className="text-right flex items-center gap-3">
+                                  {diff !== null && (
+                                    <Badge className={`text-[10px] ${diff < 0 ? 'bg-red-100 text-red-700' : diff > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                      {diff > 0 ? '+' : ''}{diff.toFixed(0)}€
+                                    </Badge>
+                                  )}
+                                  <div>
+                                    <p className={`font-bold ${comp.precio_num > 0 ? 'text-slate-900' : 'text-gray-400'}`}>
+                                      {comp.precio_num > 0 ? `${comp.precio}€` : 'Sin precio'}
+                                    </p>
+                                    <Badge 
+                                      variant={
+                                        comp.estado_codigo === 3 ? 'default' : 
+                                        comp.estado_codigo === 7 ? 'destructive' : 
+                                        'secondary'
+                                      }
+                                      className="text-[10px]"
+                                    >
+                                      {comp.estado}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
                               {/* Comentario/Observación del competidor */}
                               {comp.comentario && (
                                 <div className="mt-2 pt-2 border-t border-dashed">
                                   <p className="text-xs text-muted-foreground italic">
-                                    💬 {comp.comentario}
+                                    <span className="font-medium">Comentario:</span> {comp.comentario}
                                   </p>
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                           
                           {(!competidores.competidores || competidores.competidores.length === 0) && (
                             <p className="text-center text-muted-foreground py-4">

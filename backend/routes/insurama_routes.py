@@ -332,6 +332,10 @@ async def listar_presupuestos_insurama(
                     "daño": (prc.get("description") or "")[:100],
                     "estado": b.get("status_text"),
                     "precio": b.get("price"),
+                    "reserve_value": prc.get("reserve_value"),
+                    "claim_real_value": prc.get("claim_real_value"),
+                    "product_name": b.get("product_name"),
+                    "repair_time_text": b.get("repair_time_text"),
                     "fecha_creacion": b.get("created_at"),
                     "fecha_aceptacion": b.get("accepted_date"),
                     "tracking": b.get("tracking_number")
@@ -429,6 +433,15 @@ async def busqueda_multiple_presupuestos(data: BusquedaMultipleRequest, user: di
                     "status": budget.get("status"),
                     "status_text": budget.get("status_text"),
                     "price": budget.get("price"),
+                    "reserve_value": prc.get("reserve_value"),
+                    "claim_real_value": prc.get("claim_real_value"),
+                    "product_name": budget.get("product_name"),
+                    "internal_status_text": prc.get("internal_status_text"),
+                    "external_status_text": prc.get("external_status_text"),
+                    "repair_time_text": budget.get("repair_time_text"),
+                    "warranty_type_text": budget.get("warranty_type_text"),
+                    "device_purchase_date": (policy.get("mobile_terminals_active", [{}])[0].get("purchase_date") if policy.get("mobile_terminals_active") else None),
+                    "device_purchase_price": (policy.get("mobile_terminals_active", [{}])[0].get("purchase_price") if policy.get("mobile_terminals_active") else None),
                 }
                 
                 # Obtener competidores/mercado si tenemos claim_budget_id

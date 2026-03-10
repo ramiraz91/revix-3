@@ -704,4 +704,5 @@ export const contabilidadAPI = {
 // ==================== UPLOADS ====================
 export const getUploadUrl = (fileName) => `${BACKEND_URL}/api/uploads/${fileName}`;
 
+export { API_SLOW };
 export default API;

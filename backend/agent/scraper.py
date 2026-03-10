@@ -17,9 +17,10 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.sumbroker.es/api/v2"
-REQUEST_TIMEOUT = 120.0  # Increased timeout for slow Sumbroker API
+REQUEST_TIMEOUT = 180.0  # Very generous timeout for slow Sumbroker API
 MAX_SEARCH_LIMIT = 100
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+MAX_RETRIES = 2  # Retry on auth failures
 
 
 class SumbrokerClient:
@@ -34,24 +35,67 @@ class SumbrokerClient:
     # ── auth ────────────────────────────────────────────────
 
     async def authenticate(self) -> bool:
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.post(
-                f"{API_BASE}/users/login",
-                json={"login": self._login, "password": self._password},
-                headers={"Content-Type": "application/json",
-                         "Accept": "application/json",
-                         "X-localization": "es"},
-            )
-            if resp.status_code != 200:
-                logger.error("Sumbroker login failed: %s %s",
-                             resp.status_code, resp.text[:300])
-                return False
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                    resp = await client.post(
+                        f"{API_BASE}/users/login",
+                        json={"login": self._login, "password": self._password},
+                        headers={"Content-Type": "application/json",
+                                 "Accept": "application/json",
+                                 "X-localization": "es"},
+                    )
+                    if resp.status_code != 200:
+                        logger.error("Sumbroker login failed (attempt %d): %s %s",
+                                     attempt + 1, resp.status_code, resp.text[:300])
+                        if attempt < MAX_RETRIES - 1:
+                            import asyncio
+                            await asyncio.sleep(2)
+                            continue
+                        return False
 
-            data = resp.json()
-            self._token = data.get("api_token")
-            self._user_data = data
-            logger.info("Sumbroker login OK — user=%s", data.get("name"))
+                    data = resp.json()
+                    self._token = data.get("api_token")
+                    self._user_data = data
+                    logger.info("Sumbroker login OK — user=%s", data.get("name"))
+                    return True
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                logger.error("Sumbroker login network error (attempt %d): %s", attempt + 1, e)
+                if attempt < MAX_RETRIES - 1:
+                    import asyncio
+                    await asyncio.sleep(3)
+                    continue
+                return False
+        return False
+
+    async def _ensure_auth(self) -> bool:
+        """Ensure we have a valid token, re-authenticate if needed."""
+        if self._token:
             return True
+        return await self.authenticate()
+
+    async def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """Make an HTTP request with automatic retry on auth failure or timeout."""
+        for attempt in range(MAX_RETRIES):
+            if not await self._ensure_auth():
+                raise Exception("Authentication failed after retries")
+            try:
+                async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                    kwargs.setdefault("headers", self._headers())
+                    resp = await getattr(client, method)(url, **kwargs)
+                    if resp.status_code == 401:
+                        logger.warning("Token expired, re-authenticating (attempt %d)", attempt + 1)
+                        self._token = None
+                        continue
+                    return resp
+            except httpx.TimeoutException:
+                logger.warning("Request timeout for %s (attempt %d)", url, attempt + 1)
+                if attempt < MAX_RETRIES - 1:
+                    import asyncio
+                    await asyncio.sleep(2)
+                    continue
+                raise
+        raise Exception(f"Request failed after {MAX_RETRIES} retries")
 
     def _headers(self) -> dict:
         h = {"Content-Type": "application/json",
@@ -66,86 +110,104 @@ class SumbrokerClient:
     async def list_store_budgets(self, limit: int = 50) -> list[dict]:
         """
         Get the most recent store budgets.
-        API returns oldest first, so we fetch multiple pages from the end.
+        Optimized: fetch only the last page(s) needed.
         """
-        if not self._token:
-            if not await self.authenticate():
-                return []
+        if not await self._ensure_auth():
+            return []
         
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            # Get total first
-            resp = await client.get(
-                f"{API_BASE}/store-budget",
-                params={"limit": 1},
-                headers=self._headers(),
-            )
-            if resp.status_code != 200:
-                logger.error("list_store_budgets error: %s", resp.status_code)
-                return []
-            
-            total = resp.json().get("total", 0)
-            if total == 0:
-                return []
-            
-            # Use page_size of 50 for consistent pagination
-            page_size = 50
-            total_pages = (total + page_size - 1) // page_size
-            
-            # Fetch from the end, collecting until we have enough
-            all_budgets = []
-            
-            for page in range(total_pages, 0, -1):
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                # Get total first
                 resp = await client.get(
                     f"{API_BASE}/store-budget",
-                    params={"limit": page_size, "page": page},
+                    params={"limit": 1},
                     headers=self._headers(),
                 )
+                if resp.status_code == 401:
+                    self._token = None
+                    if not await self._ensure_auth():
+                        return []
+                    resp = await client.get(
+                        f"{API_BASE}/store-budget",
+                        params={"limit": 1},
+                        headers=self._headers(),
+                    )
                 if resp.status_code != 200:
-                    continue
+                    logger.error("list_store_budgets error: %s", resp.status_code)
+                    return []
                 
-                budgets = resp.json().get("store_budgets", [])
-                if budgets:
-                    all_budgets.extend(budgets)
-                    logger.info(f"Página {page}: {len(budgets)} presupuestos")
+                total = resp.json().get("total", 0)
+                if total == 0:
+                    return []
                 
-                if len(all_budgets) >= limit:
-                    break
-            
-            # Sort by ID descending (newest first)
-            all_budgets.sort(key=lambda x: x.get("id", 0), reverse=True)
-            
-            result = all_budgets[:limit]
-            logger.info(f"Devolviendo {len(result)} presupuestos recientes de {total} totales")
-            return result
+                # Fetch only the last page with enough items
+                page_size = min(limit, 50)
+                total_pages = (total + page_size - 1) // page_size
+                
+                all_budgets = []
+                pages_fetched = 0
+                max_pages = 3  # Limit to 3 pages max to avoid slow responses
+                
+                for page in range(total_pages, 0, -1):
+                    if pages_fetched >= max_pages or len(all_budgets) >= limit:
+                        break
+                    try:
+                        resp = await client.get(
+                            f"{API_BASE}/store-budget",
+                            params={"limit": page_size, "page": page},
+                            headers=self._headers(),
+                        )
+                        if resp.status_code != 200:
+                            logger.warning(f"Page {page} failed: {resp.status_code}")
+                            continue
+                        
+                        budgets = resp.json().get("store_budgets", [])
+                        if budgets:
+                            all_budgets.extend(budgets)
+                            logger.info(f"Página {page}: {len(budgets)} presupuestos")
+                        pages_fetched += 1
+                    except httpx.TimeoutException:
+                        logger.warning(f"Timeout fetching page {page}, continuing with what we have")
+                        break
+                
+                # Sort by ID descending (newest first)
+                all_budgets.sort(key=lambda x: x.get("id", 0), reverse=True)
+                
+                result = all_budgets[:limit]
+                logger.info(f"Devolviendo {len(result)} presupuestos recientes de {total} totales")
+                return result
+        except Exception as e:
+            logger.error(f"list_store_budgets exception: {e}")
+            return []
 
     async def get_store_budget(self, budget_id: int) -> Optional[dict]:
-        if not self._token:
-            if not await self.authenticate():
-                return None
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.get(
-                f"{API_BASE}/store-budget/{budget_id}",
-                headers=self._headers(),
-            )
+        if not await self._ensure_auth():
+            return None
+        try:
+            resp = await self._request_with_retry(
+                "get", f"{API_BASE}/store-budget/{budget_id}")
             if resp.status_code != 200:
                 logger.error("get_store_budget(%s) error: %s",
                              budget_id, resp.status_code)
                 return None
             return resp.json()
+        except Exception as e:
+            logger.error("get_store_budget(%s) exception: %s", budget_id, e)
+            return None
 
     async def get_observations(self, budget_id: int) -> list[dict]:
-        if not self._token:
-            if not await self.authenticate():
-                return []
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.get(
-                f"{API_BASE}/store_budget/{budget_id}/observations",
-                headers=self._headers(),
-            )
+        if not await self._ensure_auth():
+            return []
+        try:
+            resp = await self._request_with_retry(
+                "get", f"{API_BASE}/store_budget/{budget_id}/observations")
             if resp.status_code != 200:
                 return []
             data = resp.json()
             return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.warning("get_observations(%s) error: %s", budget_id, e)
+            return []
 
     # ── search by service code (claim identifier) ──────────
 
@@ -156,21 +218,15 @@ class SumbrokerClient:
         
         When multiple budgets exist for the same authorization code,
         prioritizes: Accepted (3) > Active (non-cancelled) > First result
-        
-        Sumbroker status codes:
-        1=Pending, 2=Sent, 3=Accepted, 4=Modified, 5=Repaired, 6=Delivered, 7=Cancelled
         """
-        if not self._token:
-            if not await self.authenticate():
-                return None
+        if not await self._ensure_auth():
+            return None
 
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            # First search with the code directly
-            resp = await client.get(
-                f"{API_BASE}/store-budget",
-                params={"search": codigo, "limit": 50},  # Increased limit to find all related budgets
-                headers=self._headers(),
-            )
+        try:
+            resp = await self._request_with_retry(
+                "get", f"{API_BASE}/store-budget",
+                params={"search": codigo, "limit": 50})
+            
             if resp.status_code != 200:
                 logger.error("search error for %s: %s", codigo, resp.status_code)
                 return None
@@ -226,6 +282,9 @@ class SumbrokerClient:
             # Priority 3: Return first result (even if cancelled, as last resort)
             logger.warning(f"All budgets for {codigo} are cancelled, returning first (id={candidates[0].get('id')})")
             return candidates[0]
+        except Exception as e:
+            logger.error(f"find_budget_by_service_code({codigo}) exception: {e}")
+            return None
 
     # ── photos & documents ──────────────────────────────────
 
@@ -456,12 +515,9 @@ class SumbrokerClient:
     async def update_budget_status(self, budget_id: int, status: int = None, extra_data: dict = None) -> dict:
         """
         Actualiza campos del presupuesto via PATCH.
-        Status numéricos Sumbroker: 1=Pendiente, 2=Enviado, 3=Aceptado, 4=Modificado, 5=Reparado, 6=Entregado, 7=Cancelado
-        extra_data: tracking_number, shipping_company, repair_date, pickup_date, shipping_date, delivery_date, etc.
         """
-        if not self._token:
-            if not await self.authenticate():
-                return {"success": False, "error": "Authentication failed"}
+        if not await self._ensure_auth():
+            return {"success": False, "error": "Authentication failed"}
         
         try:
             payload = {}
@@ -473,18 +529,15 @@ class SumbrokerClient:
             if not payload:
                 return {"success": True, "data": {}}
             
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                resp = await client.patch(
-                    f"{API_BASE}/store-budget/{budget_id}",
-                    json=payload,
-                    headers=self._headers(),
-                )
-                
-                if resp.status_code in [200, 201]:
-                    return {"success": True, "data": resp.json()}
-                else:
-                    logger.error(f"Error updating budget: {resp.status_code} {resp.text[:300]}")
-                    return {"success": False, "error": resp.text[:300]}
+            resp = await self._request_with_retry(
+                "patch", f"{API_BASE}/store-budget/{budget_id}",
+                json=payload)
+            
+            if resp.status_code in [200, 201]:
+                return {"success": True, "data": resp.json()}
+            else:
+                logger.error(f"Error updating budget: {resp.status_code} {resp.text[:300]}")
+                return {"success": False, "error": resp.text[:300]}
         except Exception as e:
             logger.error(f"Exception updating budget: {e}")
             return {"success": False, "error": str(e)}
@@ -501,9 +554,8 @@ class SumbrokerClient:
         - tipo_recambio: "original", "compatible", "reacondicionado", "no_aplica"
         - tipo_garantia: "fabricante", "taller", "sin_garantia"
         """
-        if not self._token:
-            if not await self.authenticate():
-                return {"success": False, "error": "Authentication failed"}
+        if not await self._ensure_auth():
+            return {"success": False, "error": "Authentication failed"}
         
         try:
             # Mapear tipo de recambio a valores de Sumbroker
@@ -552,18 +604,15 @@ class SumbrokerClient:
             
             logger.info(f"Submitting budget {budget_id} with payload: {payload}")
             
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                resp = await client.patch(
-                    f"{API_BASE}/store-budget/{budget_id}",
-                    json=payload,
-                    headers=self._headers(),
-                )
-                
-                if resp.status_code in [200, 201]:
-                    return {"success": True, "data": resp.json()}
-                else:
-                    logger.error(f"Error submitting budget: {resp.status_code} {resp.text[:300]}")
-                    return {"success": False, "error": resp.text[:300]}
+            resp = await self._request_with_retry(
+                "patch", f"{API_BASE}/store-budget/{budget_id}",
+                json=payload)
+            
+            if resp.status_code in [200, 201]:
+                return {"success": True, "data": resp.json()}
+            else:
+                logger.error(f"Error submitting budget: {resp.status_code} {resp.text[:300]}")
+                return {"success": False, "error": resp.text[:300]}
         except Exception as e:
             logger.error(f"Exception submitting budget: {e}")
             return {"success": False, "error": str(e)}
@@ -571,9 +620,8 @@ class SumbrokerClient:
     async def update_tracking(self, budget_id: int, tracking_number: str, 
                              shipping_company: str = None, shipping_date: str = None) -> dict:
         """Actualiza el número de tracking del envío"""
-        if not self._token:
-            if not await self.authenticate():
-                return {"success": False, "error": "Authentication failed"}
+        if not await self._ensure_auth():
+            return {"success": False, "error": "Authentication failed"}
         
         try:
             payload = {"tracking_number": tracking_number}
@@ -582,18 +630,15 @@ class SumbrokerClient:
             if shipping_date:
                 payload["shipping_date"] = shipping_date
             
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                resp = await client.patch(
-                    f"{API_BASE}/store-budget/{budget_id}",
-                    json=payload,
-                    headers=self._headers(),
-                )
-                
-                if resp.status_code in [200, 201]:
-                    return {"success": True, "data": resp.json()}
-                else:
-                    logger.error(f"Error updating tracking: {resp.status_code} {resp.text[:300]}")
-                    return {"success": False, "error": resp.text[:300]}
+            resp = await self._request_with_retry(
+                "patch", f"{API_BASE}/store-budget/{budget_id}",
+                json=payload)
+            
+            if resp.status_code in [200, 201]:
+                return {"success": True, "data": resp.json()}
+            else:
+                logger.error(f"Error updating tracking: {resp.status_code} {resp.text[:300]}")
+                return {"success": False, "error": resp.text[:300]}
         except Exception as e:
             logger.error(f"Exception updating tracking: {e}")
             return {"success": False, "error": str(e)}
@@ -718,52 +763,39 @@ class SumbrokerClient:
     # ── reject budget ────────────────────────────────────────
 
     async def reject_budget(self, budget_id: int, reason: str = None) -> dict:
-        """
-        Reject a budget from the repair shop side.
-        This changes the status to indicate the shop cannot/will not repair.
-        
-        Note: Most insurance portals don't allow shops to reject directly.
-        This is typically done via observation/message to the insurance company.
-        """
-        if not self._token:
-            if not await self.authenticate():
-                return {"success": False, "error": "Authentication failed"}
+        """Reject a budget from the repair shop side."""
+        if not await self._ensure_auth():
+            return {"success": False, "error": "Authentication failed"}
         
         try:
-            # Try to update status to rejected/cancelled from shop side
-            # Status 7 is typically "Cancelado" but shops usually can't set this
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                # First, try sending an observation explaining the rejection
-                if reason:
-                    await self.send_observation(
-                        budget_id, 
-                        f"RECHAZO DE REPARACIÓN: {reason}",
-                        visible_to_client=False
-                    )
-                
-                # Try PATCH with rejection info
-                payload = {
-                    "shop_rejection": True,
-                    "shop_rejection_reason": reason or "Reparación no viable"
-                }
-                
-                resp = await client.patch(
-                    f"{API_BASE}/store-budget/{budget_id}",
-                    json=payload,
-                    headers=self._headers(),
+            # First, try sending an observation explaining the rejection
+            if reason:
+                await self.send_observation(
+                    budget_id, 
+                    f"RECHAZO DE REPARACIÓN: {reason}",
+                    visible_to_client=False
                 )
-                
-                if resp.status_code in [200, 201]:
-                    return {"success": True, "data": resp.json()}
-                elif resp.status_code == 422:
-                    # Validation error - field might not be supported
-                    return {
-                        "success": False,
-                        "error": "Rechazo directo no soportado por API. Use observaciones.",
-                        "observation_sent": bool(reason)
-                    }
-                else:
-                    return {"success": False, "error": f"Status {resp.status_code}: {resp.text[:200]}"}
+            
+            # Try PATCH with rejection info
+            payload = {
+                "shop_rejection": True,
+                "shop_rejection_reason": reason or "Reparación no viable"
+            }
+            
+            resp = await self._request_with_retry(
+                "patch", f"{API_BASE}/store-budget/{budget_id}",
+                json=payload)
+            
+            if resp.status_code in [200, 201]:
+                return {"success": True, "data": resp.json()}
+            elif resp.status_code == 422:
+                return {
+                    "success": False,
+                    "error": "Rechazo directo no soportado por API. Use observaciones.",
+                    "observation_sent": bool(reason)
+                }
+            else:
+                return {"success": False, "error": f"Status {resp.status_code}: {resp.text[:200]}"}
                     
         except Exception as e:
             logger.error(f"Exception rejecting budget: {e}")

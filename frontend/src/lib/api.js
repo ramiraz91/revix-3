@@ -3,6 +3,16 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = axios.create({
   baseURL: `${BACKEND_URL}/api`,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Separate instance for slow Insurama/Sumbroker calls
+const API_SLOW = axios.create({
+  baseURL: `${BACKEND_URL}/api`,
+  timeout: 200000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -17,19 +27,28 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 errors (except for login endpoint)
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const isLoginEndpoint = error.config?.url?.includes('/auth/login');
-    if (error.response?.status === 401 && !isLoginEndpoint) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
+// Add token to slow API requests
+API_SLOW.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
+
+// Handle 401 errors (except for login endpoint)
+const handle401 = (error) => {
+  const isLoginEndpoint = error.config?.url?.includes('/auth/login');
+  if (error.response?.status === 401 && !isLoginEndpoint) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  }
+  return Promise.reject(error);
+};
+
+API.interceptors.response.use((response) => response, handle401);
+API_SLOW.interceptors.response.use((response) => response, handle401);
 
 // ==================== AUTH ====================
 export const authAPI = {
@@ -474,70 +493,70 @@ export const insuramaAPI = {
   // Configuración
   obtenerConfig: () => API.get('/insurama/config'),
   guardarConfig: (data) => API.post('/insurama/config', data),
-  testConexion: () => API.post('/insurama/test-conexion'),
+  testConexion: () => API_SLOW.post('/insurama/test-conexion'),
   
-  // Presupuestos (lectura)
-  listarPresupuestos: (limit = 20) => API.get(`/insurama/presupuestos?limit=${limit}`),
-  obtenerPresupuesto: (codigo) => API.get(`/insurama/presupuesto/${codigo}`),
-  obtenerCompetidores: (codigo) => API.get(`/insurama/presupuesto/${codigo}/competidores`),
+  // Presupuestos (lectura) - SLOW because Sumbroker API is very slow
+  listarPresupuestos: (limit = 20) => API_SLOW.get(`/insurama/presupuestos?limit=${limit}`),
+  obtenerPresupuesto: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}`),
+  obtenerCompetidores: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}/competidores`),
   
   // Búsqueda múltiple (pre-carga todos los datos de mercado en paralelo)
-  busquedaMultiple: (codigos) => API.post('/insurama/busqueda-multiple', { codigos }),
+  busquedaMultiple: (codigos) => API_SLOW.post('/insurama/busqueda-multiple', { codigos }),
   
   // Fotos y documentos
-  obtenerFotos: (codigo) => API.get(`/insurama/presupuesto/${codigo}/fotos`),
-  descargarFotos: (codigo) => API.post(`/insurama/presupuesto/${codigo}/descargar-fotos`),
-  subirFotosDesdeOrden: (codigo) => API.post(`/insurama/presupuesto/${codigo}/fotos/subir-desde-orden`),
+  obtenerFotos: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}/fotos`),
+  descargarFotos: (codigo) => API_SLOW.post(`/insurama/presupuesto/${codigo}/descargar-fotos`),
+  subirFotosDesdeOrden: (codigo) => API_SLOW.post(`/insurama/presupuesto/${codigo}/fotos/subir-desde-orden`),
   
   // Observaciones
-  obtenerObservaciones: (codigo) => API.get(`/insurama/presupuesto/${codigo}/observaciones`),
-  enviarObservacion: (codigo, data) => API.post(`/insurama/presupuesto/${codigo}/observacion`, data),
+  obtenerObservaciones: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}/observaciones`),
+  enviarObservacion: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/observacion`, data),
   
   // Acciones de escritura
-  enviarPresupuesto: (codigo, data) => API.post(`/insurama/presupuesto/${codigo}/enviar-presupuesto`, data),
-  actualizarEstado: (codigo, data) => API.post(`/insurama/presupuesto/${codigo}/estado`, data),
-  enviarTracking: (codigo, tracking, transportista) => API.post(`/insurama/presupuesto/${codigo}/tracking?tracking_number=${tracking}${transportista ? `&transportista=${transportista}` : ''}`),
-  rechazarPresupuesto: (codigo, data) => API.post(`/insurama/presupuesto/${codigo}/rechazar`, data),
+  enviarPresupuesto: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/enviar-presupuesto`, data),
+  actualizarEstado: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/estado`, data),
+  enviarTracking: (codigo, tracking, transportista) => API_SLOW.post(`/insurama/presupuesto/${codigo}/tracking?tracking_number=${tracking}${transportista ? `&transportista=${transportista}` : ''}`),
+  rechazarPresupuesto: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/rechazar`, data),
   
   // Importar al CRM
-  importarPresupuesto: (codigo) => API.post(`/insurama/presupuesto/${codigo}/importar`),
+  importarPresupuesto: (codigo) => API_SLOW.post(`/insurama/presupuesto/${codigo}/importar`),
   
   // Carga masiva desde Excel
-  precheckCargaMasiva: (formData) => API.post('/insurama/carga-masiva/precheck', formData, {
+  precheckCargaMasiva: (formData) => API_SLOW.post('/insurama/carga-masiva/precheck', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  cargaMasiva: (formData) => API.post('/insurama/carga-masiva', formData, {
+  cargaMasiva: (formData) => API_SLOW.post('/insurama/carga-masiva', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   
   // Sincronización
-  sincronizar: () => API.post('/insurama/sincronizar'),
+  sincronizar: () => API_SLOW.post('/insurama/sincronizar'),
 };
 
 // ==================== INTELIGENCIA DE PRECIOS ====================
 export const inteligenciaPreciosAPI = {
   // Dashboard
   getDashboard: async () => {
-    const response = await API.get('/inteligencia-precios/dashboard');
+    const response = await API_SLOW.get('/inteligencia-precios/dashboard');
     return response.data;
   },
   
   // Historial
   getHistorial: async (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    const response = await API.get(`/inteligencia-precios/historial${queryString ? `?${queryString}` : ''}`);
+    const response = await API_SLOW.get(`/inteligencia-precios/historial${queryString ? `?${queryString}` : ''}`);
     return response.data;
   },
   
   // Recomendación de precios
   getRecomendacion: async (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    const response = await API.get(`/inteligencia-precios/recomendar-precio${queryString ? `?${queryString}` : ''}`);
+    const response = await API_SLOW.get(`/inteligencia-precios/recomendar-precio${queryString ? `?${queryString}` : ''}`);
     return response.data;
   },
   
   // Registrar resultado manual
-  registrarResultado: (data) => API.post('/inteligencia-precios/registrar-resultado', data),
+  registrarResultado: (data) => API_SLOW.post('/inteligencia-precios/registrar-resultado', data),
   
   // Capturar datos desde competidores (para testing manual)
   capturarDesdeCompetidores: (codigo) => API.post(`/inteligencia-precios/capturar-desde-competidores/${codigo}`),

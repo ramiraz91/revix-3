@@ -399,7 +399,7 @@ async def busqueda_multiple_presupuestos(data: BusquedaMultipleRequest, user: di
         resultados_finales = []
         
         # Usar una sola sesión HTTP para todas las búsquedas
-        async with httpx.AsyncClient(timeout=30.0) as http:
+        async with httpx.AsyncClient(timeout=180.0) as http:
             for codigo in codigos:
                 resultado = {
                     "codigo": codigo,

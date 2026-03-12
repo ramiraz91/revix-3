@@ -1534,6 +1534,226 @@ async def obtener_analiticas(user: dict = Depends(require_master)):
         "total_en_proceso": len([o for o in ordenes if o.get('estado') in ['en_taller', 'reparado', 'validacion']]),
     }
 
+
+@api_router.get("/master/finanzas")
+async def obtener_finanzas(
+    periodo: str = "mes",  # mes, semana, trimestre, año, custom
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    user: dict = Depends(require_master)
+):
+    """
+    Panel financiero detallado con filtros por período.
+    - Total a facturar (presupuestos aceptados)
+    - Desglose por semana/mes
+    - Proyecciones
+    - Clasificación por estado de facturación
+    """
+    from datetime import timedelta
+    
+    ahora = datetime.now(timezone.utc)
+    
+    # Determinar rango de fechas según período
+    if fecha_inicio and fecha_fin:
+        inicio = datetime.fromisoformat(fecha_inicio.replace('Z', '+00:00'))
+        fin = datetime.fromisoformat(fecha_fin.replace('Z', '+00:00'))
+    elif periodo == "semana":
+        inicio = ahora - timedelta(days=ahora.weekday())  # Lunes de esta semana
+        inicio = inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+        fin = ahora
+    elif periodo == "mes":
+        inicio = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        fin = ahora
+    elif periodo == "trimestre":
+        trimestre_mes = ((ahora.month - 1) // 3) * 3 + 1
+        inicio = ahora.replace(month=trimestre_mes, day=1, hour=0, minute=0, second=0, microsecond=0)
+        fin = ahora
+    elif periodo == "año":
+        inicio = ahora.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        fin = ahora
+    else:  # Por defecto mes actual
+        inicio = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        fin = ahora
+    
+    # Obtener todas las órdenes del período
+    ordenes = await db.ordenes.find({
+        "created_at": {"$gte": inicio.isoformat(), "$lte": fin.isoformat()}
+    }, {"_id": 0}).to_list(10000)
+    
+    # También obtener órdenes anteriores pendientes de facturar
+    ordenes_pendientes_anteriores = await db.ordenes.find({
+        "created_at": {"$lt": inicio.isoformat()},
+        "estado": {"$in": ["reparado", "validacion", "en_taller", "recibida", "pendiente_recibir"]}
+    }, {"_id": 0}).to_list(10000)
+    
+    # === CLASIFICACIÓN DE ÓRDENES ===
+    facturado = []  # Órdenes cerradas (estado: enviado)
+    pendiente_facturar = []  # Órdenes completadas pero no cerradas (reparado, validacion)
+    en_proceso = []  # Órdenes en taller
+    por_recibir = []  # Órdenes pendientes de recibir
+    
+    for o in ordenes:
+        estado = o.get('estado', '')
+        materiales = o.get('materiales', [])
+        
+        # Calcular valor de la orden
+        precio_materiales = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+        coste_materiales = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+        
+        # Usar presupuesto enviado si existe, sino materiales
+        precio_presupuesto = o.get('presupuesto_enviado', {}).get('precio', 0) or o.get('datos_portal', {}).get('price', 0)
+        valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
+        
+        orden_data = {
+            "id": o.get('id'),
+            "numero_orden": o.get('numero_orden'),
+            "estado": estado,
+            "valor": valor_orden,
+            "coste": coste_materiales,
+            "beneficio": valor_orden - coste_materiales,
+            "cliente": o.get('cliente_nombre', 'N/A'),
+            "dispositivo": f"{o.get('dispositivo', {}).get('marca', '')} {o.get('dispositivo', {}).get('modelo', '')}".strip(),
+            "fecha": o.get('created_at'),
+            "origen": o.get('origen', 'directo')
+        }
+        
+        if estado == 'enviado':
+            facturado.append(orden_data)
+        elif estado in ['reparado', 'validacion']:
+            pendiente_facturar.append(orden_data)
+        elif estado in ['en_taller', 'recibida']:
+            en_proceso.append(orden_data)
+        elif estado == 'pendiente_recibir':
+            por_recibir.append(orden_data)
+    
+    # === TOTALES ===
+    total_facturado = sum(o['valor'] for o in facturado)
+    total_pendiente = sum(o['valor'] for o in pendiente_facturar)
+    total_en_proceso = sum(o['valor'] for o in en_proceso)
+    total_por_recibir = sum(o['valor'] for o in por_recibir)
+    
+    total_coste_facturado = sum(o['coste'] for o in facturado)
+    total_coste_pendiente = sum(o['coste'] for o in pendiente_facturar)
+    
+    # === DESGLOSE POR SEMANA (últimas 4 semanas del período) ===
+    semanas = {}
+    for o in ordenes:
+        try:
+            fecha = datetime.fromisoformat(o['created_at']) if isinstance(o['created_at'], str) else o['created_at']
+            semana_num = fecha.isocalendar()[1]
+            semana_key = f"S{semana_num}"
+            
+            if semana_key not in semanas:
+                semanas[semana_key] = {"ordenes": 0, "valor": 0, "facturado": 0, "pendiente": 0}
+            
+            materiales = o.get('materiales', [])
+            precio = o.get('presupuesto_enviado', {}).get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+            
+            semanas[semana_key]["ordenes"] += 1
+            semanas[semana_key]["valor"] += precio
+            
+            if o.get('estado') == 'enviado':
+                semanas[semana_key]["facturado"] += precio
+            elif o.get('estado') in ['reparado', 'validacion']:
+                semanas[semana_key]["pendiente"] += precio
+        except:
+            pass
+    
+    # === PROYECCIÓN ===
+    dias_transcurridos = (ahora - inicio).days + 1
+    
+    if periodo == "mes":
+        dias_totales = 30
+    elif periodo == "semana":
+        dias_totales = 7
+    elif periodo == "trimestre":
+        dias_totales = 90
+    elif periodo == "año":
+        dias_totales = 365
+    else:
+        dias_totales = dias_transcurridos
+    
+    # Proyección basada en ritmo actual
+    ritmo_diario = (total_facturado + total_pendiente + total_en_proceso) / dias_transcurridos if dias_transcurridos > 0 else 0
+    proyeccion_periodo = ritmo_diario * dias_totales
+    
+    # Ticket medio
+    ordenes_con_valor = [o for o in ordenes if o.get('presupuesto_enviado', {}).get('precio', 0) > 0 or sum(m.get('precio_unitario', 0) for m in o.get('materiales', []))]
+    ticket_medio = (total_facturado + total_pendiente + total_en_proceso) / len(ordenes_con_valor) if ordenes_con_valor else 0
+    
+    # === COMPARATIVA CON PERÍODO ANTERIOR ===
+    duracion_periodo = fin - inicio
+    inicio_anterior = inicio - duracion_periodo
+    fin_anterior = inicio
+    
+    ordenes_anterior = await db.ordenes.find({
+        "created_at": {"$gte": inicio_anterior.isoformat(), "$lt": fin_anterior.isoformat()}
+    }, {"_id": 0}).to_list(10000)
+    
+    total_anterior = 0
+    for o in ordenes_anterior:
+        materiales = o.get('materiales', [])
+        precio = o.get('presupuesto_enviado', {}).get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+        total_anterior += precio
+    
+    variacion_porcentaje = round(((total_facturado + total_pendiente - total_anterior) / total_anterior * 100) if total_anterior > 0 else 0, 1)
+    
+    return {
+        "periodo": {
+            "tipo": periodo,
+            "inicio": inicio.isoformat(),
+            "fin": fin.isoformat(),
+            "dias_transcurridos": dias_transcurridos,
+            "dias_totales": dias_totales
+        },
+        "resumen": {
+            "total_ordenes": len(ordenes),
+            "total_a_facturar": round(total_facturado + total_pendiente + total_en_proceso + total_por_recibir, 2),
+            "ya_facturado": round(total_facturado, 2),
+            "pendiente_facturar": round(total_pendiente, 2),
+            "en_proceso": round(total_en_proceso, 2),
+            "por_recibir": round(total_por_recibir, 2),
+            "ticket_medio": round(ticket_medio, 2),
+        },
+        "costes": {
+            "total_costes": round(total_coste_facturado + total_coste_pendiente, 2),
+            "costes_facturado": round(total_coste_facturado, 2),
+            "costes_pendiente": round(total_coste_pendiente, 2),
+        },
+        "beneficio": {
+            "beneficio_facturado": round(total_facturado - total_coste_facturado, 2),
+            "beneficio_estimado_pendiente": round(total_pendiente - total_coste_pendiente, 2),
+            "margen_porcentaje": round(((total_facturado - total_coste_facturado) / total_facturado * 100) if total_facturado > 0 else 0, 1),
+        },
+        "proyeccion": {
+            "ritmo_diario": round(ritmo_diario, 2),
+            "proyeccion_periodo": round(proyeccion_periodo, 2),
+            "proyeccion_mensual": round(ritmo_diario * 30, 2),
+            "proyeccion_anual": round(ritmo_diario * 365, 2),
+        },
+        "comparativa": {
+            "periodo_anterior": round(total_anterior, 2),
+            "variacion_porcentaje": variacion_porcentaje,
+            "tendencia": "alza" if variacion_porcentaje > 0 else "baja" if variacion_porcentaje < 0 else "estable"
+        },
+        "desglose_semanal": dict(sorted(semanas.items())),
+        "clasificacion": {
+            "facturado": {"count": len(facturado), "total": round(total_facturado, 2), "ordenes": facturado[:10]},
+            "pendiente_facturar": {"count": len(pendiente_facturar), "total": round(total_pendiente, 2), "ordenes": pendiente_facturar[:10]},
+            "en_proceso": {"count": len(en_proceso), "total": round(total_en_proceso, 2), "ordenes": en_proceso[:10]},
+            "por_recibir": {"count": len(por_recibir), "total": round(total_por_recibir, 2), "ordenes": por_recibir[:10]},
+        },
+        "pendientes_anteriores": {
+            "count": len(ordenes_pendientes_anteriores),
+            "total": round(sum(
+                o.get('presupuesto_enviado', {}).get('precio', 0) or 
+                sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in o.get('materiales', []))
+                for o in ordenes_pendientes_anteriores
+            ), 2)
+        }
+    }
+
+
 # ==================== ASISTENTE IA ====================
 
 try:

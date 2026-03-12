@@ -565,21 +565,65 @@ async def forzar_sincronizacion(background_tasks: BackgroundTasks, user: dict = 
     return {"message": "Sincronización iniciada en background"}
 
 @router.get("/presupuesto/{codigo}")
-async def obtener_presupuesto_insurama(codigo: str, user: dict = Depends(require_admin)):
-    """Obtiene los detalles completos de un presupuesto por código de siniestro"""
+async def obtener_presupuesto_insurama(
+    codigo: str, 
+    background_tasks: BackgroundTasks = None,
+    user: dict = Depends(require_admin)
+):
+    """Obtiene los detalles completos de un presupuesto por código de siniestro - con caché"""
     try:
+        cache_key = f"presupuesto_detalle_{codigo.upper()}"
+        
+        # 1. Intentar servir desde caché
+        cache = await db.insurama_cache.find_one({"tipo": cache_key}, {"_id": 0})
+        if cache and cache.get("datos"):
+            cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(cache["updated_at"])
+            if cache_age < timedelta(minutes=CACHE_TTL_MINUTES):
+                return cache["datos"]
+            # Caché vieja: servir pero actualizar en background
+            if background_tasks:
+                background_tasks.add_task(_sync_presupuesto_detalle, codigo)
+            return cache["datos"]
+        
+        # 2. Sin caché - petición directa
         client = await get_sumbroker_client()
         data = await client.extract_service_data(codigo)
         
         if not data:
             raise HTTPException(status_code=404, detail=f"No se encontró presupuesto con código {codigo}")
         
+        # Guardar en caché
+        await db.insurama_cache.update_one(
+            {"tipo": cache_key},
+            {"$set": {"tipo": cache_key, "datos": data, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+        
         return data
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error obteniendo presupuesto {codigo}: {e}")
+        # Fallback a caché vieja
+        cache = await db.insurama_cache.find_one({"tipo": f"presupuesto_detalle_{codigo.upper()}"}, {"_id": 0})
+        if cache and cache.get("datos"):
+            return cache["datos"]
         raise HTTPException(status_code=500, detail=str(e))
+
+async def _sync_presupuesto_detalle(codigo: str):
+    """Actualiza caché de detalle de presupuesto en background"""
+    try:
+        client = await get_sumbroker_client()
+        data = await client.extract_service_data(codigo)
+        if data:
+            cache_key = f"presupuesto_detalle_{codigo.upper()}"
+            await db.insurama_cache.update_one(
+                {"tipo": cache_key},
+                {"$set": {"tipo": cache_key, "datos": data, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True
+            )
+    except Exception as e:
+        logger.error(f"Error syncing presupuesto detalle {codigo}: {e}")
 
 
 # ==================== BÚSQUEDA MÚLTIPLE ====================
@@ -595,7 +639,6 @@ async def busqueda_multiple_presupuestos(data: BusquedaMultipleRequest, user: di
     Pre-carga datos de mercado para navegación inmediata.
     Máximo 10 códigos.
     """
-    import httpx
     
     # Validar límite
     codigos = list(set([c.strip().upper() for c in data.codigos if c.strip()]))[:10]

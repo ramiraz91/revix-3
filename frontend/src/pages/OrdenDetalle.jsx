@@ -1412,10 +1412,10 @@ export default function OrdenDetalle() {
                     Descargar ZIP
                   </Button>
                 )}
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" multiple className="hidden" />
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                   <Upload className="w-4 h-4 mr-2" />
-                  {uploading ? 'Subiendo...' : 'Subir Foto'}
+                  {uploading ? 'Subiendo...' : 'Subir Fotos'}
                 </Button>
               </div>
             </CardHeader>

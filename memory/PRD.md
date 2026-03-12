@@ -40,6 +40,12 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 ### Session 4 - Email Config Fix
 - [x] Fixed plantilla reset not resetting `asunto` field
 
+### Session 5 - Bug Fixes (12 Mar 2026)
+- [x] **Bug 1 - Subestados para técnico**: Añadido componente `OrdenSubestadoCard` a la vista del técnico (`OrdenTecnico.jsx`) para que pueda cambiar subestados como "Esperando repuestos", igual que el admin
+- [x] **Bug 2 - Fotos del técnico no visibles al admin**: Modificado `todasLasFotos` en `OrdenDetalle.jsx` para incluir `fotos_antes` y `fotos_despues` que sube el técnico. Ahora el admin puede ver todas las fotos categorizadas
+- [x] **UX - Carga múltiple de fotos**: Añadido atributo `multiple` a todos los inputs de archivo para permitir subir varias fotos a la vez
+- [x] **UX - Tab persistente**: Los tabs de la orden ahora mantienen su posición después de actualizar datos (añadir materiales, subir fotos, etc.)
+
 ## Prioritized Backlog
 ### P1 (High)
 - Configure SMTP password for real email sending

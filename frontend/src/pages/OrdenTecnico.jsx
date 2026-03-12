@@ -241,6 +241,15 @@ export default function OrdenTecnico() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Subestado Card - permite al técnico indicar estado intermedio (ej: esperando piezas) */}
+          <OrdenSubestadoCard 
+            ordenId={orden.id}
+            subestadoActual={orden.subestado}
+            motivoActual={orden.motivo_subestado}
+            fechaRevision={orden.fecha_revision_subestado}
+            onUpdate={fetchOrden}
+          />
         </div>
       </div>
     </div>

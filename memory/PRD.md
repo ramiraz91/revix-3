@@ -66,3 +66,5 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 4. ~~Polling excesivo de notificaciones~~ - COMPLETADO
 5. ~~Notificaciones automáticas~~ - COMPLETADO
 6. ~~Integración Gemini IA~~ - YA FUNCIONANDO
+7. ~~Dashboard financiero master~~ - COMPLETADO
+8. ~~Dashboard Insurama mejorado~~ - COMPLETADO (métricas negocio + competencia)

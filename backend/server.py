@@ -1751,7 +1751,7 @@ async def obtener_finanzas(
         "pendientes_anteriores": {
             "count": len(ordenes_pendientes_anteriores),
             "total": round(sum(
-                o.get('presupuesto_enviado', {}).get('precio', 0) or 
+                (o.get('presupuesto_enviado') or {}).get('precio', 0) or 
                 sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in o.get('materiales', []))
                 for o in ordenes_pendientes_anteriores
             ), 2)

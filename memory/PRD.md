@@ -62,7 +62,7 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 ## Next Tasks
 1. ~~Deploy updated code to production~~ - En progreso
 2. Test Insurama page on revix.es after deploy
-3. Configure SMTP password
-4. Resolver polling excesivo de notificaciones (P0 - reportado por usuario)
-5. Verificar funcionalidad completa de notificaciones automáticas
-6. Implementar integración con Gemini para IA
+3. Configure SMTP password - Pendiente credenciales
+4. ~~Polling excesivo de notificaciones~~ - COMPLETADO
+5. ~~Notificaciones automáticas~~ - COMPLETADO
+6. ~~Integración Gemini IA~~ - YA FUNCIONANDO

@@ -52,8 +52,8 @@ export default function PresupuestoAceptadoPopup() {
       }
     };
 
-    // Check cada 5 segundos
-    const interval = setInterval(checkPresupuestoAceptado, 5000);
+    // Check cada 60 segundos (antes era 5s - causaba polling excesivo)
+    const interval = setInterval(checkPresupuestoAceptado, 60000);
     checkPresupuestoAceptado(); // Check inicial
     
     return () => clearInterval(interval);

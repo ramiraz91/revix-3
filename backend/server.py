@@ -1656,7 +1656,7 @@ async def obtener_finanzas(
                 semanas[semana_key]["facturado"] += precio
             elif o.get('estado') in ['reparado', 'validacion']:
                 semanas[semana_key]["pendiente"] += precio
-        except:
+        except Exception:
             pass
     
     # === PROYECCIÓN ===

@@ -1682,7 +1682,7 @@ async def obtener_finanzas(
     proyeccion_periodo = ritmo_diario * dias_totales
     
     # Ticket medio
-    ordenes_con_valor = [o for o in ordenes if o.get('presupuesto_enviado', {}).get('precio', 0) > 0 or sum(m.get('precio_unitario', 0) for m in o.get('materiales', []))]
+    ordenes_con_valor = [o for o in ordenes if (o.get('presupuesto_enviado') or {}).get('precio', 0) > 0 or sum(m.get('precio_unitario', 0) for m in o.get('materiales', []))]
     ticket_medio = (total_facturado + total_pendiente + total_en_proceso) / len(ordenes_con_valor) if ordenes_con_valor else 0
     
     # === COMPARATIVA CON PERÍODO ANTERIOR ===
@@ -1697,7 +1697,8 @@ async def obtener_finanzas(
     total_anterior = 0
     for o in ordenes_anterior:
         materiales = o.get('materiales', [])
-        precio = o.get('presupuesto_enviado', {}).get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+        pres_env_ant = o.get('presupuesto_enviado') or {}
+        precio = pres_env_ant.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
         total_anterior += precio
     
     variacion_porcentaje = round(((total_facturado + total_pendiente - total_anterior) / total_anterior * 100) if total_anterior > 0 else 0, 1)

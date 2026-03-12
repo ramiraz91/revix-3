@@ -371,10 +371,130 @@ async def _sync_presupuestos_cache(limit: int = 50):
             upsert=True
         )
         logger.info(f"Cache actualizada: {len(resultado)} presupuestos")
+        
+        # Alimentar historial de mercado con los datos de competidores
+        await _alimentar_historial_mercado(client, resultado)
     except Exception as e:
         logger.error(f"Error syncing presupuestos cache: {e}")
     finally:
         _sync_in_progress = False
+
+async def _alimentar_historial_mercado(client, presupuestos):
+    """Captura datos de mercado automáticamente para alimentar el dashboard de inteligencia"""
+    try:
+        for p in presupuestos[:10]:  # Procesar los 10 más recientes
+            codigo = p.get("codigo_siniestro")
+            if not codigo:
+                continue
+            
+            # Verificar si ya tenemos datos recientes para este código
+            existente = await db.historial_mercado.find_one(
+                {"codigo_siniestro": codigo}, {"_id": 0, "updated_at": 1}
+            )
+            if existente and existente.get("updated_at"):
+                try:
+                    last_update = datetime.fromisoformat(existente["updated_at"])
+                    if (datetime.now(timezone.utc) - last_update) < timedelta(hours=6):
+                        continue  # Ya actualizado recientemente
+                except:
+                    pass
+            
+            try:
+                # Obtener competidores
+                comp_data = await _fetch_competidores(codigo)
+                if not comp_data:
+                    continue
+                
+                mi = comp_data.get("mi_presupuesto")
+                if not mi or not isinstance(mi, dict):
+                    continue
+                
+                comps = comp_data.get("competidores") or []
+                stats = comp_data.get("estadisticas") or {}
+                
+                # Determinar resultado
+                mi_estado = str(mi.get("estado_codigo", ""))
+                resultado = "pendiente"
+                precio_ganador = None
+                ganador_nombre = None
+                
+                if mi_estado == "3":
+                    resultado = "ganado"
+                    precio_ganador = mi.get("precio_num", 0)
+                    ganador_nombre = mi.get("tienda_nombre")
+                elif mi_estado == "7":
+                    ganador = next((c for c in comps if str(c.get("estado_codigo")) == "3"), None)
+                    if ganador:
+                        resultado = "perdido"
+                        precio_ganador = ganador.get("precio_num", 0)
+                        ganador_nombre = ganador.get("tienda_nombre")
+                    else:
+                        resultado = "cancelado_otros"
+                
+                # Guardar en historial
+                competidores_lista = [
+                    {"nombre": c.get("tienda_nombre"), "precio": c.get("precio_num", 0), "posicion": i+1, "estado": c.get("estado")}
+                    for i, c in enumerate(comps)
+                ]
+                
+                registro = {
+                    "codigo_siniestro": codigo,
+                    "dispositivo_marca": p.get("dispositivo", "").split(" ")[0] if p.get("dispositivo") else "",
+                    "dispositivo_modelo": " ".join(p.get("dispositivo", "").split(" ")[1:]) if p.get("dispositivo") else "",
+                    "dispositivo_key": (p.get("dispositivo") or "").upper(),
+                    "tipo_reparacion": p.get("daño", ""),
+                    "tipo_reparacion_key": _normalizar_tipo(p.get("daño", "")),
+                    "fecha_cierre": datetime.now(timezone.utc).isoformat(),
+                    "resultado": resultado,
+                    "mi_precio": mi.get("precio_num", 0),
+                    "precio_ganador": precio_ganador,
+                    "ganador_nombre": ganador_nombre,
+                    "ganador_nombre_key": (ganador_nombre or "").upper(),
+                    "num_competidores": len(comps),
+                    "precio_minimo": stats.get("precio_minimo"),
+                    "precio_maximo": stats.get("precio_maximo"),
+                    "precio_medio": stats.get("precio_medio"),
+                    "competidores": competidores_lista,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                await db.historial_mercado.update_one(
+                    {"codigo_siniestro": codigo},
+                    {"$set": registro, "$setOnInsert": {"created_at": datetime.now(timezone.utc).isoformat()}},
+                    upsert=True
+                )
+                logger.info(f"Historial mercado actualizado: {codigo} ({resultado})")
+                
+                # También actualizar caché de competidores
+                cache_key = f"competidores_{codigo.upper()}"
+                await db.insurama_cache.update_one(
+                    {"tipo": cache_key},
+                    {"$set": {"tipo": cache_key, "datos": comp_data, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                    upsert=True
+                )
+            except Exception as e:
+                logger.warning(f"Error procesando mercado para {codigo}: {e}")
+                continue
+        
+        logger.info("Historial de mercado alimentado correctamente")
+    except Exception as e:
+        logger.error(f"Error alimentando historial de mercado: {e}")
+
+def _normalizar_tipo(tipo):
+    if not tipo:
+        return "OTROS"
+    t = tipo.upper()
+    if any(x in t for x in ["PANTALLA", "LCD", "DISPLAY", "OLED", "INCELL"]):
+        return "PANTALLA"
+    if any(x in t for x in ["BATERIA", "BATTERY"]):
+        return "BATERIA"
+    if any(x in t for x in ["CAMARA", "CAMERA"]):
+        return "CAMARA"
+    if any(x in t for x in ["TAPA", "BACK", "COVER"]):
+        return "TAPA_TRASERA"
+    if any(x in t for x in ["CONECTOR", "CARGA"]):
+        return "CONECTOR_CARGA"
+    return "OTROS"
 
 @router.get("/presupuestos")
 async def listar_presupuestos_insurama(

@@ -78,41 +78,133 @@ export default function InteligenciaDashboard() {
     );
   }
 
-  const { kpis, top_competidores, dispositivos_rentables, tipos_reparacion, evolucion_mensual } = dashboard;
+  const { kpis, negocio, top_competidores, dispositivos_rentables, tipos_reparacion, evolucion_mensual } = dashboard;
 
   return (
     <div className="space-y-6">
-      {/* KPIs Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          titulo="Tasa de Éxito"
-          valor={`${kpis.tasa_exito}%`}
-          subtitulo={`${kpis.ganados}/${kpis.ganados + kpis.perdidos} presupuestos`}
-          icono={<Trophy className="w-5 h-5" />}
-          color={kpis.tasa_exito >= 60 ? 'green' : kpis.tasa_exito >= 40 ? 'yellow' : 'red'}
-          cambio={kpis.tasa_exito_30d - kpis.tasa_exito}
-        />
-        <KPICard
-          titulo="Ganados (30d)"
-          valor={kpis.ganados_30d}
-          subtitulo={`de ${kpis.registros_30d} en el mes`}
-          icono={<Target className="w-5 h-5" />}
-          color="blue"
-        />
-        <KPICard
-          titulo="Tu Precio Promedio"
-          valor={`${kpis.mi_precio_promedio}€`}
-          subtitulo="en presupuestos enviados"
-          icono={<TrendingUp className="w-5 h-5" />}
-          color="slate"
-        />
-        <KPICard
-          titulo="Diferencia vs Ganador"
-          valor={`${kpis.diferencia_promedio > 0 ? '+' : ''}${kpis.diferencia_promedio}€`}
-          subtitulo={kpis.diferencia_promedio > 0 ? 'Tu precio es mayor' : 'Tu precio es menor'}
-          icono={kpis.diferencia_promedio > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-          color={kpis.diferencia_promedio > 0 ? 'red' : 'green'}
-        />
+      {/* NUEVAS MÉTRICAS DEL NEGOCIO */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-green-600" />
+          Métricas del Negocio Insurama
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Total Órdenes</div>
+              <div className="text-xl font-bold text-blue-600">{negocio?.total_ordenes_insurama || 0}</div>
+              <div className="text-[10px] text-muted-foreground">{negocio?.ordenes_30d || 0} últimos 30d</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-green-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Ratio Aceptación</div>
+              <div className="text-xl font-bold text-green-600">{negocio?.ratio_aceptacion || 0}%</div>
+              <div className="text-[10px] text-muted-foreground">presupuestos aceptados</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-amber-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Ticket Medio</div>
+              <div className="text-xl font-bold text-amber-600">{negocio?.ticket_medio || 0}€</div>
+              <div className="text-[10px] text-muted-foreground">precio promedio</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-emerald-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Ingresos</div>
+              <div className="text-xl font-bold text-emerald-600">{(negocio?.total_ingresos || 0).toLocaleString('es-ES')}€</div>
+              <div className="text-[10px] text-muted-foreground">órdenes cerradas</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-red-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Gastos</div>
+              <div className="text-xl font-bold text-red-600">{(negocio?.total_gastos || 0).toLocaleString('es-ES')}€</div>
+              <div className="text-[10px] text-muted-foreground">coste materiales</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-purple-500">
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Beneficio</div>
+              <div className={`text-xl font-bold ${(negocio?.beneficio || 0) >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                {(negocio?.beneficio || 0).toLocaleString('es-ES')}€
+              </div>
+              <div className="text-[10px] text-muted-foreground">{negocio?.margen_porcentaje || 0}% margen</div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Estado de órdenes */}
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-bold text-yellow-700">{negocio?.ordenes_pendientes || 0}</div>
+              <div className="text-xs text-yellow-600">Pendientes de recibir</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-bold text-blue-700">{negocio?.ordenes_en_proceso || 0}</div>
+              <div className="text-xs text-blue-600">En proceso</div>
+              {negocio?.ingresos_pendientes > 0 && (
+                <div className="text-[10px] text-blue-500 mt-1">
+                  {negocio.ingresos_pendientes.toLocaleString('es-ES')}€ pendiente cobrar
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="bg-green-50 border-green-200">
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-bold text-green-700">{negocio?.ordenes_cerradas || 0}</div>
+              <div className="text-xs text-green-600">Cerradas</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* KPIs de Competencia */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Trophy className="w-5 h-5 text-amber-500" />
+          Análisis de Competencia
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            titulo="Tasa de Éxito"
+            valor={`${kpis.tasa_exito}%`}
+            subtitulo={`${kpis.ganados}/${kpis.ganados + kpis.perdidos} presupuestos`}
+            icono={<Trophy className="w-5 h-5" />}
+            color={kpis.tasa_exito >= 60 ? 'green' : kpis.tasa_exito >= 40 ? 'yellow' : 'red'}
+            cambio={kpis.tasa_exito_30d - kpis.tasa_exito}
+          />
+          <KPICard
+            titulo="Ganados (30d)"
+            valor={kpis.ganados_30d}
+            subtitulo={`de ${kpis.registros_30d} en el mes`}
+            icono={<Target className="w-5 h-5" />}
+            color="blue"
+          />
+          <KPICard
+            titulo="Tu Precio Promedio"
+            valor={`${kpis.mi_precio_promedio}€`}
+            subtitulo="en presupuestos enviados"
+            icono={<TrendingUp className="w-5 h-5" />}
+            color="slate"
+          />
+          <KPICard
+            titulo="Diferencia vs Ganador"
+            valor={`${kpis.diferencia_promedio > 0 ? '+' : ''}${kpis.diferencia_promedio}€`}
+            subtitulo={kpis.diferencia_promedio > 0 ? 'Tu precio es mayor' : 'Tu precio es menor'}
+            icono={kpis.diferencia_promedio > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+            color={kpis.diferencia_promedio > 0 ? 'red' : 'green'}
+          />
+        </div>
       </div>
 
       {/* Contenido en tabs */}

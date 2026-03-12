@@ -776,12 +776,13 @@ async def buscar_repuestos_rapido(
     # Pipeline de agregación para ordenar por relevancia
     pipeline = []
     
-    # Match stage - buscar por nombre, sku, sku_proveedor, nombre_es
+    # Match stage - buscar por nombre, sku, sku_proveedor, nombre_es, codigo_barras
     match_conditions = [
         {"nombre": {"$regex": q_escaped, "$options": "i"}},
         {"sku": {"$regex": q_escaped, "$options": "i"}},
         {"sku_proveedor": {"$regex": q_escaped, "$options": "i"}},
         {"nombre_es": {"$regex": q_escaped, "$options": "i"}},
+        {"codigo_barras": {"$regex": q_escaped, "$options": "i"}},
     ]
     
     # Si tiene múltiples palabras, también buscar cada una

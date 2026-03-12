@@ -111,6 +111,9 @@ export default function OrdenDetalle() {
   const [ordenesGarantia, setOrdenesGarantia] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Tab state - mantiene el tab activo después de actualizar
+  const [activeTab, setActiveTab] = useState('info');
+  
   // Dialog visibility states
   const [showCambioEstado, setShowCambioEstado] = useState(false);
   const [showEtiqueta, setShowEtiqueta] = useState(false);

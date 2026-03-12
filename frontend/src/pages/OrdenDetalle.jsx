@@ -562,17 +562,28 @@ export default function OrdenDetalle() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     try {
       setUploading(true);
-      await ordenesAPI.subirEvidencia(id, file);
-      toast.success('Evidencia subida');
-      fetchOrden();
+      let successCount = 0;
+      for (const file of files) {
+        try {
+          await ordenesAPI.subirEvidencia(id, file);
+          successCount++;
+        } catch (err) {
+          console.error('Error subiendo archivo:', err);
+        }
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} evidencia${successCount > 1 ? 's' : ''} subida${successCount > 1 ? 's' : ''}`);
+        fetchOrden();
+      }
     } catch (error) {
-      toast.error('Error al subir evidencia');
+      toast.error('Error al subir evidencias');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 

@@ -251,6 +251,7 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
                       id="file-antes"
                       onChange={(e) => handleFileUploadWithType(e, 'antes')}
                       accept="image/*"
+                      multiple
                       className="hidden"
                     />
                     <Button 

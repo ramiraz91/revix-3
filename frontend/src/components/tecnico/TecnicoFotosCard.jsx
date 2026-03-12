@@ -143,31 +143,52 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     try {
       setUploading(true);
-      await ordenesAPI.subirEvidenciaTecnico(orden.id, file);
-      toast.success('Foto subida correctamente');
-      onRefresh();
+      let successCount = 0;
+      for (const file of files) {
+        try {
+          await ordenesAPI.subirEvidenciaTecnico(orden.id, file);
+          successCount++;
+        } catch (err) {
+          console.error('Error subiendo archivo:', err);
+        }
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} foto${successCount > 1 ? 's' : ''} subida${successCount > 1 ? 's' : ''} correctamente`);
+        onRefresh();
+      }
     } catch (error) {
-      toast.error('Error al subir la foto');
+      toast.error('Error al subir las fotos');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
   const handleFileUploadWithType = async (e, tipo) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     try {
       setUploading(true);
-      await ordenesAPI.subirEvidenciaTecnico(orden.id, file, tipo);
-      toast.success(`Foto "${tipo}" subida correctamente`);
-      onRefresh();
+      let successCount = 0;
+      for (const file of files) {
+        try {
+          await ordenesAPI.subirEvidenciaTecnico(orden.id, file, tipo);
+          successCount++;
+        } catch (err) {
+          console.error('Error subiendo archivo:', err);
+        }
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} foto${successCount > 1 ? 's' : ''} "${tipo}" subida${successCount > 1 ? 's' : ''} correctamente`);
+        onRefresh();
+      }
     } catch (error) {
-      toast.error('Error al subir la foto');
+      toast.error('Error al subir las fotos');
     } finally {
       setUploading(false);
       e.target.value = '';

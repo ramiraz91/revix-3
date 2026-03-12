@@ -1514,7 +1514,17 @@ async def obtener_analiticas(user: dict = Depends(require_master)):
             pass
 
     return {
+        # Métricas financieras
+        "finanzas": {
+            "total_gastos": round(total_gastos, 2),
+            "total_cobrado": round(total_cobrado, 2),
+            "pendiente_cobrar": round(total_pendiente_cobrar, 2),
+            "gastos_pendientes": round(gastos_pendientes, 2),
+            "margen_beneficio": round(margen_beneficio, 2),
+            "porcentaje_margen": porcentaje_margen,
+        },
         "ingresos_por_mes": dict(sorted(ingresos_por_mes.items())[-12:]),
+        "gastos_por_mes": dict(sorted(gastos_por_mes.items())[-12:]),
         "tiempo_medio_reparacion_horas": tiempo_medio,
         "ranking_tecnicos": ranking,
         "distribucion_estado": dist_estado,

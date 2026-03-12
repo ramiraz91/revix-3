@@ -14,7 +14,7 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL')
 if not BASE_URL:
-    BASE_URL = "https://iso-repair-crm-1.preview.emergentagent.com"
+    BASE_URL = "https://revix-crm.preview.emergentagent.com"
 
 # Test credentials
 MASTER_CREDS = {"email": "master@techrepair.local", "password": "master123"}

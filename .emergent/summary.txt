@@ -1,0 +1,170 @@
+<analysis>Análisis y resumen de la sesión de trabajo para el siguiente agente.
+
+**original_problem_statement:**
+El usuario solicitó importar su repositorio de GitHub , un CRM/ERP para un taller de reparaciones con backend en FastAPI/MongoDB y frontend en React.
+
+**PRODUCT REQUIREMENTS:**
+1.  **Configuración del entorno**:
+    *   Usar .
+    *   El dominio será .
+2.  **Creación de usuarios**:
+    *   **master**:  / 
+    *   **admin**:  / 
+    *   **tecnico**:  / 
+3.  **Integraciones**:
+    *   MongoDB (base de datos principal).
+    *   Gemini para IA (usando la ).
+    *   SMTP para emails ().
+4.  **Correcciones y mejoras**:
+    *   Arreglar un error de enrutamiento en una URL ().
+    *   Diagnosticar y solucionar problemas con la integración de Insurama (lentitud, falta de datos de competidores, credenciales).
+    *   Investigar el estado de una integración de logística con GLS.
+    *   Solucionar fallos de despliegue a producción.
+    *   Revisar y corregir la sección de notificaciones automáticas.
+    *   Solucionar un problema de polling excesivo en la API de notificaciones.
+
+**User's preferred language**: Spanish (El siguiente agente DEBE responder en español).
+
+**what currently exists?**
+Se ha clonado y configurado con éxito el repositorio . El entorno está operativo con el backend en FastAPI y el frontend en React conectados a una base de datos MongoDB. Se han creado los tres usuarios solicitados.
+
+Se han implementado varias correcciones y mejoras significativas:
+-   **Integración de Insurama**: Se solucionaron problemas graves de lentitud (peticiones de ~60 segundos) mediante la implementación de un sistema de **caché en MongoDB**. Ahora, las respuestas son casi instantáneas (<1s). También se corrigieron las credenciales, se implementó un sistema de reintentos con re-autenticación y se solucionó un bug que impedía ver los precios de los competidores.
+-   **UI de Insurama**: La interfaz se ha enriquecido para mostrar datos cruciales de la API que antes no se usaban, como el  (valor máximo del siniestro), y se ha creado un panel de inteligencia de precios con KPIs.
+-   **Correcciones de bugs**: Se solucionó un error de enrutamiento en el frontend, se corrigieron fallos que impedían el despliegue a producción y se arregló un bug en la funcionalidad de reseteo de plantillas de notificaciones.
+
+**Last working item**:
+-   **Last item agent was working**: El agente estaba diagnosticando un problema de rendimiento crítico: el frontend realiza un polling excesivo a la API de notificaciones (), llamándola cada pocos segundos y causando una carga innecesaria en el servidor.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: Frontend testing agent. El agente debe identificar el componente o hook de React responsable del polling (probablemente en  o un hook global) y refactorizarlo para usar un intervalo de sondeo mucho más largo (ej. 3-5 minutos) o cambiar a una solución basada en WebSockets si es posible. Tras el arreglo, se debe verificar con las herramientas de desarrollo del navegador que las llamadas se han reducido.
+-   **User Testing Done**: N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1**: Polling excesivo de la API de notificaciones (P0)
+
+**Issues Detail**:
+-   **Issue 1**:
+    -   **Description**: El frontend llama al endpoint  cada pocos segundos, causando una carga alta e innecesaria en el backend.
+    -   **Attempted fixes**: Ninguno. El problema acaba de ser identificado.
+    -   **Next debug checklist**:
+        1.  Revisar el archivo .
+        2.  Buscar el hook  o  que realiza la llamada a la API.
+        3.  Modificar la lógica para aumentar drásticamente el intervalo de polling (ej. usando  en React Query) o eliminar el polling automático en favor de una actualización manual.
+    -   **Why fix this issue and what will be achieved with the fix?**: Solucionar este problema es crítico para la estabilidad y el rendimiento de la aplicación en producción. Reducirá la carga del servidor y el tráfico de red inútil.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Frontend
+    -   **Blocked on other issue**: No
+
+**In progress Task List**:
+-   **Task 1**: Verificación completa de la sección Notificaciones automáticas (P1)
+    -   **Where to resume**: El usuario pidió una revisión completa. El agente anterior corrigió un bug en el reseteo de plantillas, pero no verificó la funcionalidad del modo demo ni los botones para activar/desactivar cada notificación. Se debe revisar el componente  y los endpoints correspondientes en  para asegurar que los cambios se aplican y persisten correctamente.
+    -   **What will be achieved with this?**: Se cumplirá con la petición del usuario de asegurar que toda la sección de notificaciones funciona como se espera.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: No
+
+**Upcoming and Future Tasks**
+-   **Upcoming Tasks**:
+    -   **Task 1: Implementar la integración con Gemini (P1)**: El usuario solicitó la integración con Gemini para funciones de IA. Se debe utilizar la . El agente debe proponer al usuario dónde y cómo se podría aplicar esta IA (ej. sugerencias de respuesta, análisis de datos, etc.) y luego implementarlo.
+-   **Future Tasks**:
+    -   **Task 2: Implementar la integración real con la API de GLS (P2)**: Se investigó y se descubrió que la integración actual es solo una UI sin funcionalidad. Se necesita implementar un cliente de API () para generar etiquetas de envío, solicitar recogidas y consultar el tracking en tiempo real. Esta tarea está bloqueada hasta que el usuario confirme que desea proceder y proporcione las credenciales de la API.
+    -   **Task 3: Implementar el envío de correos con SMTP (P2)**: Aunque el usuario mencionó la configuración SMTP, no se ha verificado si el sistema realmente envía correos electrónicos. Se debe conectar la lógica de notificaciones al servicio de correo configurado.
+
+**Completed work in this session**
+-   Se importó y configuró el proyecto desde GitHub.
+-   Se crearon los 3 usuarios iniciales.
+-   Se solucionó un problema de redirección en el frontend para URLs antiguas.
+-   **Se reparó y optimizó la integración de Insurama**: Se solucionaron las credenciales, se implementó un sistema de caché en MongoDB que redujo los tiempos de carga de ~60s a <1s, se corrigió un bug que no mostraba precios de competidores y se enriqueció la UI con más datos.
+-   Se resolvieron los fallos que impedían el despliegue del backend a producción, mejorando la resiliencia de la conexión a la base de datos.
+-   Se corrigió un bug en la función de reseteo de plantillas de notificación.
+-   Se implementó un panel de inteligencia de precios para Insurama que se alimenta de datos procesados en segundo plano.
+-   Se investigó y clarificó el estado de la integración de GLS (no funcional).
+
+**Earlier issues found/mentioned but not fixed**
+-   Ninguno.
+
+**Known issue recurrence from previous fork**
+-   N/A
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Backend**: FastAPI, Python, Motor (cliente asíncrono de MongoDB), Pydantic.
+-   **Frontend**: React, Axios, Tailwind CSS, React Router.
+-   **Base de datos**: MongoDB.
+-   **Arquitectura**: Aplicación full-stack con una API REST que sirve a un cliente de React (SPA).
+-   **Caching**: Se ha implementado una estrategia de caché en MongoDB para mitigar la lentitud de la API externa de Sumbroker/Insurama.
+
+**key DB schema**
+-   : Almacena la información de los usuarios del CRM.
+-   : Guarda las credenciales y el token de la API de Sumbroker.
+-   : Colección clave para el rendimiento. Almacena respuestas cacheadas de la API de Sumbroker con una clave y un timestamp.
+-   : Almacena datos procesados sobre competidores para alimentar el dashboard de inteligencia de precios.
+
+**changes in tech stack**
+-   Ninguno.
+
+**All files of reference**
+-   : Contiene toda la lógica de comunicación con la API de Sumbroker, incluyendo el reintento, la autenticación y la gestión de la caché.
+-   : Endpoints que ahora consultan la caché antes de contactar a la API externa.
+-   : Componente principal del frontend para la integración de Insurama, modificado para mostrar más datos y un botón de sincronización manual.
+-   : Archivo sospechoso de contener la lógica de polling excesivo de notificaciones.
+-   : Modificado para hacer la conexión a MongoDB más resiliente durante el arranque.
+-   : Modificado para manejar el arranque de forma más robusta.
+
+**Areas that need refactoring**:
+-   La lógica de polling de notificaciones en el frontend debe ser refactorizada urgentemente para evitar la sobrecarga del servidor.
+
+**key api endpoints**
+-   : Obtiene la lista de presupuestos (ahora desde caché).
+-   : Inicia una sincronización en segundo plano para actualizar la caché de Insurama.
+-   : Devuelve los KPIs para el panel de inteligencia de precios.
+-   : Endpoint que está siendo llamado excesivamente.
+
+**Critical Info for New Agent**
+-   La API de Sumbroker (Insurama) es extremadamente lenta. Para solucionar esto, se implementó un **sistema de caché en MongoDB**. El flujo de trabajo es: servir desde caché, y luego actualizar la caché en segundo plano. No intentes llamar a la API directamente en las rutas sin pasar por la capa de caché.
+-   La tarea más urgente es resolver el **polling excesivo** de la API de notificaciones, ya que afecta directamente al rendimiento en producción.
+-   El usuario ha mencionado las integraciones de **Gemini** y **SMTP** pero no se han implementado. Deberías considerarlas como las siguientes tareas a proponer una vez que se resuelva el problema del polling.
+
+**documents and test reports created in this job**
+-   
+-   
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.   -> Resuelto.
+2.  Log de error de despliegue () -> Resuelto (backend no arrancaba).
+3.   -> Resuelto (se arregló la pipeline de datos para el dashboard).
+4.  Log de error de despliegue () -> Resuelto (se explicó que era por el calentamiento de la caché y se añadió más caché).
+5.  Log de error de despliegue (mostrando  y muchos ) -> Se identificó el problema de polling excesivo.
+6.   -> Confirmación del usuario sobre la gravedad del polling. (Pendiente de solución)
+7.   -> Se revisó y corrigió un bug, pero falta una verificación completa. (Pendiente de verificación)
+8.   -> Resuelto.
+9.  Imagen con credenciales de Insurama -> Resuelto (credenciales actualizadas).
+10.  -> Resuelto.
+
+**Project Health Check:**
+-   **Broken**: La funcionalidad de notificaciones en tiempo real está causando una degradación severa del rendimiento debido al polling excesivo.
+-   **Mocked**: N/A.
+
+**3rd Party Integrations**
+-   **MongoDB**: Base de datos principal.
+-   **Sumbroker/Insurama API**: Integración externa para presupuestos. Autenticación por usuario/contraseña.
+-   **Gemini**: Solicitado, pero no implementado. Usará la .
+-   **SMTP (mail.privateemail.com)**: Solicitado, pero la funcionalidad de envío de emails no ha sido implementada ni verificada.
+
+**Testing status**
+-   **Testing agent used after significant changes**: YES (una vez al principio).
+-   **Troubleshoot agent used after agent stuck in loop**: NO.
+-   **Test files created**: N/A.
+-   **Known regressions**: El polling excesivo de notificaciones es una regresión de rendimiento introducida en algún momento.
+
+**Credentials to test flow:**
+-   **Usuario Master**:  / 
+-   **Sumbroker API**: Las credenciales están guardadas en la colección  de la base de datos. No es necesario introducirlas manualmente.
+
+**What agent forgot to execute**
+-   **Implementar la integración con Gemini**: Se mencionó en la fase inicial de recopilación de requisitos pero nunca se planificó ni se trabajó en ello.
+-   **Implementar la integración SMTP**: Se mencionó la configuración pero no se implementó la lógica para enviar correos electrónicos a través de ese servicio.</analysis>

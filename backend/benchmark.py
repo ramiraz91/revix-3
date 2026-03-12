@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Dict
 import os
 
-API_URL = os.environ.get("API_URL", "https://iso-repair-crm-1.preview.emergentagent.com")
+API_URL = os.environ.get("API_URL", "https://revix-crm.preview.emergentagent.com")
 
 # Test credentials
 MASTER_EMAIL = "ramiraz91@gmail.com"

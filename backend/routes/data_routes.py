@@ -810,10 +810,14 @@ async def buscar_repuestos_rapido(
                     {"$cond": [{"$eq": [{"$toLower": "$nombre"}, q_lower]}, 100, 0]},
                     # Coincidencia exacta en SKU
                     {"$cond": [{"$eq": [{"$toLower": "$sku"}, q_lower]}, 90, 0]},
+                    # Coincidencia exacta en código de barras
+                    {"$cond": [{"$eq": [{"$toLower": {"$ifNull": ["$codigo_barras", ""]}}, q_lower]}, 95, 0]},
                     # Nombre empieza con la búsqueda
                     {"$cond": [{"$regexMatch": {"input": {"$toLower": "$nombre"}, "regex": f"^{q_escaped}"}}, 50, 0]},
                     # SKU empieza con la búsqueda
                     {"$cond": [{"$regexMatch": {"input": {"$toLower": {"$ifNull": ["$sku", ""]}}, "regex": f"^{q_escaped}"}}, 40, 0]},
+                    # Código de barras contiene la búsqueda
+                    {"$cond": [{"$regexMatch": {"input": {"$toLower": {"$ifNull": ["$codigo_barras", ""]}}, "regex": q_escaped}}, 45, 0]},
                     # Nombre contiene la búsqueda completa
                     {"$cond": [{"$regexMatch": {"input": {"$toLower": "$nombre"}, "regex": q_escaped}}, 20, 0]},
                     # Boost por stock disponible

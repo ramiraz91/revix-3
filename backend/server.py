@@ -1650,7 +1650,8 @@ async def obtener_finanzas(
                 semanas[semana_key] = {"ordenes": 0, "valor": 0, "facturado": 0, "pendiente": 0}
             
             materiales = o.get('materiales', [])
-            precio = o.get('presupuesto_enviado', {}).get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+            pres_env = o.get('presupuesto_enviado') or {}
+            precio = pres_env.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
             
             semanas[semana_key]["ordenes"] += 1
             semanas[semana_key]["valor"] += precio

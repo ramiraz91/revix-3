@@ -1431,15 +1431,46 @@ async def obtener_analiticas(user: dict = Depends(require_master)):
     """Panel de analíticas completo para master"""
     ordenes = await db.ordenes.find({}, {"_id": 0}).to_list(10000)
 
+    # === MÉTRICAS FINANCIERAS ===
+    total_gastos = 0  # Coste de materiales
+    total_cobrado = 0  # Precio de venta de órdenes cerradas (enviado)
+    total_pendiente_cobrar = 0  # Precio de venta de órdenes completadas pero no cerradas
+    gastos_pendientes = 0  # Coste de órdenes no cerradas
+    
+    for o in ordenes:
+        materiales = o.get('materiales', [])
+        # Calcular costes y precios de venta
+        coste_orden = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+        precio_venta_orden = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+        
+        if o.get('estado') == 'enviado':
+            # Orden cerrada
+            total_gastos += coste_orden
+            total_cobrado += precio_venta_orden
+        elif o.get('estado') in ['reparado', 'validacion']:
+            # Orden completada pero no cerrada (pendiente de cobrar)
+            total_pendiente_cobrar += precio_venta_orden
+            gastos_pendientes += coste_orden
+        elif o.get('estado') in ['en_taller', 'recibida']:
+            # Orden en proceso
+            gastos_pendientes += coste_orden
+    
+    margen_beneficio = total_cobrado - total_gastos
+    porcentaje_margen = round((margen_beneficio / total_cobrado * 100) if total_cobrado > 0 else 0, 1)
+
     # Ingresos por mes
     ingresos_por_mes = {}
+    gastos_por_mes = {}
     for o in ordenes:
         if o.get('estado') == 'enviado':
             try:
                 fecha = datetime.fromisoformat(o['created_at']) if isinstance(o['created_at'], str) else o['created_at']
                 mes = fecha.strftime('%Y-%m')
-                total = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in o.get('materiales', []))
-                ingresos_por_mes[mes] = ingresos_por_mes.get(mes, 0) + total
+                materiales = o.get('materiales', [])
+                total_venta = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+                total_coste = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+                ingresos_por_mes[mes] = ingresos_por_mes.get(mes, 0) + total_venta
+                gastos_por_mes[mes] = gastos_por_mes.get(mes, 0) + total_coste
             except Exception:
                 pass
 

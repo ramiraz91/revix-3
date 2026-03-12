@@ -242,7 +242,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         # Ratio de aceptación (basado en estado de presupuesto en datos_portal)
         # Status 3 = Aceptado en Sumbroker
         ordenes_con_datos = await db.ordenes.find(
-            {"origen": "insurama", "datos_portal.status": {"$exists": True}},
+            {**filtro_insurama, "datos_portal.status": {"$exists": True}},
             {"_id": 0, "datos_portal.status": 1}
         ).to_list(1000)
         

@@ -128,14 +128,121 @@ def normalizar_tipo_reparacion(tipo: Optional[str]) -> str:
 
 @router.get("/dashboard")
 async def obtener_dashboard(user: dict = Depends(require_admin)):
-    """Obtiene todos los datos para el dashboard de inteligencia"""
+    """Obtiene todos los datos para el dashboard de inteligencia - MEJORADO con métricas reales del CRM"""
     try:
         # Fechas para filtros
         ahora = datetime.now(timezone.utc)
         hace_30_dias = (ahora - timedelta(days=30)).isoformat()
         hace_90_dias = (ahora - timedelta(days=90)).isoformat()
         
-        # KPIs principales
+        # =============== MÉTRICAS REALES DEL CRM (ÓRDENES INSURAMA) ===============
+        
+        # Total de órdenes de Insurama
+        total_ordenes_insurama = await db.ordenes.count_documents({"origen": "insurama"})
+        ordenes_insurama_30d = await db.ordenes.count_documents({
+            "origen": "insurama",
+            "created_at": {"$gte": hace_30_dias}
+        })
+        
+        # Órdenes por estado
+        ordenes_cerradas = await db.ordenes.count_documents({"origen": "insurama", "estado": "enviado"})
+        ordenes_en_proceso = await db.ordenes.count_documents({
+            "origen": "insurama", 
+            "estado": {"$in": ["recibida", "en_taller", "reparado", "validacion"]}
+        })
+        ordenes_pendientes = await db.ordenes.count_documents({
+            "origen": "insurama", 
+            "estado": "pendiente_recibir"
+        })
+        
+        # Calcular ingresos, gastos y beneficios de órdenes Insurama
+        pipeline_financiero = [
+            {"$match": {"origen": "insurama"}},
+            {"$project": {
+                "estado": 1,
+                "materiales": 1,
+                "datos_portal": 1,
+                "presupuesto_enviado": 1
+            }},
+            {"$addFields": {
+                "ingresos": {
+                    "$sum": {
+                        "$map": {
+                            "input": {"$ifNull": ["$materiales", []]},
+                            "as": "m",
+                            "in": {"$multiply": [
+                                {"$ifNull": ["$$m.precio_unitario", 0]},
+                                {"$ifNull": ["$$m.cantidad", 1]}
+                            ]}
+                        }
+                    }
+                },
+                "gastos": {
+                    "$sum": {
+                        "$map": {
+                            "input": {"$ifNull": ["$materiales", []]},
+                            "as": "m",
+                            "in": {"$multiply": [
+                                {"$ifNull": ["$$m.coste", 0]},
+                                {"$ifNull": ["$$m.cantidad", 1]}
+                            ]}
+                        }
+                    }
+                },
+                "precio_presupuesto": {"$ifNull": ["$presupuesto_enviado.precio", "$datos_portal.price"]}
+            }},
+            {"$group": {
+                "_id": None,
+                "total_ingresos_cerradas": {
+                    "$sum": {"$cond": [{"$eq": ["$estado", "enviado"]}, "$ingresos", 0]}
+                },
+                "total_gastos_cerradas": {
+                    "$sum": {"$cond": [{"$eq": ["$estado", "enviado"]}, "$gastos", 0]}
+                },
+                "ingresos_en_proceso": {
+                    "$sum": {"$cond": [
+                        {"$in": ["$estado", ["recibida", "en_taller", "reparado", "validacion"]]},
+                        "$ingresos", 0
+                    ]}
+                },
+                "gastos_en_proceso": {
+                    "$sum": {"$cond": [
+                        {"$in": ["$estado", ["recibida", "en_taller", "reparado", "validacion"]]},
+                        "$gastos", 0
+                    ]}
+                },
+                "precios_presupuestos": {
+                    "$push": {"$cond": [{"$gt": ["$precio_presupuesto", 0]}, "$precio_presupuesto", "$$REMOVE"]}
+                }
+            }}
+        ]
+        
+        financiero_result = await db.ordenes.aggregate(pipeline_financiero).to_list(1)
+        financiero = financiero_result[0] if financiero_result else {}
+        
+        total_ingresos = financiero.get("total_ingresos_cerradas", 0)
+        total_gastos = financiero.get("total_gastos_cerradas", 0)
+        beneficio_cerradas = total_ingresos - total_gastos
+        
+        ingresos_pendientes = financiero.get("ingresos_en_proceso", 0)
+        gastos_pendientes = financiero.get("gastos_en_proceso", 0)
+        
+        precios_presupuestos = financiero.get("precios_presupuestos", [])
+        ticket_medio = round(sum(precios_presupuestos) / len(precios_presupuestos), 2) if precios_presupuestos else 0
+        
+        # Ratio de aceptación (basado en estado de presupuesto en datos_portal)
+        # Status 3 = Aceptado en Sumbroker
+        ordenes_con_datos = await db.ordenes.find(
+            {"origen": "insurama", "datos_portal.status": {"$exists": True}},
+            {"_id": 0, "datos_portal.status": 1}
+        ).to_list(1000)
+        
+        total_con_status = len(ordenes_con_datos)
+        aceptados = sum(1 for o in ordenes_con_datos if o.get("datos_portal", {}).get("status") == 3)
+        ratio_aceptacion = round((aceptados / total_con_status * 100), 1) if total_con_status > 0 else 0
+        
+        # =============== MÉTRICAS DE COMPETENCIA (historial_mercado) ===============
+        
         total_registros = await db.historial_mercado.count_documents({})
         registros_30d = await db.historial_mercado.count_documents({"fecha_cierre": {"$gte": hace_30_dias}})
         
@@ -151,7 +258,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
             "fecha_cierre": {"$gte": hace_30_dias}
         })
         
-        # Tasa de éxito
+        # Tasa de éxito en competencia
         total_competidos = ganados + perdidos
         total_competidos_30d = ganados_30d + perdidos_30d
         tasa_exito = round((ganados / total_competidos * 100), 1) if total_competidos > 0 else 0
@@ -197,7 +304,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
                     "$cond": [{"$eq": ["$resultado", "ganado"]}, "$mi_precio", None]
                 }}
             }},
-            {"$match": {"total": {"$gte": 2}}},  # Mínimo 2 casos
+            {"$match": {"total": {"$gte": 2}}},
             {"$addFields": {
                 "tasa_exito": {
                     "$cond": [
@@ -228,7 +335,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         ]
         tipos_reparacion = await db.historial_mercado.aggregate(pipeline_tipos).to_list(8)
         
-        # Evolución mensual (últimos 6 meses)
+        # Evolución mensual
         pipeline_mensual = [
             {"$match": {"fecha_cierre": {"$gte": hace_90_dias}}},
             {"$addFields": {
@@ -245,6 +352,23 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         evolucion_mensual = await db.historial_mercado.aggregate(pipeline_mensual).to_list(12)
         
         return {
+            # NUEVAS MÉTRICAS REALES DEL NEGOCIO
+            "negocio": {
+                "total_ordenes_insurama": total_ordenes_insurama,
+                "ordenes_30d": ordenes_insurama_30d,
+                "ordenes_cerradas": ordenes_cerradas,
+                "ordenes_en_proceso": ordenes_en_proceso,
+                "ordenes_pendientes": ordenes_pendientes,
+                "ratio_aceptacion": ratio_aceptacion,
+                "ticket_medio": ticket_medio,
+                "total_ingresos": round(total_ingresos, 2),
+                "total_gastos": round(total_gastos, 2),
+                "beneficio": round(beneficio_cerradas, 2),
+                "margen_porcentaje": round((beneficio_cerradas / total_ingresos * 100), 1) if total_ingresos > 0 else 0,
+                "ingresos_pendientes": round(ingresos_pendientes, 2),
+                "gastos_pendientes": round(gastos_pendientes, 2),
+            },
+            # MÉTRICAS DE COMPETENCIA
             "kpis": {
                 "total_registros": total_registros,
                 "registros_30d": registros_30d,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3, TrendingUp, Clock, Users, Trophy, PieChart } from 'lucide-react';
+import { BarChart3, TrendingUp, Clock, Users, Trophy, PieChart, DollarSign, Wallet, CreditCard, TrendingDown, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import API from '@/lib/api';
 
 const STATUS_LABELS = {

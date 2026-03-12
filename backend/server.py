@@ -1601,9 +1601,12 @@ async def obtener_finanzas(
         coste_materiales = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
         
         # Usar presupuesto enviado si existe, sino materiales
-        precio_presupuesto = o.get('presupuesto_enviado', {}).get('precio', 0) or o.get('datos_portal', {}).get('price', 0)
+        presupuesto_enviado = o.get('presupuesto_enviado') or {}
+        datos_portal = o.get('datos_portal') or {}
+        precio_presupuesto = presupuesto_enviado.get('precio', 0) or datos_portal.get('price', 0)
         valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
         
+        dispositivo = o.get('dispositivo') or {}
         orden_data = {
             "id": o.get('id'),
             "numero_orden": o.get('numero_orden'),
@@ -1612,7 +1615,7 @@ async def obtener_finanzas(
             "coste": coste_materiales,
             "beneficio": valor_orden - coste_materiales,
             "cliente": o.get('cliente_nombre', 'N/A'),
-            "dispositivo": f"{o.get('dispositivo', {}).get('marca', '')} {o.get('dispositivo', {}).get('modelo', '')}".strip(),
+            "dispositivo": f"{dispositivo.get('marca', '')} {dispositivo.get('modelo', '')}".strip(),
             "fecha": o.get('created_at'),
             "origen": o.get('origen', 'directo')
         }

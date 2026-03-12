@@ -32,6 +32,8 @@ import {
   TecnicoAccionesCard,
 } from '@/components/tecnico';
 
+import { OrdenSubestadoCard } from '@/components/orden';
+
 const statusConfig = {
   pendiente_recibir: { label: 'Pendiente Recibir', icon: Clock, color: 'bg-yellow-500' },
   recibida: { label: 'Recibida', icon: CheckCircle2, color: 'bg-blue-500' },

@@ -137,27 +137,36 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         
         # =============== MÉTRICAS REALES DEL CRM (ÓRDENES INSURAMA) ===============
         
+        # Filtro flexible: origen="insurama" O tiene numero_autorizacion O tiene datos_portal
+        filtro_insurama = {
+            "$or": [
+                {"origen": "insurama"},
+                {"numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}},
+                {"datos_portal": {"$exists": True, "$ne": None}}
+            ]
+        }
+        
         # Total de órdenes de Insurama
-        total_ordenes_insurama = await db.ordenes.count_documents({"origen": "insurama"})
+        total_ordenes_insurama = await db.ordenes.count_documents(filtro_insurama)
         ordenes_insurama_30d = await db.ordenes.count_documents({
-            "origen": "insurama",
+            **filtro_insurama,
             "created_at": {"$gte": hace_30_dias}
         })
         
         # Órdenes por estado
-        ordenes_cerradas = await db.ordenes.count_documents({"origen": "insurama", "estado": "enviado"})
+        ordenes_cerradas = await db.ordenes.count_documents({**filtro_insurama, "estado": "enviado"})
         ordenes_en_proceso = await db.ordenes.count_documents({
-            "origen": "insurama", 
+            **filtro_insurama, 
             "estado": {"$in": ["recibida", "en_taller", "reparado", "validacion"]}
         })
         ordenes_pendientes = await db.ordenes.count_documents({
-            "origen": "insurama", 
+            **filtro_insurama, 
             "estado": "pendiente_recibir"
         })
         
         # Calcular ingresos, gastos y beneficios de órdenes Insurama
         pipeline_financiero = [
-            {"$match": {"origen": "insurama"}},
+            {"$match": filtro_insurama},
             {"$project": {
                 "estado": 1,
                 "materiales": 1,

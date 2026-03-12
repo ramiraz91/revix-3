@@ -53,6 +53,7 @@ export default function Analiticas() {
   const maxIngresos = Math.max(...Object.values(data.ingresos_por_mes || {}), 1);
   const maxOrdenes = Math.max(...Object.values(data.ordenes_por_mes || {}), 1);
   const totalEstado = Object.values(data.distribucion_estado || {}).reduce((a, b) => a + b, 0);
+  const finanzas = data.finanzas || {};
 
   return (
     <div className="space-y-6" data-testid="analiticas-page">
@@ -61,7 +62,81 @@ export default function Analiticas() {
         <p className="text-muted-foreground">Panel de rendimiento del negocio</p>
       </div>
 
-      {/* KPIs */}
+      {/* Panel Financiero */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Cobrado</p>
+                <p className="text-2xl font-bold text-green-600">{finanzas.total_cobrado?.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</p>
+                <p className="text-xs text-muted-foreground mt-1">De órdenes cerradas</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-full">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-red-500">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Gastos</p>
+                <p className="text-2xl font-bold text-red-600">{finanzas.total_gastos?.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</p>
+                <p className="text-xs text-muted-foreground mt-1">Coste de materiales</p>
+              </div>
+              <div className="p-3 bg-red-100 rounded-full">
+                <TrendingDown className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Pendiente Cobrar</p>
+                <p className="text-2xl font-bold text-amber-600">{finanzas.pendiente_cobrar?.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</p>
+                <p className="text-xs text-muted-foreground mt-1">Órdenes completadas sin cerrar</p>
+              </div>
+              <div className="p-3 bg-amber-100 rounded-full">
+                <Wallet className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Margen Beneficio</p>
+                <p className={`text-2xl font-bold ${finanzas.margen_beneficio >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  {finanzas.margen_beneficio?.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                </p>
+                <div className="flex items-center gap-1 mt-1">
+                  {finanzas.porcentaje_margen >= 0 ? (
+                    <ArrowUpRight className="w-3 h-3 text-green-500" />
+                  ) : (
+                    <ArrowDownRight className="w-3 h-3 text-red-500" />
+                  )}
+                  <p className={`text-xs ${finanzas.porcentaje_margen >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {finanzas.porcentaje_margen}% margen
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-full">
+                <CreditCard className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPIs Operativos */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">

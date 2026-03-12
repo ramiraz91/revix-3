@@ -149,7 +149,8 @@ export default function Layout() {
     
     if (isAdmin() || isTecnico()) {
       fetchNotificaciones();
-      const interval = setInterval(fetchNotificaciones, 30000);
+      // Polling cada 3 minutos (antes era 30s - reducido para mejorar rendimiento)
+      const interval = setInterval(fetchNotificaciones, 180000);
       
       const handleUpdate = () => {
         fetchNotificaciones();

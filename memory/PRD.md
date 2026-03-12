@@ -49,6 +49,10 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] **Verificación notificaciones automáticas**: Verificado funcionamiento correcto con toggles y modo demo
 - [x] **Dashboard financiero para Master**: Añadidas métricas de Total Cobrado, Total Gastos, Pendiente Cobrar y Margen de Beneficio en `/crm/analiticas`
 - [x] **Dashboard Insurama mejorado**: Añadidas métricas reales del negocio (Total Órdenes, Ratio Aceptación, Ticket Medio, Ingresos, Gastos, Beneficio, estado de órdenes) + métricas de competencia
+- [x] **Panel de Facturación Completo**: Nueva página de Analíticas con 3 tabs:
+  - **Facturación**: Filtro por período (semana/mes/trimestre/año), total a facturar, clasificación por estado, desglose semanal, costes y beneficios
+  - **Proyecciones**: Ritmo diario, proyección mensual/anual, análisis de tendencia vs período anterior
+  - **Operaciones**: KPIs operativos, ingresos/órdenes por mes, distribución por estado, ranking técnicos
 
 ## Prioritized Backlog
 ### P1 (High)

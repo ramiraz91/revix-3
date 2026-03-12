@@ -141,7 +141,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         filtro_insurama = {
             "$or": [
                 {"origen": "insurama"},
-                {"numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}},
+                {"numero_autorizacion": {"$exists": True, "$nin": [None, ""]}},
                 {"datos_portal": {"$exists": True, "$ne": None}}
             ]
         }

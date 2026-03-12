@@ -111,6 +111,7 @@ api_router.include_router(web_publica_router)
 api_router.include_router(iso_router)
 api_router.include_router(peticiones_router)
 api_router.include_router(faqs_router)
+api_router.include_router(compras_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
 # ==================== STATIC FILES ====================

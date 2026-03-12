@@ -47,6 +47,7 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] **UX - Tab persistente**: Los tabs de la orden ahora mantienen su posición después de actualizar datos (añadir materiales, subir fotos, etc.)
 - [x] **Polling excesivo de notificaciones**: Reducido el polling de `PresupuestoAceptadoPopup.jsx` de 5s a 60s y `Layout.jsx` de 30s a 180s (3 minutos)
 - [x] **Verificación notificaciones automáticas**: Verificado que la página de configuración de email funciona correctamente con toggles para estados y modo demo
+- [x] **Dashboard financiero para Master**: Añadidas métricas de Total Cobrado, Total Gastos, Pendiente Cobrar y Margen de Beneficio en la página de Analíticas
 
 ## Prioritized Backlog
 ### P1 (High)

@@ -1066,7 +1066,7 @@ export default function OrdenDetalle() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="info" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="info">Información</TabsTrigger>
           <TabsTrigger value="materiales">Materiales</TabsTrigger>

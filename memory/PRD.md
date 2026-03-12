@@ -45,6 +45,8 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] **Bug 2 - Fotos del técnico no visibles al admin**: Modificado `todasLasFotos` en `OrdenDetalle.jsx` para incluir `fotos_antes` y `fotos_despues` que sube el técnico. Ahora el admin puede ver todas las fotos categorizadas
 - [x] **UX - Carga múltiple de fotos**: Añadido atributo `multiple` a todos los inputs de archivo para permitir subir varias fotos a la vez
 - [x] **UX - Tab persistente**: Los tabs de la orden ahora mantienen su posición después de actualizar datos (añadir materiales, subir fotos, etc.)
+- [x] **Polling excesivo de notificaciones**: Reducido el polling de `PresupuestoAceptadoPopup.jsx` de 5s a 60s y `Layout.jsx` de 30s a 180s (3 minutos)
+- [x] **Verificación notificaciones automáticas**: Verificado que la página de configuración de email funciona correctamente con toggles para estados y modo demo
 
 ## Prioritized Backlog
 ### P1 (High)

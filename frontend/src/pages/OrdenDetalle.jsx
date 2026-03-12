@@ -1417,6 +1417,11 @@ export default function OrdenDetalle() {
                     <div key={index} className="relative aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => { setPreviewImage(foto.src); setShowImagePreview(true); }}>
                       <img src={foto.src} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
+                      {foto.categoria && (
+                        <Badge className={`absolute top-1 left-1 text-[10px] ${foto.categoria === 'antes' ? 'bg-amber-500' : 'bg-green-500'}`}>
+                          {foto.categoria === 'antes' ? 'ANTES' : 'DESPUÉS'}
+                        </Badge>
+                      )}
                       <Badge className="absolute bottom-1 left-1 text-[10px]" variant={foto.tipo === 'admin' ? 'default' : 'secondary'}>
                         {foto.tipo === 'admin' ? 'Admin' : 'Técnico'}
                       </Badge>

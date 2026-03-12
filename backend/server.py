@@ -1808,39 +1808,45 @@ async def create_default_users():
     else:
         logger.warning("SMTP no configurado")
 
-    # Create default users
-    from auth import hash_password as hp
-    defaults = [
-        {"id": "master-001", "email": "master@techrepair.local", "nombre": "Master Admin", "role": "master", "password_hash": hp("master123")},
-        {"id": "admin-001", "email": "admin@techrepair.local", "nombre": "Admin Principal", "role": "admin", "password_hash": hp("admin123")},
-        {"id": "tecnico-001", "email": "tecnico@techrepair.local", "nombre": "Técnico Demo", "role": "tecnico", "password_hash": hp("tecnico123")},
-    ]
-    for u in defaults:
-        existing = await db.users.find_one({"email": u["email"]})
-        if not existing:
-            doc = {**u, "activo": True, "created_at": datetime.now(timezone.utc).isoformat(), "updated_at": datetime.now(timezone.utc).isoformat()}
-            await db.users.insert_one(doc)
-            logger.info(f"Usuario creado: {u['email']}")
+    # Database initialization - wrapped in try/except to not crash the server
+    try:
+        # Create default users
+        from auth import hash_password as hp
+        defaults = [
+            {"id": "master-001", "email": "master@techrepair.local", "nombre": "Master Admin", "role": "master", "password_hash": hp("master123")},
+            {"id": "admin-001", "email": "admin@techrepair.local", "nombre": "Admin Principal", "role": "admin", "password_hash": hp("admin123")},
+            {"id": "tecnico-001", "email": "tecnico@techrepair.local", "nombre": "Técnico Demo", "role": "tecnico", "password_hash": hp("tecnico123")},
+        ]
+        for u in defaults:
+            existing = await db.users.find_one({"email": u["email"]})
+            if not existing:
+                doc = {**u, "activo": True, "created_at": datetime.now(timezone.utc).isoformat(), "updated_at": datetime.now(timezone.utc).isoformat()}
+                await db.users.insert_one(doc)
+                logger.info(f"Usuario creado: {u['email']}")
 
-    await db.ordenes.create_index("numero_orden", unique=True)
-    await db.ordenes.create_index("estado")
-    await db.ordenes.create_index("cliente_id")
-    await db.ordenes.create_index("token_seguimiento")
-    await db.clientes.create_index("telefono")
-    await db.clientes.create_index("dni")
-    await db.pre_registros.create_index("codigo_siniestro", unique=True)
-    await db.agent_idempotency.create_index("key", unique=True)
-    await db.notificaciones_externas.create_index("codigo_siniestro")
-    await db.notificaciones_externas.create_index("orden_id")
-    
-    # Índice para logs de auditoría
-    await db.audit_logs.create_index([("entidad", 1), ("entidad_id", 1)])
-    await db.audit_logs.create_index("usuario_email")
-    await db.audit_logs.create_index([("created_at", -1)])
-    
-    # Índice para alertas SLA
-    await db.alertas_sla.create_index("orden_id")
-    await db.alertas_sla.create_index([("created_at", -1)])
+        await db.ordenes.create_index("numero_orden", unique=True)
+        await db.ordenes.create_index("estado")
+        await db.ordenes.create_index("cliente_id")
+        await db.ordenes.create_index("token_seguimiento")
+        await db.clientes.create_index("telefono")
+        await db.clientes.create_index("dni")
+        await db.pre_registros.create_index("codigo_siniestro", unique=True)
+        await db.agent_idempotency.create_index("key", unique=True)
+        await db.notificaciones_externas.create_index("codigo_siniestro")
+        await db.notificaciones_externas.create_index("orden_id")
+        
+        # Índice para logs de auditoría
+        await db.audit_logs.create_index([("entidad", 1), ("entidad_id", 1)])
+        await db.audit_logs.create_index("usuario_email")
+        await db.audit_logs.create_index([("created_at", -1)])
+        
+        # Índice para alertas SLA
+        await db.alertas_sla.create_index("orden_id")
+        await db.alertas_sla.create_index([("created_at", -1)])
+        
+        logger.info("Database indexes created successfully")
+    except Exception as e:
+        logger.error(f"Error during database initialization (server will continue): {e}")
 
     # Start email agent if configured
     try:

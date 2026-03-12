@@ -838,6 +838,7 @@ async def buscar_repuestos_rapido(
             "nombre_es": 1,
             "sku": 1,
             "sku_proveedor": 1,
+            "codigo_barras": 1,
             "precio_compra": 1,
             "precio_venta": 1,
             "stock": 1,

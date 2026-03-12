@@ -495,10 +495,13 @@ export const insuramaAPI = {
   guardarConfig: (data) => API.post('/insurama/config', data),
   testConexion: () => API_SLOW.post('/insurama/test-conexion'),
   
-  // Presupuestos (lectura) - SLOW because Sumbroker API is very slow
-  listarPresupuestos: (limit = 20) => API_SLOW.get(`/insurama/presupuestos?limit=${limit}`),
+  // Presupuestos (lectura) - uses cache, fast response
+  listarPresupuestos: (limit = 20) => API.get(`/insurama/presupuestos?limit=${limit}`),
   obtenerPresupuesto: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}`),
-  obtenerCompetidores: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}/competidores`),
+  obtenerCompetidores: (codigo) => API.get(`/insurama/presupuesto/${codigo}/competidores`),
+  
+  // Sincronización en background
+  sincronizar: () => API.post('/insurama/sync'),
   
   // Búsqueda múltiple (pre-carga todos los datos de mercado en paralelo)
   busquedaMultiple: (codigos) => API_SLOW.post('/insurama/busqueda-multiple', { codigos }),
@@ -528,9 +531,6 @@ export const insuramaAPI = {
   cargaMasiva: (formData) => API_SLOW.post('/insurama/carga-masiva', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  
-  // Sincronización
-  sincronizar: () => API_SLOW.post('/insurama/sincronizar'),
 };
 
 // ==================== INTELIGENCIA DE PRECIOS ====================

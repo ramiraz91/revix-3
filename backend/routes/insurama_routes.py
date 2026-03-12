@@ -1,18 +1,23 @@
 """
 Rutas para integración con Insurama/Sumbroker
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 import os
 import re
+import asyncio
 
 from config import db, logger
 from auth import require_admin, require_auth
 from agent.scraper import SumbrokerClient
 
 router = APIRouter(prefix="/insurama", tags=["insurama"])
+
+# Flag para evitar sincronizaciones simultáneas
+_sync_in_progress = False
+CACHE_TTL_MINUTES = 10  # Caché válida por 10 minutos
 
 # Credenciales de Sumbroker (se configuran en .env o en DB)
 async def get_sumbroker_client():
@@ -289,67 +294,155 @@ async def debug_competidores_raw(codigo: str, user: dict = Depends(require_admin
 
 # ==================== CONSULTAS ====================
 
+def _format_budget_for_ui(b):
+    """Formatea un presupuesto raw de Sumbroker para la UI"""
+    try:
+        claim = b.get("claim_budget") or {}
+        prc = claim.get("policy_risk_claim") or {}
+        policy = claim.get("policy") or {}
+        
+        client_name = policy.get("complete_name") or f"{policy.get('name', '')} {policy.get('last_name_1', '')}".strip()
+        client_phone = policy.get("phone_number") or prc.get("phone_number")
+        
+        terminals = policy.get("mobile_terminals_active") or policy.get("mobile_terminals") or []
+        if terminals:
+            t = terminals[0]
+            device_str = f"{t.get('brand', '')} {t.get('model', '')}".strip()
+        else:
+            device_str = f"{b.get('brand', '')} {b.get('model', '')}".strip()
+        device_str = device_str.replace("None", "").strip() or "N/A"
+        
+        return {
+            "id": b.get("id"),
+            "codigo_siniestro": prc.get("identifier"),
+            "cliente_nombre": client_name,
+            "cliente_telefono": client_phone,
+            "dispositivo": device_str,
+            "daño": (prc.get("description") or "")[:100],
+            "estado": b.get("status_text"),
+            "precio": b.get("price"),
+            "reserve_value": prc.get("reserve_value"),
+            "claim_real_value": prc.get("claim_real_value"),
+            "product_name": b.get("product_name"),
+            "repair_time_text": b.get("repair_time_text"),
+            "fecha_creacion": b.get("created_at"),
+            "fecha_aceptacion": b.get("accepted_date"),
+            "tracking": b.get("tracking_number")
+        }
+    except Exception as e:
+        logger.warning(f"Error formateando presupuesto {b.get('id')}: {e}")
+        return None
+
+async def _sync_presupuestos_cache(limit: int = 50):
+    """Sincroniza presupuestos de Sumbroker a caché MongoDB en background"""
+    global _sync_in_progress
+    if _sync_in_progress:
+        logger.info("Sync already in progress, skipping")
+        return
+    
+    _sync_in_progress = True
+    try:
+        config = await db.configuracion.find_one({"tipo": "sumbroker"}, {"_id": 0})
+        if not config or not config.get("datos", {}).get("login"):
+            return
+        
+        datos = config["datos"]
+        client = SumbrokerClient(login=datos["login"], password=datos["password"])
+        
+        budgets = await client.list_store_budgets(limit=limit)
+        if not budgets:
+            return
+        
+        resultado = []
+        for b in budgets:
+            formatted = _format_budget_for_ui(b)
+            if formatted:
+                resultado.append(formatted)
+        
+        # Guardar en caché
+        await db.insurama_cache.update_one(
+            {"tipo": "presupuestos_lista"},
+            {"$set": {
+                "tipo": "presupuestos_lista",
+                "datos": resultado,
+                "total": len(resultado),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True
+        )
+        logger.info(f"Cache actualizada: {len(resultado)} presupuestos")
+    except Exception as e:
+        logger.error(f"Error syncing presupuestos cache: {e}")
+    finally:
+        _sync_in_progress = False
+
 @router.get("/presupuestos")
 async def listar_presupuestos_insurama(
     limit: int = 20,
+    background_tasks: BackgroundTasks = None,
     user: dict = Depends(require_admin)
 ):
-    """Lista los últimos presupuestos de Insurama/Sumbroker"""
+    """Lista los últimos presupuestos - sirve caché primero, sincroniza en background"""
     try:
+        # 1. Intentar servir desde caché
+        cache = await db.insurama_cache.find_one({"tipo": "presupuestos_lista"}, {"_id": 0})
+        
+        if cache and cache.get("datos"):
+            cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(cache["updated_at"])
+            datos = cache["datos"][:limit]
+            
+            # Si la caché es antigua, sincronizar en background
+            if cache_age > timedelta(minutes=CACHE_TTL_MINUTES) and background_tasks:
+                background_tasks.add_task(_sync_presupuestos_cache, limit)
+            
+            return {
+                "presupuestos": datos,
+                "total": len(datos),
+                "from_cache": True,
+                "cache_age_seconds": int(cache_age.total_seconds()),
+            }
+        
+        # 2. Sin caché - hacer petición directa pero también guardar en caché
         client = await get_sumbroker_client()
         budgets = await client.list_store_budgets(limit=limit)
         
         if budgets is None:
             return {"presupuestos": [], "total": 0, "error": "No se pudieron obtener los presupuestos"}
         
-        # Formatear para la UI
         resultado = []
         for b in budgets:
-            try:
-                claim = b.get("claim_budget") or {}
-                prc = claim.get("policy_risk_claim") or {}
-                policy = claim.get("policy") or {}
-                
-                # Client info from nested policy object
-                client_name = policy.get("complete_name") or f"{policy.get('name', '')} {policy.get('last_name_1', '')}".strip()
-                client_phone = policy.get("phone_number") or prc.get("phone_number")
-                
-                # Device info from mobile_terminals_active (list view doesn't have top-level brand/model)
-                terminals = policy.get("mobile_terminals_active") or policy.get("mobile_terminals") or []
-                if terminals:
-                    t = terminals[0]
-                    device_str = f"{t.get('brand', '')} {t.get('model', '')}".strip()
-                else:
-                    device_str = f"{b.get('brand', '')} {b.get('model', '')}".strip()
-                device_str = device_str.replace("None", "").strip() or "N/A"
-                
-                resultado.append({
-                    "id": b.get("id"),
-                    "codigo_siniestro": prc.get("identifier"),
-                    "cliente_nombre": client_name,
-                    "cliente_telefono": client_phone,
-                    "dispositivo": device_str,
-                    "daño": (prc.get("description") or "")[:100],
-                    "estado": b.get("status_text"),
-                    "precio": b.get("price"),
-                    "reserve_value": prc.get("reserve_value"),
-                    "claim_real_value": prc.get("claim_real_value"),
-                    "product_name": b.get("product_name"),
-                    "repair_time_text": b.get("repair_time_text"),
-                    "fecha_creacion": b.get("created_at"),
-                    "fecha_aceptacion": b.get("accepted_date"),
-                    "tracking": b.get("tracking_number")
-                })
-            except Exception as item_error:
-                logger.warning(f"Error procesando presupuesto {b.get('id')}: {item_error}")
-                continue
+            formatted = _format_budget_for_ui(b)
+            if formatted:
+                resultado.append(formatted)
         
-        return {"presupuestos": resultado, "total": len(resultado)}
+        # Guardar en caché para la próxima vez
+        await db.insurama_cache.update_one(
+            {"tipo": "presupuestos_lista"},
+            {"$set": {
+                "tipo": "presupuestos_lista",
+                "datos": resultado,
+                "total": len(resultado),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True
+        )
+        
+        return {"presupuestos": resultado, "total": len(resultado), "from_cache": False}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error listando presupuestos Insurama: {e}")
+        # Última opción: servir caché aunque sea vieja
+        cache = await db.insurama_cache.find_one({"tipo": "presupuestos_lista"}, {"_id": 0})
+        if cache and cache.get("datos"):
+            return {"presupuestos": cache["datos"][:limit], "total": len(cache["datos"][:limit]), "from_cache": True, "stale": True}
         return {"presupuestos": [], "total": 0, "error": str(e)}
+
+@router.post("/sync")
+async def forzar_sincronizacion(background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
+    """Fuerza una sincronización de presupuestos en background"""
+    background_tasks.add_task(_sync_presupuestos_cache, 50)
+    return {"message": "Sincronización iniciada en background"}
 
 @router.get("/presupuesto/{codigo}")
 async def obtener_presupuesto_insurama(codigo: str, user: dict = Depends(require_admin)):
@@ -536,8 +629,63 @@ async def busqueda_multiple_presupuestos(data: BusquedaMultipleRequest, user: di
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/presupuesto/{codigo}/competidores")
-async def obtener_competidores_presupuesto(codigo: str, user: dict = Depends(require_admin)):
-    """Obtiene todos los presupuestos de competidores para el mismo siniestro, incluyendo sus observaciones"""
+async def obtener_competidores_presupuesto(
+    codigo: str, 
+    background_tasks: BackgroundTasks = None,
+    user: dict = Depends(require_admin)
+):
+    """Obtiene todos los presupuestos de competidores - con caché"""
+    try:
+        # 1. Intentar servir desde caché
+        cache_key = f"competidores_{codigo.upper()}"
+        cache = await db.insurama_cache.find_one({"tipo": cache_key}, {"_id": 0})
+        
+        if cache and cache.get("datos"):
+            cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(cache["updated_at"])
+            # Si caché es reciente (< 10 min), servir directamente
+            if cache_age < timedelta(minutes=CACHE_TTL_MINUTES):
+                return cache["datos"]
+            # Si es vieja, servir pero actualizar en background
+            if background_tasks:
+                background_tasks.add_task(_sync_competidores_cache, codigo)
+            return cache["datos"]
+        
+        # 2. Sin caché - petición directa
+        result = await _fetch_competidores(codigo)
+        
+        # Guardar en caché
+        await db.insurama_cache.update_one(
+            {"tipo": cache_key},
+            {"$set": {"tipo": cache_key, "datos": result, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo competidores para {codigo}: {e}")
+        # Intentar caché vieja como fallback
+        cache = await db.insurama_cache.find_one({"tipo": f"competidores_{codigo.upper()}"}, {"_id": 0})
+        if cache and cache.get("datos"):
+            return cache["datos"]
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def _sync_competidores_cache(codigo: str):
+    """Sincroniza competidores de un siniestro en background"""
+    try:
+        result = await _fetch_competidores(codigo)
+        cache_key = f"competidores_{codigo.upper()}"
+        await db.insurama_cache.update_one(
+            {"tipo": cache_key},
+            {"$set": {"tipo": cache_key, "datos": result, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Error syncing competidores cache for {codigo}: {e}")
+
+async def _fetch_competidores(codigo: str) -> dict:
+    """Fetch competidores from Sumbroker API"""
     try:
         client = await get_sumbroker_client()
         budget = await client.find_budget_by_service_code(codigo)

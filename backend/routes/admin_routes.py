@@ -534,11 +534,16 @@ async def resetear_plantilla_email(plantilla_id: str, user: dict = Depends(requi
     
     if default:
         reset_data = {
+            "asunto": default['asunto'],
+            "nombre": default['nombre'],
             "titulo": default['titulo'],
             "subtitulo": default['subtitulo'],
             "mensaje_principal": default['mensaje_principal'],
+            "mensaje_secundario": default.get('mensaje_secundario', ''),
             "color_banner": default['color_banner'],
             "emoji_estado": default['emoji_estado'],
+            "mostrar_progreso": default.get('mostrar_progreso', True),
+            "mostrar_tracking": default.get('mostrar_tracking', False),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         await db.plantillas_email.update_one({"id": plantilla_id}, {"$set": reset_data})

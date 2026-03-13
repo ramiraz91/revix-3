@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Package, Plus, AlertTriangle, CheckCircle2, QrCode, Scan, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,14 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
   const [showMaterialPersonalizado, setShowMaterialPersonalizado] = useState(false);
   const [materialPersonalizado, setMaterialPersonalizado] = useState({ nombre: '', cantidad: 1 });
   const [guardandoMaterial, setGuardandoMaterial] = useState(false);
+  
+  // Estado local de materiales para evitar recargar toda la página
+  const [localMateriales, setLocalMateriales] = useState(orden.materiales || []);
+  
+  // Sincronizar cuando cambia la orden desde el padre
+  useEffect(() => {
+    setLocalMateriales(orden.materiales || []);
+  }, [orden.materiales]);
   
   // Estados para validación
   const [showValidacionModal, setShowValidacionModal] = useState(false);

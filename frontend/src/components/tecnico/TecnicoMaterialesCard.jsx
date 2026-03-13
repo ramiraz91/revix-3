@@ -183,14 +183,14 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
           <CardTitle className="flex items-center gap-2">
             <Package className="w-5 h-5" />
             Materiales
-            {materiales.length > 0 && (
+            {localMateriales.length > 0 && (
               <Badge variant={todosValidados ? "default" : "secondary"} className="ml-2">
-                {materialesValidados}/{materiales.length} validados
+                {materialesValidados}/{localMateriales.length} validados
               </Badge>
             )}
           </CardTitle>
           <div className="flex gap-2">
-            {materiales.length > 0 && (
+            {localMateriales.length > 0 && (
               <Button 
                 variant={materialesPendientes > 0 ? "default" : "outline"}
                 size="sm"
@@ -249,7 +249,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
         </CardHeader>
         <CardContent>
           {/* Barra de progreso de validación */}
-          {materiales.length > 0 && (
+          {localMateriales.length > 0 && (
             <div className="mb-4">
               <div className="flex justify-between text-sm text-muted-foreground mb-1">
                 <span>Progreso de validación</span>
@@ -259,7 +259,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
             </div>
           )}
           
-          {materiales.length === 0 ? (
+          {localMateriales.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No hay materiales asignados</p>
@@ -267,7 +267,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
             </div>
           ) : (
             <div className="space-y-2">
-              {materiales.map((material, index) => (
+              {localMateriales.map((material, index) => (
                 <div 
                   key={index}
                   className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
@@ -348,7 +348,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
               <span className="font-medium">
                 {todosValidados ? '¡Todos validados!' : `${materialesPendientes} pendientes`}
               </span>
-              <span>{materialesValidados}/{materiales.length}</span>
+              <span>{materialesValidados}/{localMateriales.length}</span>
             </div>
             <Progress value={porcentajeValidado} className="h-3" />
           </div>
@@ -382,7 +382,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
           {/* Lista de materiales */}
           <div className="space-y-2 max-h-64 overflow-y-auto mt-4">
             <p className="text-sm font-medium text-muted-foreground">Materiales asignados:</p>
-            {materiales.map((material, index) => (
+            {localMateriales.map((material, index) => (
               <div 
                 key={index}
                 className={`flex items-center justify-between p-2 rounded border text-sm ${

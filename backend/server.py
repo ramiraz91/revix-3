@@ -1596,17 +1596,23 @@ async def obtener_finanzas(
     
     for o in ordenes:
         estado = o.get('estado', '')
-        materiales = o.get('materiales', [])
         
-        # Calcular valor de la orden
-        precio_materiales = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
-        coste_materiales = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
-        
-        # Usar presupuesto enviado si existe, sino materiales
-        presupuesto_enviado = o.get('presupuesto_enviado') or {}
-        datos_portal = o.get('datos_portal') or {}
-        precio_presupuesto = presupuesto_enviado.get('precio', 0) or datos_portal.get('price', 0)
-        valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
+        # Usar los campos precalculados, con fallback a cálculo manual si no existen
+        if o.get('presupuesto_total') is not None:
+            valor_orden = o.get('presupuesto_total', 0)
+            coste_materiales = o.get('coste_total', 0)
+            beneficio = o.get('beneficio_estimado', 0)
+        else:
+            # Fallback: calcular manualmente para órdenes antiguas
+            materiales = o.get('materiales', [])
+            precio_materiales = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+            coste_materiales = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+            
+            presupuesto_enviado = o.get('presupuesto_enviado') or {}
+            datos_portal = o.get('datos_portal') or {}
+            precio_presupuesto = presupuesto_enviado.get('precio', 0) or datos_portal.get('price', 0)
+            valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
+            beneficio = valor_orden - coste_materiales
         
         dispositivo = o.get('dispositivo') or {}
         orden_data = {
@@ -1615,7 +1621,7 @@ async def obtener_finanzas(
             "estado": estado,
             "valor": valor_orden,
             "coste": coste_materiales,
-            "beneficio": valor_orden - coste_materiales,
+            "beneficio": beneficio,
             "cliente": o.get('cliente_nombre', 'N/A'),
             "dispositivo": f"{dispositivo.get('marca', '')} {dispositivo.get('modelo', '')}".strip(),
             "fecha": o.get('created_at'),

@@ -1622,7 +1622,11 @@ async def eliminar_material_orden(orden_id: str, material_index: int, user: dict
     if material_eliminado.get('repuesto_id'):
         await db.repuestos.update_one({"id": material_eliminado['repuesto_id']}, {"$inc": {"stock_actual": material_eliminado.get('cantidad', 1)}})
     await db.ordenes.update_one({"id": orden_id}, {"$set": {"materiales": materiales, "updated_at": datetime.now(timezone.utc).isoformat()}})
-    return {"message": "Material eliminado", "materiales_restantes": len(materiales)}
+    
+    # Recalcular totales de la orden
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Material eliminado", "materiales_restantes": len(materiales), "totales": totales}
 
 
 @router.post("/ordenes/{orden_id}/materiales/{material_index}/validar")

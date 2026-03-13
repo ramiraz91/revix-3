@@ -1408,18 +1408,8 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
                 detail="Completa el checklist de recepción antes de iniciar reparación (estado en_taller)",
             )
 
-    if request.nuevo_estado == OrderStatus.ENVIADO:
-        checks_qc = {
-            'diagnostico_salida_realizado': orden.get('diagnostico_salida_realizado'),
-            'funciones_verificadas': orden.get('funciones_verificadas'),
-            'limpieza_realizada': orden.get('limpieza_realizada'),
-        }
-        faltantes_qc = [campo for campo, valor in checks_qc.items() if not valor]
-        if faltantes_qc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No se puede enviar la orden sin QC final completo. Faltan: {', '.join(faltantes_qc)}",
-            )
+    # Cuando el admin envía, el QC se marca automáticamente como completado
+    # (el frontend lo hace antes de llamar a este endpoint)
     
     # Validar que todos los materiales estén validados antes de marcar como REPARADO
     # Admin puede forzar con forzar_sin_validacion=True

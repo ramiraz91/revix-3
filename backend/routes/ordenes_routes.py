@@ -1629,6 +1629,46 @@ async def eliminar_material_orden(orden_id: str, material_index: int, user: dict
     return {"message": "Material eliminado", "materiales_restantes": len(materiales), "totales": totales}
 
 
+# ==================== MANO DE OBRA Y TOTALES ====================
+
+class ManoObraRequest(BaseModel):
+    mano_obra: float
+    descripcion: Optional[str] = None
+
+@router.patch("/ordenes/{orden_id}/mano-obra")
+async def actualizar_mano_obra(orden_id: str, request: ManoObraRequest, user: dict = Depends(require_admin)):
+    """Actualiza el importe de mano de obra y recalcula los totales"""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    update_data = {
+        "mano_obra": request.mano_obra,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    if request.descripcion:
+        update_data["mano_obra_descripcion"] = request.descripcion
+    
+    await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
+    
+    # Recalcular totales
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Mano de obra actualizada", "mano_obra": request.mano_obra, "totales": totales}
+
+
+@router.post("/ordenes/{orden_id}/recalcular-totales")
+async def recalcular_totales_endpoint(orden_id: str, user: dict = Depends(require_admin)):
+    """Fuerza el recálculo de los totales de una orden"""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Totales recalculados", "totales": totales}
+
+
 @router.post("/ordenes/{orden_id}/materiales/{material_index}/validar")
 async def validar_material_tecnico(orden_id: str, material_index: int, user: dict = Depends(require_auth)):
     """

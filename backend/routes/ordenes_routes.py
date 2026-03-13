@@ -1114,11 +1114,9 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
     ]
 
     # Campos de diagnóstico/QC exclusivos del técnico (admin/master solo lectura)
+    # EXCEPCIÓN: Admin puede marcarlos como completados al finalizar una orden
     campos_diagnostico_qc_exclusivos_tecnico = [
         'diagnostico_tecnico',
-        'diagnostico_salida_realizado',
-        'funciones_verificadas',
-        'limpieza_realizada',
         'notas_cierre_tecnico',
         'fecha_fin_reparacion',
         'recepcion_checklist_completo',
@@ -1127,11 +1125,27 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         'recepcion_notas',
     ]
     
+    # Campos de QC que el admin PUEDE marcar como completados al finalizar
+    campos_qc_finalizacion = [
+        'diagnostico_salida_realizado',
+        'funciones_verificadas',
+        'limpieza_realizada',
+    ]
+    
     is_admin = user.get('role') in ['admin', 'master']
     if not is_admin:
         data = {k: v for k, v in data.items() if k in campos_tecnico_permitidos}
     else:
+        # Admin puede marcar campos de QC como completados (pero no modificarlos a False)
         intentos_restringidos = [k for k in data.keys() if k in campos_diagnostico_qc_exclusivos_tecnico]
+        
+        # Verificar si intenta modificar campos de QC de finalización
+        intentos_qc = [k for k in data.keys() if k in campos_qc_finalizacion]
+        for campo_qc in intentos_qc:
+            # Solo permitir si está marcando como True (completado)
+            if data.get(campo_qc) != True:
+                intentos_restringidos.append(campo_qc)
+        
         if intentos_restringidos:
             raise HTTPException(
                 status_code=403,

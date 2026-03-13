@@ -23,6 +23,76 @@ from utils.image_compression import compress_image, is_image
 
 router = APIRouter()
 
+# ==================== FUNCIÓN DE CÁLCULO DE TOTALES ====================
+
+async def recalcular_totales_orden(orden_id: str):
+    """
+    Recalcula y actualiza los totales de una orden basándose en sus materiales.
+    - presupuesto_total: Suma de (precio_unitario * cantidad) con IVA y descuentos
+    - coste_total: Suma de (coste * cantidad)
+    - beneficio_estimado: presupuesto_total - coste_total
+    - mano_obra: Se mantiene el valor existente o 0
+    """
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        return None
+    
+    materiales = orden.get('materiales', [])
+    mano_obra = orden.get('mano_obra', 0) or 0
+    
+    subtotal_materiales = 0
+    coste_total = 0
+    total_iva = 0
+    
+    for mat in materiales:
+        # Solo contar materiales aprobados
+        if not mat.get('aprobado', True):
+            continue
+            
+        cantidad = mat.get('cantidad', 1)
+        precio_unitario = mat.get('precio_unitario', 0) or 0
+        coste_unitario = mat.get('coste', 0) or 0
+        iva_porcentaje = mat.get('iva', 21) or 21
+        descuento_porcentaje = mat.get('descuento', 0) or 0
+        
+        # Calcular precio con descuento
+        precio_con_descuento = precio_unitario * (1 - descuento_porcentaje / 100)
+        subtotal_linea = precio_con_descuento * cantidad
+        iva_linea = subtotal_linea * (iva_porcentaje / 100)
+        
+        subtotal_materiales += subtotal_linea
+        total_iva += iva_linea
+        coste_total += coste_unitario * cantidad
+    
+    # Calcular totales finales
+    base_imponible = subtotal_materiales + mano_obra
+    iva_mano_obra = mano_obra * 0.21  # IVA 21% sobre mano de obra
+    presupuesto_total = base_imponible + total_iva + iva_mano_obra
+    beneficio_estimado = presupuesto_total - coste_total - (mano_obra * 0.5)  # Asumimos ~50% coste de mano de obra
+    
+    # Actualizar en la base de datos
+    update_data = {
+        "subtotal_materiales": round(subtotal_materiales, 2),
+        "total_iva": round(total_iva + iva_mano_obra, 2),
+        "base_imponible": round(base_imponible, 2),
+        "presupuesto_total": round(presupuesto_total, 2),
+        "coste_total": round(coste_total, 2),
+        "beneficio_estimado": round(beneficio_estimado, 2),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
+    
+    return {
+        "subtotal_materiales": update_data["subtotal_materiales"],
+        "total_iva": update_data["total_iva"],
+        "base_imponible": update_data["base_imponible"],
+        "presupuesto_total": update_data["presupuesto_total"],
+        "coste_total": update_data["coste_total"],
+        "beneficio_estimado": update_data["beneficio_estimado"]
+    }
+
+
 # ==================== SUBESTADOS ====================
 
 class CambiarSubestadoRequest(BaseModel):

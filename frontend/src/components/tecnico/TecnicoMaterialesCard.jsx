@@ -60,7 +60,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
     if (!selectedRepuesto) return;
     
     try {
-      await ordenesAPI.añadirMaterial(orden.id, {
+      const response = await ordenesAPI.añadirMaterial(orden.id, {
         repuesto_id: selectedRepuesto.id,
         cantidad: 1,
         añadido_por_tecnico: true
@@ -68,8 +68,17 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
       
       toast.warning('Material añadido. La orden ha sido BLOQUEADA hasta que el administrador apruebe el material.');
       setShowConfirmDialog(false);
+      
+      // Actualizar estado local
+      const nuevoMaterial = response?.data?.material || {
+        repuesto_id: selectedRepuesto.id,
+        nombre: selectedRepuesto.nombre,
+        cantidad: 1,
+        añadido_por_tecnico: true
+      };
+      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      
       setSelectedRepuesto(null);
-      onRefresh();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al añadir material');
     }

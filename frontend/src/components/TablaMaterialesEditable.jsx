@@ -38,7 +38,7 @@ const TIPOS_IVA = [
 
 export default function TablaMaterialesEditable({ 
   ordenId, 
-  materiales = [], 
+  materiales: materialesIniciales = [], 
   onUpdate, 
   readOnly = false,
   mostrarCoste = true 
@@ -47,6 +47,13 @@ export default function TablaMaterialesEditable({
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  // Estado local de materiales para evitar recargar toda la página
+  const [localMateriales, setLocalMateriales] = useState(materialesIniciales);
+  
+  // Sincronizar cuando cambian los materiales desde el padre
+  useEffect(() => {
+    setLocalMateriales(materialesIniciales);
+  }, [materialesIniciales]);
   
   // Nueva fila para añadir
   const [showNewRow, setShowNewRow] = useState(false);

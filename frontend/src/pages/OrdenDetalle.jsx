@@ -140,6 +140,7 @@ export default function OrdenDetalle() {
   const [previewImage, setPreviewImage] = useState(null);
   const [codigoEnvioFinal, setCodigoEnvioFinal] = useState('');
   const [finalizando, setFinalizando] = useState(false);
+  const [forzarSinQC, setForzarSinQC] = useState(false);
   
   // Loading states
   const [uploading, setUploading] = useState(false);

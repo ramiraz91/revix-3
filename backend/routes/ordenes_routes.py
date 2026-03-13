@@ -1442,27 +1442,8 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
                     # Registrar en historial que se forzó sin validación
                     logger.warning(f"Admin {user.get('email')} forzó cambio a REPARADO sin validar {len(materiales_sin_validar)} materiales en orden {orden.get('numero_orden')}")
         
-        # ========== VALIDACIÓN QC OBLIGATORIA PARA EL TÉCNICO ==========
-        # El técnico DEBE completar el control de calidad antes de finalizar la reparación
-        if not es_admin:  # Solo aplicar al técnico
-            qc_diagnostico = orden.get('diagnostico_salida_realizado', False)
-            qc_funciones = orden.get('funciones_verificadas', False)
-            qc_limpieza = orden.get('limpieza_realizada', False)
-            
-            qc_pendientes = []
-            if not qc_diagnostico:
-                qc_pendientes.append("Diagnóstico de salida")
-            if not qc_funciones:
-                qc_pendientes.append("Verificación de funciones")
-            if not qc_limpieza:
-                qc_pendientes.append("Limpieza del dispositivo")
-            
-            if qc_pendientes:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"⚠️ CONTROL DE CALIDAD INCOMPLETO. Debes completar antes de finalizar: {', '.join(qc_pendientes)}. Ve a la sección QC para marcar estas verificaciones."
-                )
-        # ================================================================
+        # Cuando el técnico marca como REPARADO, su trabajo termina.
+        # El QC lo completará el admin al validar/enviar.
     now = datetime.now(timezone.utc)
     historial = orden.get('historial_estados', [])
     

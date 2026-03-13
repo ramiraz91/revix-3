@@ -181,7 +181,7 @@ export default function TablaMaterialesEditable({
     
     setAddingSaving(true);
     try {
-      await ordenesAPI.añadirMaterial(ordenId, {
+      const response = await ordenesAPI.añadirMaterial(ordenId, {
         nombre: newMaterial.nombre,
         cantidad: parseInt(newMaterial.cantidad) || 1,
         precio_unitario: parseFloat(newMaterial.precio_unitario) || 0,
@@ -191,6 +191,19 @@ export default function TablaMaterialesEditable({
         es_personalizado: true
       });
       toast.success('Material añadido');
+      
+      // Añadir al estado local
+      const nuevoMaterial = response?.data?.material || {
+        nombre: newMaterial.nombre,
+        cantidad: parseInt(newMaterial.cantidad) || 1,
+        precio_unitario: parseFloat(newMaterial.precio_unitario) || 0,
+        coste: parseFloat(newMaterial.coste) || 0,
+        iva: parseFloat(newMaterial.iva) || 21,
+        descuento: parseFloat(newMaterial.descuento) || 0,
+        es_personalizado: true
+      };
+      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      
       setShowNewRow(false);
       setNewMaterial({
         nombre: '',
@@ -200,7 +213,11 @@ export default function TablaMaterialesEditable({
         iva: 21,
         descuento: 0
       });
-      onUpdate?.();
+      
+      // Solo notificar al padre si necesita actualizar los totales
+      if (response?.data?.totales) {
+        onUpdate?.(response.data.totales);
+      }
     } catch (error) {
       toast.error('Error al añadir material');
     } finally {

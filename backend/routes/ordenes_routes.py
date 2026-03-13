@@ -2131,6 +2131,64 @@ async def subir_evidencia_tecnico(
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
     return {"message": f"Foto ({tipo_foto}) subida correctamente", "file_name": file_name, "tipo": tipo_foto}
 
+
+# ==================== DESCARGA ZIP DE FOTOS ====================
+
+@router.get("/ordenes/{orden_id}/fotos-zip")
+async def descargar_fotos_zip(orden_id: str, user: dict = Depends(require_auth)):
+    """Descarga todas las fotos de una orden en un archivo ZIP"""
+    import zipfile
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    # Recopilar todas las fotos
+    todas_fotos = []
+    
+    # Evidencias del admin
+    for foto in (orden.get('evidencias') or []):
+        todas_fotos.append(("admin", foto))
+    
+    # Evidencias del técnico
+    for foto in (orden.get('evidencias_tecnico') or []):
+        todas_fotos.append(("tecnico", foto))
+    
+    # Fotos antes
+    for foto in (orden.get('fotos_antes') or []):
+        todas_fotos.append(("antes", foto))
+    
+    # Fotos después
+    for foto in (orden.get('fotos_despues') or []):
+        todas_fotos.append(("despues", foto))
+    
+    if not todas_fotos:
+        raise HTTPException(status_code=404, detail="No hay fotos para descargar")
+    
+    # Crear ZIP en memoria
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for categoria, filename in todas_fotos:
+            file_path = UPLOAD_DIR / filename
+            if file_path.exists():
+                # Crear nombre descriptivo para el archivo dentro del ZIP
+                zip_filename = f"{categoria}_{filename}"
+                zip_file.write(file_path, zip_filename)
+    
+    zip_buffer.seek(0)
+    
+    numero_orden = orden.get('numero_orden', orden_id)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={numero_orden}_fotos.zip"
+        }
+    )
+
+
 # ==================== MÉTRICAS ====================
 
 @router.get("/ordenes/{orden_id}/metricas")

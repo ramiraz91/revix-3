@@ -76,12 +76,24 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] **Endpoint descarga ZIP de fotos**: Creado `/api/ordenes/{id}/fotos-zip` para descargar todas las fotos de una orden en formato ZIP
 - [x] **División galería de fotos (Admin)**: Las fotos ahora se organizan en secciones separadas: "ANTES", "DESPUÉS" y "OTRAS FOTOS" con bordes de colores distintivos
 - [x] **Bug visualización imágenes**: Verificado funcionamiento correcto - el problema eran archivos de prueba corruptos eliminados
+- [x] **Cálculos financieros automatizados**: Función `recalcular_totales_orden` que calcula presupuesto, coste y beneficio automáticamente
+- [x] **Flujo de estados corregido**: Técnico → REPARADO → Admin → ENVIADO con validación QC obligatoria
+- [x] **Protección de fotos**: Backend ignora intentos de borrar arrays de fotos durante actualizaciones
+- [x] **Descarga ZIP sin nueva pestaña**: Corregido handler frontend para descarga directa
+- [x] **Etiquetas inventario 29x90mm**: Ajustado CSS de impresión para Brother QL-800
+- [x] **Mejora UX sin recarga**: TablaMaterialesEditable y TecnicoMaterialesCard usan estado local
+- [x] **Consistencia analíticas**: Endpoints de finanzas usan campos calculados de órdenes
+
+### Session 7 - Verificación P0 (13 Mar 2026)
+- [x] **Código de envío se guarda correctamente**: Verificado que `codigo_recogida_salida` se almacena al finalizar orden con estado ENVIADO
+- [x] **Sin fotos "durante" para técnico**: Confirmado que TecnicoFotosCard solo tiene tabs ANTES, DESPUÉS y General
 
 ## Next Tasks
 1. Probar módulo de Compras con un PDF real de factura
-2. Deploy updated code to production
-3. Configure SMTP password - Pendiente credenciales
-4. Implementar automatizaciones de Insurama (sincronización de estados)
+2. Implementar automatizaciones de Insurama (sincronización de estados)
+3. Integración completa con GLS (etiquetas, recogidas, tracking)
+4. Verificar envío de emails SMTP
+5. Acortar SKU generado en inventario
 
 ## Completed Tasks
 - ~~Deploy updated code to production~~ - En progreso

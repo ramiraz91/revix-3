@@ -270,6 +270,7 @@ export default function Layout() {
                 <NavItem path="/peticiones-exteriores" icon={PhoneIncoming} label="Peticiones Ext." />
                 <NavItem path="/inventario" icon={Package} label="Inventario" />
                 <NavItem path="/proveedores" icon={Truck} label="Proveedores" />
+                <NavItem path="/compras" icon={FileText} label="Compras" />
                 <NavItem path="/ordenes-compra" icon={ShoppingCart} label="Órdenes Compra" />
               </SidebarGroup>
 

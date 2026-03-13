@@ -1299,10 +1299,15 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         }
         faltantes_qc = [campo for campo, valor in checks_qc.items() if not valor]
         if faltantes_qc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No se puede enviar la orden sin QC final completo. Faltan: {', '.join(faltantes_qc)}",
-            )
+            # Permitir a admin/master forzar sin QC completo
+            puede_forzar = es_admin and request.forzar_sin_validacion
+            if not puede_forzar:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No se puede enviar la orden sin QC final completo. Faltan: {', '.join(faltantes_qc)}. Admin puede forzar activando la opción.",
+                )
+            else:
+                logger.warning(f"Admin {user.get('email')} forzó envío sin QC completo. Faltaban: {faltantes_qc} en orden {orden.get('numero_orden')}")
     
     # Validar que todos los materiales estén validados antes de marcar como REPARADO
     # Admin puede forzar con forzar_sin_validacion=True

@@ -87,6 +87,7 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 ### Session 7 - Verificación P0 (13 Mar 2026)
 - [x] **Código de envío se guarda correctamente**: Verificado que `codigo_recogida_salida` se almacena al finalizar orden con estado ENVIADO
 - [x] **Sin fotos "durante" para técnico**: Confirmado que TecnicoFotosCard solo tiene tabs ANTES, DESPUÉS y General
+- [x] **Órdenes irreparables pueden finalizarse**: Añadida transición `irreparable → enviado` para poder contabilizar dispositivos irreparables
 
 ## Next Tasks
 1. Probar módulo de Compras con un PDF real de factura

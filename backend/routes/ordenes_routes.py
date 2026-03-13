@@ -1604,7 +1604,11 @@ async def editar_material_completo(orden_id: str, material_index: int, data: Mat
     material['pendiente_precios'] = False
     materiales[material_index] = material
     await db.ordenes.update_one({"id": orden_id}, {"$set": {"materiales": materiales, "updated_at": datetime.now(timezone.utc).isoformat()}})
-    return {"message": "Material actualizado", "material": material}
+    
+    # Recalcular totales de la orden
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Material actualizado", "material": material, "totales": totales}
 
 @router.delete("/ordenes/{orden_id}/materiales/{material_index}")
 async def eliminar_material_orden(orden_id: str, material_index: int, user: dict = Depends(require_admin)):

@@ -71,12 +71,25 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - WebSocket notifications
 - Full ISO 9001 module testing
 
+### Session 6 - Bug Fixes (13 Mar 2026)
+- [x] **Error módulo compras (LlmChat)**: Corregido import de `emergentintegrations.llm.chat` usando sintaxis correcta con `LlmChat`, `UserMessage` y `FileContentWithMimeType`
+- [x] **Endpoint descarga ZIP de fotos**: Creado `/api/ordenes/{id}/fotos-zip` para descargar todas las fotos de una orden en formato ZIP
+- [x] **División galería de fotos (Admin)**: Las fotos ahora se organizan en secciones separadas: "ANTES", "DESPUÉS" y "OTRAS FOTOS" con bordes de colores distintivos
+- [x] **Bug visualización imágenes**: Verificado funcionamiento correcto - el problema eran archivos de prueba corruptos eliminados
+
 ## Next Tasks
-1. ~~Deploy updated code to production~~ - En progreso
-2. Test Insurama page on revix.es after deploy
+1. Probar módulo de Compras con un PDF real de factura
+2. Deploy updated code to production
 3. Configure SMTP password - Pendiente credenciales
-4. ~~Polling excesivo de notificaciones~~ - COMPLETADO
-5. ~~Notificaciones automáticas~~ - COMPLETADO
-6. ~~Integración Gemini IA~~ - YA FUNCIONANDO
-7. ~~Dashboard financiero master~~ - COMPLETADO
-8. ~~Dashboard Insurama mejorado~~ - COMPLETADO (métricas negocio + competencia)
+4. Implementar automatizaciones de Insurama (sincronización de estados)
+
+## Completed Tasks
+- ~~Deploy updated code to production~~ - En progreso
+- ~~Polling excesivo de notificaciones~~ - COMPLETADO
+- ~~Notificaciones automáticas~~ - COMPLETADO
+- ~~Integración Gemini IA~~ - YA FUNCIONANDO
+- ~~Dashboard financiero master~~ - COMPLETADO
+- ~~Dashboard Insurama mejorado~~ - COMPLETADO (métricas negocio + competencia)
+- ~~Error módulo compras (LlmChat)~~ - COMPLETADO
+- ~~Endpoint descarga ZIP~~ - COMPLETADO
+- ~~División galería de fotos~~ - COMPLETADO

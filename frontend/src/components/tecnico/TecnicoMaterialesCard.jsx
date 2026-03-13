@@ -159,7 +159,12 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
     try {
       await ordenesAPI.validarMaterial(orden.id, index);
       toast.success('Material validado');
-      onRefresh();
+      
+      // Actualizar estado local
+      const updatedMateriales = localMateriales.map((m, i) => 
+        i === index ? { ...m, validado_tecnico: true } : m
+      );
+      setLocalMateriales(updatedMateriales);
     } catch (error) {
       toast.error('Error al validar material');
     }

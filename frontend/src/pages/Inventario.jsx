@@ -664,34 +664,6 @@ export default function Inventario() {
     printWindow.document.close();
     toast.success(\`Preparando \${etiquetas.length} etiqueta(s) para Brother QL-800\`);
   };
-            .no-print {
-              display: none;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="no-print">
-          <h3>Etiquetas de Inventario</h3>
-          <p>Tamaño: 29mm x 90mm</p>
-          <p><strong>Total: ${etiquetas.length} etiqueta(s)</strong></p>
-          <button onclick="window.print()">Imprimir Ahora</button>
-        </div>
-        ${etiquetas.join('')}
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 500);
-          };
-        </script>
-      </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    toast.success(`Preparando ${etiquetas.length} etiqueta(s) para imprimir`);
-  };
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="inventario-page">

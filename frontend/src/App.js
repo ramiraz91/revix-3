@@ -214,6 +214,11 @@ function AppRoutes() {
             <Proveedores />
           </ProtectedRoute>
         } />
+        <Route path="compras" element={
+          <ProtectedRoute adminOnly>
+            <Compras />
+          </ProtectedRoute>
+        } />
         <Route path="scanner" element={<Scanner />} />
         <Route path="notificaciones" element={
           <ProtectedRoute>

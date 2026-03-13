@@ -359,41 +359,18 @@ export default function Inventario() {
       return;
     }
 
-    const etiquetas = [];
-    productos.forEach(producto => {
-      const codigo = producto.sku || producto.id || 'SIN-SKU';
-      const precio = producto.precio_venta ? `${producto.precio_venta.toFixed(2)}€` : '';
-      for (let i = 0; i < cantidadPorProducto; i++) {
-        etiquetas.push(`
-          <div class="etiqueta">
-            <div class="info-left">
-              <div class="nombre">${(producto.nombre || '').substring(0, 50)}</div>
-              ${precio ? `<div class="precio">${precio}</div>` : ''}
-            </div>
-            <div class="barcode-section">
-              <svg class="barcode" id="barcode-${i}">
-                ${generateBarcodeSVG(codigo)}
-              </svg>
-              <div class="codigo">${codigo}</div>
-            </div>
-          </div>
-        `);
-      }
-    });
-
     // Función para generar código de barras Code128-like simplificado
-    function generateBarcodeSVG(text) {
+    const generateBarcodeSVG = (text) => {
       let bars = '';
       const barWidth = 1.5;
       let x = 0;
       
       // Start pattern
-      bars += \`<rect x="\${x}" y="0" width="2" height="100%" fill="black"/>\`;
+      bars += '<rect x="' + x + '" y="0" width="2" height="100%" fill="black"/>';
       x += 4;
       
       for (let i = 0; i < text.length; i++) {
         const charCode = text.charCodeAt(i);
-        // Generar patrón basado en el código ASCII
         const pattern = [
           (charCode & 1) ? 2 : 1,
           (charCode & 2) ? 1 : 2,
@@ -403,266 +380,100 @@ export default function Inventario() {
         
         pattern.forEach((w, j) => {
           if (j % 2 === 0) {
-            bars += \`<rect x="\${x}" y="0" width="\${w * barWidth}" height="100%" fill="black"/>\`;
+            bars += '<rect x="' + x + '" y="0" width="' + (w * barWidth) + '" height="100%" fill="black"/>';
           }
           x += w * barWidth + 1;
         });
-        x += 2; // espacio entre caracteres
+        x += 2;
       }
       
-      // End pattern
-      bars += \`<rect x="\${x}" y="0" width="2" height="100%" fill="black"/>\`;
-      
+      bars += '<rect x="' + x + '" y="0" width="2" height="100%" fill="black"/>';
       return bars;
-    }
+    };
 
-    printWindow.document.write(\`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Etiquetas Brother QL-800</title>
-        <style>
-          /* Reset y configuración base */
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          /* Configuración de página para impresión */
-          @page {
-            size: 90mm 29mm;
-            margin: 0;
-          }
-          
-          @media print {
-            html, body {
-              width: 90mm;
-              margin: 0;
-              padding: 0;
-            }
-            .no-print {
-              display: none !important;
-            }
-            .etiqueta {
-              border: none !important;
-              page-break-after: always;
-              page-break-inside: avoid;
-            }
-          }
-          
-          body {
-            font-family: Arial, Helvetica, sans-serif;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          
-          /* Panel de control (no se imprime) */
-          .no-print {
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-align: center;
-            margin-bottom: 20px;
-          }
-          .no-print h2 {
-            margin-bottom: 10px;
-          }
-          .no-print p {
-            margin-bottom: 5px;
-            opacity: 0.9;
-          }
-          .no-print .info-box {
-            background: rgba(255,255,255,0.2);
-            padding: 10px;
-            border-radius: 8px;
-            margin: 15px 0;
-          }
-          .btn-print {
-            padding: 15px 40px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            background: white;
-            color: #764ba2;
-            border: none;
-            border-radius: 8px;
-            margin-top: 15px;
-            transition: transform 0.2s;
-          }
-          .btn-print:hover {
-            transform: scale(1.05);
-          }
-          
-          /* Contenedor de etiquetas para preview */
-          .etiquetas-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            padding: 20px;
-          }
-          
-          @media print {
-            .etiquetas-container {
-              padding: 0;
-              gap: 0;
-            }
-          }
-          
-          /* Etiqueta individual - 90mm x 29mm */
-          .etiqueta {
-            width: 340px; /* ~90mm en pantalla */
-            height: 110px; /* ~29mm en pantalla */
-            padding: 8px 12px;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-between;
-            border: 2px solid #333;
-            border-radius: 4px;
-            background: white;
-            gap: 10px;
-          }
-          
-          @media print {
-            .etiqueta {
-              width: 90mm;
-              height: 29mm;
-              padding: 2mm 3mm;
-              border-radius: 0;
-            }
-          }
-          
-          /* Información del producto (izquierda) */
-          .info-left {
-            flex: 0 0 35%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            overflow: hidden;
-          }
-          
-          .nombre {
-            font-size: 9px;
-            font-weight: bold;
-            line-height: 1.2;
-            max-height: 45px;
-            overflow: hidden;
-            word-break: break-word;
-          }
-          
-          @media print {
-            .nombre {
-              font-size: 7pt;
-              max-height: 18mm;
-            }
-          }
-          
-          .precio {
-            font-size: 14px;
-            font-weight: bold;
-            color: #000;
-            margin-top: 4px;
-          }
-          
-          @media print {
-            .precio {
-              font-size: 10pt;
-              margin-top: 1mm;
-            }
-          }
-          
-          /* Sección código de barras (derecha) */
-          .barcode-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-          }
-          
-          .barcode {
-            width: 100%;
-            height: 50px;
-            max-width: 180px;
-          }
-          
-          @media print {
-            .barcode {
-              height: 15mm;
-              max-width: 50mm;
-            }
-          }
-          
-          .codigo {
-            font-size: 10px;
-            font-weight: bold;
-            font-family: 'Courier New', Courier, monospace;
-            letter-spacing: 1px;
-            margin-top: 2px;
-            text-align: center;
-          }
-          
-          @media print {
-            .codigo {
-              font-size: 7pt;
-              margin-top: 0.5mm;
-            }
-          }
-          
-          /* Instrucciones */
-          .instrucciones {
-            padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #ddd;
-            font-size: 13px;
-            color: #666;
-          }
-          .instrucciones h4 {
-            color: #333;
-            margin-bottom: 10px;
-          }
-          .instrucciones ol {
-            margin-left: 20px;
-          }
-          .instrucciones li {
-            margin-bottom: 5px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="no-print">
-          <h2>🏷️ Brother QL-800</h2>
-          <p>Etiquetas 29mm × 90mm (DK-11201)</p>
-          <div class="info-box">
-            <strong>Total: \${etiquetas.length} etiqueta(s)</strong>
-          </div>
-          <button class="btn-print" onclick="window.print()">
-            🖨️ IMPRIMIR ETIQUETAS
-          </button>
-        </div>
+    const etiquetas = [];
+    productos.forEach(producto => {
+      const codigo = producto.sku || producto.id || 'SIN-SKU';
+      const precio = producto.precio_venta ? producto.precio_venta.toFixed(2) + '€' : '';
+      for (let i = 0; i < cantidadPorProducto; i++) {
+        const nombreCorto = (producto.nombre || '').substring(0, 50);
+        const precioHtml = precio ? '<div class="precio">' + precio + '</div>' : '';
+        const barcodeHtml = generateBarcodeSVG(codigo);
         
-        <div class="etiquetas-container">
-          \${etiquetas.join('')}
-        </div>
-        
-        <div class="no-print instrucciones">
-          <h4>📋 Instrucciones de impresión:</h4>
-          <ol>
-            <li>Selecciona la impresora <strong>Brother QL-800</strong></li>
-            <li>En "Más opciones" o "Configuración":</li>
-            <li>Tamaño de papel: <strong>29mm x 90mm</strong> o <strong>DK-11201</strong></li>
-            <li>Márgenes: <strong>Ninguno</strong> o <strong>Mínimos</strong></li>
-            <li>Escala: <strong>100%</strong> (sin ajustar)</li>
-          </ol>
-        </div>
-      </body>
-      </html>
-    \`);
+        etiquetas.push(
+          '<div class="etiqueta">' +
+            '<div class="info-left">' +
+              '<div class="nombre">' + nombreCorto + '</div>' +
+              precioHtml +
+            '</div>' +
+            '<div class="barcode-section">' +
+              '<svg class="barcode" viewBox="0 0 150 50">' + barcodeHtml + '</svg>' +
+              '<div class="codigo">' + codigo + '</div>' +
+            '</div>' +
+          '</div>'
+        );
+      }
+    });
+
+    const htmlContent = '<!DOCTYPE html>' +
+      '<html>' +
+      '<head>' +
+        '<title>Etiquetas Brother QL-800</title>' +
+        '<style>' +
+          '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+          '@page { size: 90mm 29mm; margin: 0; }' +
+          '@media print { html, body { width: 90mm; margin: 0; padding: 0; } .no-print { display: none !important; } .etiqueta { border: none !important; page-break-after: always; page-break-inside: avoid; } }' +
+          'body { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+          '.no-print { padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; margin-bottom: 20px; }' +
+          '.no-print h2 { margin-bottom: 10px; }' +
+          '.no-print p { margin-bottom: 5px; opacity: 0.9; }' +
+          '.info-box { background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; margin: 15px 0; }' +
+          '.btn-print { padding: 15px 40px; font-size: 16px; font-weight: bold; cursor: pointer; background: white; color: #764ba2; border: none; border-radius: 8px; margin-top: 15px; }' +
+          '.btn-print:hover { transform: scale(1.05); }' +
+          '.etiquetas-container { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; }' +
+          '@media print { .etiquetas-container { padding: 0; gap: 0; } }' +
+          '.etiqueta { width: 340px; height: 110px; padding: 8px 12px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; border: 2px solid #333; border-radius: 4px; background: white; gap: 10px; }' +
+          '@media print { .etiqueta { width: 90mm; height: 29mm; padding: 2mm 3mm; border-radius: 0; } }' +
+          '.info-left { flex: 0 0 35%; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }' +
+          '.nombre { font-size: 9px; font-weight: bold; line-height: 1.2; max-height: 45px; overflow: hidden; word-break: break-word; }' +
+          '@media print { .nombre { font-size: 7pt; max-height: 18mm; } }' +
+          '.precio { font-size: 14px; font-weight: bold; color: #000; margin-top: 4px; }' +
+          '@media print { .precio { font-size: 10pt; margin-top: 1mm; } }' +
+          '.barcode-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }' +
+          '.barcode { width: 100%; height: 50px; max-width: 180px; }' +
+          '@media print { .barcode { height: 15mm; max-width: 50mm; } }' +
+          '.codigo { font-size: 10px; font-weight: bold; font-family: Courier New, Courier, monospace; letter-spacing: 1px; margin-top: 2px; text-align: center; }' +
+          '@media print { .codigo { font-size: 7pt; margin-top: 0.5mm; } }' +
+          '.instrucciones { padding: 20px; background: #f8f9fa; border-top: 1px solid #ddd; font-size: 13px; color: #666; }' +
+          '.instrucciones h4 { color: #333; margin-bottom: 10px; }' +
+          '.instrucciones ol { margin-left: 20px; }' +
+          '.instrucciones li { margin-bottom: 5px; }' +
+        '</style>' +
+      '</head>' +
+      '<body>' +
+        '<div class="no-print">' +
+          '<h2>Brother QL-800</h2>' +
+          '<p>Etiquetas 29mm x 90mm (DK-11201)</p>' +
+          '<div class="info-box"><strong>Total: ' + etiquetas.length + ' etiqueta(s)</strong></div>' +
+          '<button class="btn-print" onclick="window.print()">IMPRIMIR ETIQUETAS</button>' +
+        '</div>' +
+        '<div class="etiquetas-container">' + etiquetas.join('') + '</div>' +
+        '<div class="no-print instrucciones">' +
+          '<h4>Instrucciones de impresion:</h4>' +
+          '<ol>' +
+            '<li>Selecciona la impresora <strong>Brother QL-800</strong></li>' +
+            '<li>En Mas opciones o Configuracion:</li>' +
+            '<li>Tamano de papel: <strong>29mm x 90mm</strong> o <strong>DK-11201</strong></li>' +
+            '<li>Margenes: <strong>Ninguno</strong> o <strong>Minimos</strong></li>' +
+            '<li>Escala: <strong>100%</strong> (sin ajustar)</li>' +
+          '</ol>' +
+        '</div>' +
+      '</body>' +
+      '</html>';
     
+    printWindow.document.write(htmlContent);
     printWindow.document.close();
-    toast.success(\`Preparando \${etiquetas.length} etiqueta(s) para Brother QL-800\`);
+    toast.success('Preparando ' + etiquetas.length + ' etiqueta(s) para Brother QL-800');
   };
 
   return (

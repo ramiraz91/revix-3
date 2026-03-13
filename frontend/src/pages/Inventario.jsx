@@ -351,7 +351,7 @@ export default function Inventario() {
     printLabels([repuesto], 1);
   };
 
-  // Función común para imprimir etiquetas (Brother QL-800 - 62mm x 29mm)
+  // Función común para imprimir etiquetas (29mm x 90mm)
   const printLabels = (productos, cantidadPorProducto) => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) {
@@ -362,19 +362,21 @@ export default function Inventario() {
     const etiquetas = [];
     productos.forEach(producto => {
       const codigo = producto.sku || producto.id || 'SIN-SKU';
+      const precio = producto.precio_venta ? `${producto.precio_venta.toFixed(2)}€` : '';
       for (let i = 0; i < cantidadPorProducto; i++) {
         etiquetas.push(`
           <div class="etiqueta">
-            <div class="nombre">${(producto.nombre || '').substring(0, 40)}</div>
+            <div class="nombre">${(producto.nombre || '').substring(0, 60)}</div>
             <div class="barcode-container">
-              <svg class="barcode" viewBox="0 0 120 35">
+              <svg class="barcode" viewBox="0 0 200 40">
                 ${codigo.split('').map((c, i) => {
                   const width = (c.charCodeAt(0) % 2) + 1.5;
-                  return `<rect x="${10 + i * 4}" y="0" width="${width}" height="35" fill="black"/>`;
+                  return `<rect x="${10 + i * 6}" y="0" width="${width}" height="40" fill="black"/>`;
                 }).join('')}
               </svg>
               <div class="codigo">${codigo}</div>
             </div>
+            ${precio ? `<div class="precio">${precio}</div>` : ''}
           </div>
         `);
       }
@@ -384,10 +386,10 @@ export default function Inventario() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Etiquetas - NEXORA</title>
+        <title>Etiquetas - Inventario</title>
         <style>
           @page {
-            size: 62mm 29mm;
+            size: 90mm 29mm;
             margin: 0;
           }
           * {
@@ -401,15 +403,16 @@ export default function Inventario() {
             print-color-adjust: exact;
           }
           .etiqueta {
-            width: 62mm;
+            width: 90mm;
             height: 29mm;
-            padding: 2mm 3mm;
+            padding: 2mm 4mm;
             page-break-after: always;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
+            flex-direction: row;
+            justify-content: space-between;
             align-items: center;
             border: 1px dashed #ccc;
+            gap: 2mm;
           }
           @media print {
             .etiqueta {
@@ -419,32 +422,38 @@ export default function Inventario() {
           .nombre {
             font-size: 8pt;
             font-weight: bold;
-            text-align: center;
+            text-align: left;
             line-height: 1.2;
-            margin-bottom: 2mm;
-            max-height: 10mm;
+            max-width: 30mm;
+            max-height: 25mm;
             overflow: hidden;
-            width: 100%;
+            word-wrap: break-word;
           }
           .barcode-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 100%;
+            flex: 1;
           }
           .barcode {
-            height: 10mm;
-            width: 50mm;
+            height: 12mm;
+            width: 40mm;
             max-width: 100%;
           }
           .codigo {
-            font-size: 9pt;
+            font-size: 7pt;
             font-weight: bold;
             text-align: center;
-            letter-spacing: 2px;
-            margin-top: 1mm;
+            letter-spacing: 1px;
+            margin-top: 0.5mm;
             font-family: 'Courier New', monospace;
+          }
+          .precio {
+            font-size: 12pt;
+            font-weight: bold;
+            text-align: right;
+            min-width: 15mm;
           }
           .no-print {
             padding: 15px;
@@ -477,8 +486,8 @@ export default function Inventario() {
       </head>
       <body>
         <div class="no-print">
-          <h3>Brother QL-800</h3>
-          <p>Etiquetas 62mm x 29mm</p>
+          <h3>Etiquetas de Inventario</h3>
+          <p>Tamaño: 29mm x 90mm</p>
           <p><strong>Total: ${etiquetas.length} etiqueta(s)</strong></p>
           <button onclick="window.print()">Imprimir Ahora</button>
         </div>

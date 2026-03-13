@@ -254,6 +254,9 @@ export const ordenesAPI = {
   cambiarSubestado: (id, data) => API.patch(`/ordenes/${id}/subestado`, data),
   // Liquidación
   registrarLiquidacion: (id, data) => API.post(`/ordenes/${id}/registrar-liquidacion`, data),
+  // Mano de obra y totales
+  actualizarManoObra: (id, valor) => API.patch(`/ordenes/${id}/mano-obra`, { mano_obra: valor }),
+  recalcularTotales: (id) => API.post(`/ordenes/${id}/recalcular-totales`),
 };
 
 // ==================== ÓRDENES DE COMPRA ====================

@@ -1144,6 +1144,7 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         'recepcion_accesorios_registrados', 'recepcion_notas', 'bateria_reemplazada',
         'bateria_almacenamiento_temporal', 'bateria_residuo_pendiente',
         'bateria_gestor_autorizado', 'bateria_fecha_entrega_gestor',
+        'ri_completada',  # El técnico puede marcar RI como completada
     ]
 
     # Campos de diagnóstico/QC exclusivos del técnico (admin/master solo lectura)

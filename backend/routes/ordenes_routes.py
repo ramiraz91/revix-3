@@ -1579,7 +1579,11 @@ async def actualizar_material_orden(orden_id: str, material_index: int, request:
     materiales[material_index]['iva'] = request.iva
     materiales[material_index]['pendiente_precios'] = False
     await db.ordenes.update_one({"id": orden_id}, {"$set": {"materiales": materiales, "updated_at": datetime.now(timezone.utc).isoformat()}})
-    return {"message": "Material actualizado", "material": materiales[material_index]}
+    
+    # Recalcular totales de la orden
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Material actualizado", "material": materiales[material_index], "totales": totales}
 
 @router.put("/ordenes/{orden_id}/materiales/{material_index}")
 async def editar_material_completo(orden_id: str, material_index: int, data: MaterialUpdate, user: dict = Depends(require_admin)):

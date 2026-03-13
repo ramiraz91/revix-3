@@ -99,9 +99,6 @@ async def extraer_datos_factura_ia(pdf_content: bytes, filename: str) -> Factura
     try:
         from emergentintegrations.llm import LlmChat
         
-        # Convertir PDF a base64 para enviarlo a Gemini
-        pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-        
         prompt = """Analiza esta factura de compra de un proveedor de repuestos de móviles/electrónica.
 
 Extrae la siguiente información en formato JSON:

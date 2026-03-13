@@ -1560,7 +1560,11 @@ async def añadir_material_orden(orden_id: str, request: AñadirMaterialRequest)
         notif_doc['created_at'] = notif_doc['created_at'].isoformat()
         await db.notificaciones.insert_one(notif_doc)
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
-    return {"message": "Material añadido", "bloqueada": request.añadido_por_tecnico, "material": material}
+    
+    # Recalcular totales de la orden
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Material añadido", "bloqueada": request.añadido_por_tecnico, "material": material, "totales": totales}
 
 @router.patch("/ordenes/{orden_id}/materiales/{material_index}")
 async def actualizar_material_orden(orden_id: str, material_index: int, request: ActualizarMaterialRequest, user: dict = Depends(require_admin)):

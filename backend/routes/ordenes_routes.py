@@ -1102,6 +1102,23 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
     if not existing:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
+    # ============ PROTECCIÓN DE FOTOS - NUNCA BORRAR ============
+    # Estos campos SOLO pueden añadirse, nunca sobrescribirse con arrays vacíos
+    campos_fotos_protegidos = ['evidencias', 'evidencias_tecnico', 'fotos_antes', 'fotos_despues', 'fotos_recepcion']
+    for campo in campos_fotos_protegidos:
+        if campo in data:
+            valor_nuevo = data[campo]
+            valor_existente = existing.get(campo, []) or []
+            # Si intentan enviar array vacío pero ya hay fotos, mantener las existentes
+            if isinstance(valor_nuevo, list) and len(valor_nuevo) == 0 and len(valor_existente) > 0:
+                logger.warning(f"Protección de fotos: Ignorando intento de borrar {campo} en orden {orden_id}")
+                del data[campo]
+            # Si envían nuevas fotos, fusionar con las existentes (no duplicar)
+            elif isinstance(valor_nuevo, list) and len(valor_nuevo) > 0:
+                fotos_combinadas = list(set(valor_existente + valor_nuevo))
+                data[campo] = fotos_combinadas
+    # ============================================================
+    
     # Campos que un técnico puede actualizar en su flujo operativo
     campos_tecnico_permitidos = [
         'imei_validado', 'imei_escaneado_incorrecto', 'bloqueada', 'motivo_bloqueo',

@@ -335,7 +335,8 @@ export default function OrdenDetalle() {
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: 'enviado',
         codigo_envio: codigoEnvioFinal.trim(),
-        usuario: user?.email || 'admin'
+        usuario: user?.email || 'admin',
+        forzar_sin_validacion: forzarSinQC
       });
       
       // 2. Registrar en liquidación si es de seguro
@@ -355,6 +356,7 @@ export default function OrdenDetalle() {
       setShowFinalizarOrden(false);
       setShowValidacionPopup(false);
       setCodigoEnvioFinal('');
+      setForzarSinQC(false);
       fetchOrden();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al finalizar orden');

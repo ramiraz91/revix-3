@@ -154,9 +154,17 @@ export default function TablaMaterialesEditable({
     
     setDeleting(index);
     try {
-      await ordenesAPI.eliminarMaterial(ordenId, index);
+      const response = await ordenesAPI.eliminarMaterial(ordenId, index);
       toast.success('Material eliminado');
-      onUpdate?.();
+      
+      // Actualizar estado local
+      const updatedMateriales = localMateriales.filter((_, i) => i !== index);
+      setLocalMateriales(updatedMateriales);
+      
+      // Solo notificar al padre si necesita actualizar los totales
+      if (response?.data?.totales) {
+        onUpdate?.(response.data.totales);
+      }
     } catch (error) {
       toast.error('Error al eliminar material');
     } finally {

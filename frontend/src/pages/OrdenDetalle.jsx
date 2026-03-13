@@ -1400,7 +1400,10 @@ export default function OrdenDetalle() {
                     const token = localStorage.getItem('token');
                     const url = `${process.env.REACT_APP_BACKEND_URL}/api/ordenes/${id}/fotos-zip`;
                     fetch(url, { headers: { 'Authorization': `Bearer ${token}` }})
-                      .then(res => res.blob())
+                      .then(res => {
+                        if (!res.ok) throw new Error('Error en la descarga');
+                        return res.blob();
+                      })
                       .then(blob => {
                         const downloadUrl = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -1408,9 +1411,10 @@ export default function OrdenDetalle() {
                         a.download = `${orden.numero_orden}_fotos.zip`;
                         a.click();
                         window.URL.revokeObjectURL(downloadUrl);
+                        toast.success('Descarga iniciada');
                       })
                       .catch(() => toast.error('Error al descargar fotos'));
-                  }}>
+                  }} data-testid="btn-descargar-zip">
                     <Package className="w-4 h-4 mr-2" />
                     Descargar ZIP
                   </Button>
@@ -1422,26 +1426,83 @@ export default function OrdenDetalle() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               {todasLasFotos.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">No hay fotos del dispositivo</p>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {todasLasFotos.map((foto, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => { setPreviewImage(foto.src); setShowImagePreview(true); }}>
-                      <img src={foto.src} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
-                      {foto.categoria && (
-                        <Badge className={`absolute top-1 left-1 text-[10px] ${foto.categoria === 'antes' ? 'bg-amber-500' : 'bg-green-500'}`}>
-                          {foto.categoria === 'antes' ? 'ANTES' : 'DESPUÉS'}
-                        </Badge>
-                      )}
-                      <Badge className="absolute bottom-1 left-1 text-[10px]" variant={foto.tipo === 'admin' ? 'default' : 'secondary'}>
-                        {foto.tipo === 'admin' ? 'Admin' : 'Técnico'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  {/* Sección ANTES */}
+                  {(() => {
+                    const fotosAntes = todasLasFotos.filter(f => f.categoria === 'antes');
+                    return fotosAntes.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                          <Badge className="bg-amber-500 text-white">ANTES</Badge>
+                          <span className="text-muted-foreground text-sm">({fotosAntes.length} fotos)</span>
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {fotosAntes.map((foto, index) => (
+                            <div key={`antes-${index}`} className="relative aspect-square rounded-lg border-2 border-amber-300 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => { setPreviewImage(foto.src); setShowImagePreview(true); }}>
+                              <img src={foto.src} alt={`Antes ${index + 1}`} className="w-full h-full object-cover" />
+                              <Badge className="absolute bottom-1 left-1 text-[10px]" variant="secondary">
+                                Técnico
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Sección DESPUÉS */}
+                  {(() => {
+                    const fotosDespues = todasLasFotos.filter(f => f.categoria === 'despues');
+                    return fotosDespues.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                          <Badge className="bg-green-500 text-white">DESPUÉS</Badge>
+                          <span className="text-muted-foreground text-sm">({fotosDespues.length} fotos)</span>
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {fotosDespues.map((foto, index) => (
+                            <div key={`despues-${index}`} className="relative aspect-square rounded-lg border-2 border-green-300 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => { setPreviewImage(foto.src); setShowImagePreview(true); }}>
+                              <img src={foto.src} alt={`Después ${index + 1}`} className="w-full h-full object-cover" />
+                              <Badge className="absolute bottom-1 left-1 text-[10px]" variant="secondary">
+                                Técnico
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Sección OTRAS FOTOS (Admin y técnico generales) */}
+                  {(() => {
+                    const otrasfotos = todasLasFotos.filter(f => !f.categoria);
+                    return otrasfotos.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                          <Badge variant="outline">OTRAS FOTOS</Badge>
+                          <span className="text-muted-foreground text-sm">({otrasfotos.length} fotos)</span>
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {otrasfotos.map((foto, index) => (
+                            <div key={`otras-${index}`} className="relative aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => { setPreviewImage(foto.src); setShowImagePreview(true); }}>
+                              <img src={foto.src} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
+                              <Badge className="absolute bottom-1 left-1 text-[10px]" variant={foto.tipo === 'admin' ? 'default' : 'secondary'}>
+                                {foto.tipo === 'admin' ? 'Admin' : 'Técnico'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </CardContent>
           </Card>

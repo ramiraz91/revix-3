@@ -332,18 +332,27 @@ export default function OrdenDetalle() {
     setFinalizando(true);
     try {
       // 1. Primero marcar QC como completado (el admin confirma que validó)
-      await ordenesAPI.actualizar(id, {
-        diagnostico_salida_realizado: true,
-        funciones_verificadas: true,
-        limpieza_realizada: true
-      });
+      console.log('Paso 1: Marcando QC como completado...');
+      try {
+        await ordenesAPI.actualizar(id, {
+          diagnostico_salida_realizado: true,
+          funciones_verificadas: true,
+          limpieza_realizada: true
+        });
+        console.log('Paso 1: QC actualizado correctamente');
+      } catch (qcError) {
+        console.error('Error actualizando QC:', qcError);
+        // Continuar aunque falle, el backend verificará
+      }
       
       // 2. Cambiar estado a enviado con código de envío
+      console.log('Paso 2: Cambiando estado a enviado...');
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: 'enviado',
         codigo_envio: codigoEnvioFinal.trim(),
         usuario: user?.email || 'admin'
       });
+      console.log('Paso 2: Estado cambiado correctamente');
       
       // 3. Registrar en liquidación si es de seguro
       if (orden?.tipo_servicio === 'seguro' || orden?.origen === 'insurama') {
@@ -364,6 +373,7 @@ export default function OrdenDetalle() {
       setCodigoEnvioFinal('');
       fetchOrden();
     } catch (error) {
+      console.error('Error finalizando orden:', error);
       toast.error(error.response?.data?.detail || 'Error al finalizar orden');
     } finally {
       setFinalizando(false);

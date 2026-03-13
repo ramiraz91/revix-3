@@ -92,7 +92,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
     
     setGuardandoMaterial(true);
     try {
-      await ordenesAPI.añadirMaterial(orden.id, {
+      const response = await ordenesAPI.añadirMaterial(orden.id, {
         nombre: materialPersonalizado.nombre.trim(),
         cantidad: parseInt(materialPersonalizado.cantidad) || 1,
         añadido_por_tecnico: true
@@ -100,8 +100,16 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
       
       toast.warning('Material añadido sin precios. La orden ha sido BLOQUEADA hasta que el administrador apruebe y asigne precios.');
       setShowMaterialPersonalizado(false);
+      
+      // Actualizar estado local
+      const nuevoMaterial = response?.data?.material || {
+        nombre: materialPersonalizado.nombre.trim(),
+        cantidad: parseInt(materialPersonalizado.cantidad) || 1,
+        añadido_por_tecnico: true
+      };
+      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      
       setMaterialPersonalizado({ nombre: '', cantidad: 1 });
-      onRefresh();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al añadir material');
     } finally {

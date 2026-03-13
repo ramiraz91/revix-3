@@ -1342,7 +1342,7 @@ TRANSICIONES_VALIDAS = {
     "enviado": ["garantia"],  # solo para abrir garantía
     "garantia": ["en_taller", "recibida"],
     "reemplazo": ["enviado", "validacion"],
-    "irreparable": ["cancelado"],  # estado casi final
+    "irreparable": ["enviado", "cancelado"],  # permite enviar para contabilizar
     "cancelado": [],  # estado final
 }
 

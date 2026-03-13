@@ -72,7 +72,7 @@ export default function TablaMaterialesEditable({
     let base = 0;
     let totalIva = 0;
     
-    materiales.forEach(m => {
+    localMateriales.forEach(m => {
       const subtotal = m.cantidad * (m.precio_unitario || 0);
       const descuento = m.descuento ? subtotal * (m.descuento / 100) : 0;
       const baseItem = subtotal - descuento;

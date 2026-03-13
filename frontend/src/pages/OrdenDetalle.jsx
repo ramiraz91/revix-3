@@ -331,15 +331,21 @@ export default function OrdenDetalle() {
     
     setFinalizando(true);
     try {
-      // 1. Cambiar estado a enviado con código de envío
+      // 1. Primero marcar QC como completado (el admin confirma que validó)
+      await ordenesAPI.actualizar(id, {
+        diagnostico_salida_realizado: true,
+        funciones_verificadas: true,
+        limpieza_realizada: true
+      });
+      
+      // 2. Cambiar estado a enviado con código de envío
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: 'enviado',
         codigo_envio: codigoEnvioFinal.trim(),
-        usuario: user?.email || 'admin',
-        forzar_sin_validacion: forzarSinQC
+        usuario: user?.email || 'admin'
       });
       
-      // 2. Registrar en liquidación si es de seguro
+      // 3. Registrar en liquidación si es de seguro
       if (orden?.tipo_servicio === 'seguro' || orden?.origen === 'insurama') {
         try {
           await ordenesAPI.registrarLiquidacion(id, {
@@ -356,7 +362,6 @@ export default function OrdenDetalle() {
       setShowFinalizarOrden(false);
       setShowValidacionPopup(false);
       setCodigoEnvioFinal('');
-      setForzarSinQC(false);
       fetchOrden();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al finalizar orden');

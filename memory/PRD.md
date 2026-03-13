@@ -53,6 +53,13 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
   - **Facturación**: Filtro por período (semana/mes/trimestre/año), total a facturar, clasificación por estado, desglose semanal, costes y beneficios
   - **Proyecciones**: Ritmo diario, proyección mensual/anual, análisis de tendencia vs período anterior
   - **Operaciones**: KPIs operativos, ingresos/órdenes por mes, distribución por estado, ranking técnicos
+- [x] **Módulo de Compras con Trazabilidad**: Nueva sección `/crm/compras` con:
+  - Upload de facturas PDF con extracción automática IA (Gemini)
+  - Revisión y confirmación de productos antes de aplicar
+  - Creación automática de inventario o actualización de stock existente
+  - Sistema de trazabilidad por lote (código TRZ-AAAA-MMDD-NNN)
+  - Dashboard de compras con métricas y alertas de stock bajo
+- [x] **Búsqueda por código de barras**: Añadido `codigo_barras` al buscador de materiales/repuestos
 
 ## Prioritized Backlog
 ### P1 (High)

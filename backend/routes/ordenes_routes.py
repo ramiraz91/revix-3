@@ -1085,11 +1085,27 @@ async def registrar_impresion_ot(orden_id: str, payload: PrintLogRequest, user: 
     return log
 
 @router.put("/ordenes/{orden_id}", response_model=OrdenTrabajo)
-async def actualizar_orden(orden_id: str, orden: OrdenTrabajoCreate):
+async def actualizar_orden(orden_id: str, orden: OrdenTrabajoCreate, user: dict = Depends(require_admin)):
+    """Actualización completa de una orden - SOLO ADMIN"""
     existing = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
     update_data = orden.model_dump()
+    
+    # ============ PROTECCIÓN DE FOTOS - NUNCA BORRAR ============
+    campos_fotos_protegidos = ['evidencias', 'evidencias_tecnico', 'fotos_antes', 'fotos_despues', 'fotos_recepcion']
+    for campo in campos_fotos_protegidos:
+        valor_existente = existing.get(campo, []) or []
+        valor_nuevo = update_data.get(campo, []) or []
+        # Si el nuevo valor es vacío pero ya hay fotos, mantener las existentes
+        if len(valor_nuevo) == 0 and len(valor_existente) > 0:
+            update_data[campo] = valor_existente
+        # Si hay valores nuevos, fusionar
+        elif len(valor_nuevo) > 0:
+            update_data[campo] = list(set(valor_existente + valor_nuevo))
+    # ============================================================
+    
     update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
     updated = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})

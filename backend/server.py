@@ -1716,9 +1716,13 @@ async def obtener_finanzas(
     
     total_anterior = 0
     for o in ordenes_anterior:
-        materiales = o.get('materiales', [])
-        pres_env_ant = o.get('presupuesto_enviado') or {}
-        precio = pres_env_ant.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+        # Usar campos precalculados
+        if o.get('presupuesto_total') is not None:
+            precio = o.get('presupuesto_total', 0)
+        else:
+            materiales = o.get('materiales', [])
+            pres_env_ant = o.get('presupuesto_enviado') or {}
+            precio = pres_env_ant.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
         total_anterior += precio
     
     variacion_porcentaje = round(((total_facturado + total_pendiente - total_anterior) / total_anterior * 100) if total_anterior > 0 else 0, 1)

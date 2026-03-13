@@ -35,6 +35,7 @@ import Clientes from "@/pages/Clientes";
 import ClienteDetalle from "@/pages/ClienteDetalle";
 import Inventario from "@/pages/Inventario";
 import Proveedores from "@/pages/Proveedores";
+import Compras from "@/pages/Compras";
 import Scanner from "@/pages/Scanner";
 import Notificaciones from "@/pages/Notificaciones";
 import Seguimiento from "@/pages/Seguimiento";

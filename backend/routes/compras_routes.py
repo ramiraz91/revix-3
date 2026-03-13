@@ -439,7 +439,7 @@ async def confirmar_compra(
         },
         "productos_actualizados": productos_actualizados,
         "productos_creados": productos_creados,
-        "lotes": [l["codigo_lote"] for l in lotes_creados]
+        "lotes": [_lote["codigo_lote"] for lote in lotes_creados]
     }
 
 
@@ -528,22 +528,22 @@ async def trazabilidad_repuesto(repuesto_id: str, user: dict = Depends(require_a
     ).sort("created_at", -1).to_list(100)
     
     # Estadísticas
-    total_comprado = sum(l.get("cantidad_original", 0) for l in lotes)
-    total_disponible = sum(l.get("unidades_disponibles", 0) for l in lotes)
+    total_comprado = sum(lote.get("cantidad_original", 0) for lote in lotes)
+    total_disponible = sum(lote.get("unidades_disponibles", 0) for lote in lotes)
     total_usado = total_comprado - total_disponible
     
     # Proveedores únicos
-    proveedores = list(set(l.get("proveedor_nombre") for l in lotes if l.get("proveedor_nombre")))
+    proveedores = list(set(lote.get("proveedor_nombre") for lote in lotes if lote.get("proveedor_nombre")))
     
     # Historial de precios
     historial_precios = [
         {
-            "fecha": l.get("fecha_compra"),
-            "precio": l.get("precio_unitario"),
-            "proveedor": l.get("proveedor_nombre"),
-            "factura": l.get("numero_factura")
+            "fecha": lote.get("fecha_compra"),
+            "precio": lote.get("precio_unitario"),
+            "proveedor": lote.get("proveedor_nombre"),
+            "factura": lote.get("numero_factura")
         }
-        for l in lotes
+        for lote in lotes
     ]
     
     return {

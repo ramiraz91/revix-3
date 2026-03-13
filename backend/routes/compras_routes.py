@@ -436,7 +436,7 @@ async def confirmar_compra(
         },
         "productos_actualizados": productos_actualizados,
         "productos_creados": productos_creados,
-        "lotes": [_lote["codigo_lote"] for lote in lotes_creados]
+        "lotes": [lote["codigo_lote"] for lote in lotes_creados]
     }
 
 

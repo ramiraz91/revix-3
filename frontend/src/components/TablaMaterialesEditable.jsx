@@ -254,7 +254,7 @@ export default function TablaMaterialesEditable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {materiales.map((material, index) => {
+            {localMateriales.map((material, index) => {
               const isEditing = editingIndex === index;
               const totals = calcularTotalFila(
                 isEditing ? editData.cantidad : material.cantidad,

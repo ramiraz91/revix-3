@@ -1491,25 +1491,60 @@ export default function OrdenDetalle() {
               </CardTitle>
               <div className="flex gap-2">
                 {todasLasFotos.length > 0 && (
-                  <Button variant="outline" onClick={() => {
-                    const token = localStorage.getItem('token');
-                    const url = `${process.env.REACT_APP_BACKEND_URL}/api/ordenes/${id}/fotos-zip`;
-                    fetch(url, { headers: { 'Authorization': `Bearer ${token}` }})
-                      .then(res => {
-                        if (!res.ok) throw new Error('Error en la descarga');
-                        return res.blob();
-                      })
-                      .then(blob => {
+                  <Button 
+                    variant="outline" 
+                    onClick={async () => {
+                      const token = localStorage.getItem('token');
+                      if (!token) {
+                        toast.error('Sesión expirada. Por favor, inicia sesión de nuevo.');
+                        return;
+                      }
+                      
+                      toast.info('Preparando descarga...');
+                      
+                      try {
+                        const url = `${process.env.REACT_APP_BACKEND_URL}/api/ordenes/${id}/fotos-zip`;
+                        const response = await fetch(url, { 
+                          method: 'GET',
+                          headers: { 
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/zip'
+                          }
+                        });
+                        
+                        if (!response.ok) {
+                          const errorData = await response.json().catch(() => ({}));
+                          throw new Error(errorData.detail || 'Error en la descarga');
+                        }
+                        
+                        const blob = await response.blob();
+                        
+                        if (blob.size === 0) {
+                          throw new Error('El archivo está vacío');
+                        }
+                        
                         const downloadUrl = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
+                        a.style.display = 'none';
                         a.href = downloadUrl;
                         a.download = `${orden.numero_orden}_fotos.zip`;
+                        document.body.appendChild(a);
                         a.click();
-                        window.URL.revokeObjectURL(downloadUrl);
-                        toast.success('Descarga iniciada');
-                      })
-                      .catch(() => toast.error('Error al descargar fotos'));
-                  }} data-testid="btn-descargar-zip">
+                        
+                        // Limpiar
+                        setTimeout(() => {
+                          window.URL.revokeObjectURL(downloadUrl);
+                          document.body.removeChild(a);
+                        }, 100);
+                        
+                        toast.success('Descarga completada');
+                      } catch (error) {
+                        console.error('Error descargando ZIP:', error);
+                        toast.error(error.message || 'Error al descargar fotos');
+                      }
+                    }} 
+                    data-testid="btn-descargar-zip"
+                  >
                     <Package className="w-4 h-4 mr-2" />
                     Descargar ZIP
                   </Button>

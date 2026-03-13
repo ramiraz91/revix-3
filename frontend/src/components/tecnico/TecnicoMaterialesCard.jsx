@@ -132,10 +132,15 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
         toast.info(`"${res.data.material.nombre}" ya estaba validado`);
       } else {
         toast.success(`✓ ${res.data.material.nombre} validado (${res.data.total - res.data.pendientes}/${res.data.total})`);
+        
+        // Actualizar estado local - marcar el material como validado
+        const updatedMateriales = localMateriales.map((m, i) => 
+          i === res.data.index ? { ...m, validado_tecnico: true } : m
+        );
+        setLocalMateriales(updatedMateriales);
       }
       
       setCodigoValidacion('');
-      onRefresh();
       
       // Si ya no quedan materiales pendientes, cerrar modal
       if (res.data.pendientes === 0) {

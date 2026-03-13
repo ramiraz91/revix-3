@@ -171,11 +171,10 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
   };
 
   // Calcular estadísticas de validación
-  const materiales = orden.materiales || [];
-  const materialesValidados = materiales.filter(m => m.validado_tecnico).length;
-  const materialesPendientes = materiales.length - materialesValidados;
-  const porcentajeValidado = materiales.length > 0 ? (materialesValidados / materiales.length) * 100 : 0;
-  const todosValidados = materiales.length > 0 && materialesPendientes === 0;
+  const materialesValidados = localMateriales.filter(m => m.validado_tecnico).length;
+  const materialesPendientes = localMateriales.length - materialesValidados;
+  const porcentajeValidado = localMateriales.length > 0 ? (materialesValidados / localMateriales.length) * 100 : 0;
+  const todosValidados = localMateriales.length > 0 && materialesPendientes === 0;
 
   return (
     <>

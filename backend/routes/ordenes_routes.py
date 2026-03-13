@@ -1669,6 +1669,33 @@ async def recalcular_totales_endpoint(orden_id: str, user: dict = Depends(requir
     return {"message": "Totales recalculados", "totales": totales}
 
 
+@router.post("/ordenes/recalcular-todos")
+async def recalcular_todos_totales(user: dict = Depends(require_master)):
+    """
+    Recalcula los totales de TODAS las órdenes.
+    Útil para migrar órdenes antiguas que no tienen los campos precalculados.
+    """
+    ordenes = await db.ordenes.find({}, {"_id": 0, "id": 1}).to_list(10000)
+    
+    recalculadas = 0
+    errores = 0
+    
+    for o in ordenes:
+        try:
+            await recalcular_totales_orden(o['id'])
+            recalculadas += 1
+        except Exception as e:
+            logger.error(f"Error recalculando orden {o['id']}: {e}")
+            errores += 1
+    
+    return {
+        "message": f"Proceso completado. {recalculadas} órdenes recalculadas, {errores} errores.",
+        "recalculadas": recalculadas,
+        "errores": errores,
+        "total": len(ordenes)
+    }
+
+
 @router.post("/ordenes/{orden_id}/materiales/{material_index}/validar")
 async def validar_material_tecnico(orden_id: str, material_index: int, user: dict = Depends(require_auth)):
     """

@@ -54,7 +54,7 @@ SMTP_USER = os.environ.get('SMTP_USER', '')
 SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USER)
 
 # URLs
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://workshop-manager-75.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://workshop-erp-3.preview.emergentagent.com')
 
 # Upload directory
 UPLOAD_DIR = ROOT_DIR / "uploads"

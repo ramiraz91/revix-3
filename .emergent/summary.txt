@@ -1,170 +1,175 @@
 <analysis>Análisis y resumen de la sesión de trabajo para el siguiente agente.
 
 **original_problem_statement:**
-El usuario solicitó importar su repositorio de GitHub , un CRM/ERP para un taller de reparaciones con backend en FastAPI/MongoDB y frontend en React.
+El usuario solicitó importar su repositorio de GitHub , un CRM/ERP para un taller de reparaciones, y continuar su desarrollo.
 
 **PRODUCT REQUIREMENTS:**
-1.  **Configuración del entorno**:
-    *   Usar .
-    *   El dominio será .
-2.  **Creación de usuarios**:
-    *   **master**:  / 
-    *   **admin**:  / 
-    *   **tecnico**:  / 
-3.  **Integraciones**:
-    *   MongoDB (base de datos principal).
-    *   Gemini para IA (usando la ).
-    *   SMTP para emails ().
-4.  **Correcciones y mejoras**:
-    *   Arreglar un error de enrutamiento en una URL ().
-    *   Diagnosticar y solucionar problemas con la integración de Insurama (lentitud, falta de datos de competidores, credenciales).
-    *   Investigar el estado de una integración de logística con GLS.
-    *   Solucionar fallos de despliegue a producción.
-    *   Revisar y corregir la sección de notificaciones automáticas.
-    *   Solucionar un problema de polling excesivo en la API de notificaciones.
+1.  **Configuración del entorno**: Usar . El dominio es .
+2.  **Creación de usuarios**: , , .
+3.  **Integraciones**: MongoDB, Gemini (IA), SMTP, GLS (logística).
+4.  **Correcciones y mejoras (Historial)**:
+    *   Solucionar problemas de enrutamiento y rendimiento.
+    *   Diagnosticar y mejorar la integración de Insurama.
+    *   Verificar la sección de notificaciones automáticas.
+5.  **Nuevas funcionalidades (Solicitadas)**:
+    *   Permitir a los técnicos cambiar sub-estados de órdenes.
+    *   Sincronizar y visualizar correctamente las fotos del técnico (antes/después).
+    *   Mejorar UX: subida múltiple de fotos, evitar recargas de página.
+    *   Dashboard de estadísticas financieras para el rol .
+    *   Módulo de Compras para procesar facturas PDF y actualizar inventario.
+    *   Solucionar búsqueda por código de barras.
+    *   Dividir la vista de fotos del admin en antes y después.
+    *   Ajustar el tamaño de las etiquetas de inventario a 29x90mm para impresoras Brother QL-800.
+    *   Corregir el flujo de cálculo de costes y precios en las órdenes de trabajo.
+    *   Arreglar el flujo de finalización de órdenes, incluyendo validaciones de QC y transiciones de estado.
 
 **User's preferred language**: Spanish (El siguiente agente DEBE responder en español).
 
 **what currently exists?**
-Se ha clonado y configurado con éxito el repositorio . El entorno está operativo con el backend en FastAPI y el frontend en React conectados a una base de datos MongoDB. Se han creado los tres usuarios solicitados.
-
-Se han implementado varias correcciones y mejoras significativas:
--   **Integración de Insurama**: Se solucionaron problemas graves de lentitud (peticiones de ~60 segundos) mediante la implementación de un sistema de **caché en MongoDB**. Ahora, las respuestas son casi instantáneas (<1s). También se corrigieron las credenciales, se implementó un sistema de reintentos con re-autenticación y se solucionó un bug que impedía ver los precios de los competidores.
--   **UI de Insurama**: La interfaz se ha enriquecido para mostrar datos cruciales de la API que antes no se usaban, como el  (valor máximo del siniestro), y se ha creado un panel de inteligencia de precios con KPIs.
--   **Correcciones de bugs**: Se solucionó un error de enrutamiento en el frontend, se corrigieron fallos que impedían el despliegue a producción y se arregló un bug en la funcionalidad de reseteo de plantillas de notificaciones.
+La aplicación es un CRM/ERP funcional con backend en FastAPI y frontend en React. En esta sesión se han realizado avances críticos:
+*   **Cálculos Financieros Automatizados**: Se ha implementado una lógica centralizada () que calcula automáticamente el presupuesto, coste y beneficio de una orden cada vez que se modifican los materiales o la mano de obra. Los endpoints de analíticas y finanzas han sido actualizados para usar estos datos, garantizando la consistencia en toda la aplicación.
+*   **Flujo de Órdenes Refinado**: Se ha corregido y detallado el flujo de estados. Ahora el técnico debe completar un checklist de Control de Calidad (QC) antes de marcar una orden como Reparado. El admin puede entonces finalizar la orden, moviéndola al estado Enviado.
+*   **Corrección de Bugs Críticos**: Se solucionó el problema de visualización de imágenes (causado por archivos de prueba corruptos) y se añadió protección en el backend para evitar el borrado accidental de fotos. Se corrigió la descarga de fotos en ZIP para que no abra una nueva pestaña. Se ajustó la impresión de etiquetas para que sea compatible con la impresora Brother QL-800.
+*   **Mejoras de UX**: La actualización de materiales en una orden ya no recarga la página completa, mejorando la fluidez de la interfaz.
+*   **Módulo de Compras**: Se corrigió un error de importación () que impedía el funcionamiento del módulo. Ahora está listo para ser probado por el usuario.
 
 **Last working item**:
--   **Last item agent was working**: El agente estaba diagnosticando un problema de rendimiento crítico: el frontend realiza un polling excesivo a la API de notificaciones (), llamándola cada pocos segundos y causando una carga innecesaria en el servidor.
+-   **Last item agent was working**: El agente estaba finalizando la corrección del flujo de cierre de órdenes. Tras una simulación completa y exitosa de los cambios de estado (Técnico repara -> Admin envía), se detectó que el código de envío introducido por el admin no se estaba guardando en la base de datos al finalizar la orden.
 -   **Status**: IN PROGRESS
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: Frontend testing agent. El agente debe identificar el componente o hook de React responsable del polling (probablemente en  o un hook global) y refactorizarlo para usar un intervalo de sondeo mucho más largo (ej. 3-5 minutos) o cambiar a una solución basada en WebSockets si es posible. Tras el arreglo, se debe verificar con las herramientas de desarrollo del navegador que las llamadas se han reducido.
+-   **Agent Testing Done**: N (El agente simuló el flujo con  y detectó el bug, pero no llegó a implementar la corrección).
+-   **Which testing method agent to use?**: Backend testing agent o  manual.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: Polling excesivo de la API de notificaciones (P0)
+-   **Issue 1**: El código de envío no se guarda al finalizar una orden (P0).
+-   **Issue 2**: Eliminar la opción de subir fotos durante la reparación para el técnico (P1).
 
 **Issues Detail**:
 -   **Issue 1**:
-    -   **Description**: El frontend llama al endpoint  cada pocos segundos, causando una carga alta e innecesaria en el backend.
-    -   **Attempted fixes**: Ninguno. El problema acaba de ser identificado.
+    -   **Description**: En el flujo de Finalizar y Enviar Orden, el admin introduce un código de envío. La orden cambia correctamente al estado , pero el campo  no se almacena en la base de datos, apareciendo como  en la simulación final del agente (mensaje 600).
+    -   **Attempted fixes**: Ninguno. El problema fue identificado justo al final de la sesión.
     -   **Next debug checklist**:
-        1.  Revisar el archivo .
-        2.  Buscar el hook  o  que realiza la llamada a la API.
-        3.  Modificar la lógica para aumentar drásticamente el intervalo de polling (ej. usando  en React Query) o eliminar el polling automático en favor de una actualización manual.
-    -   **Why fix this issue and what will be achieved with the fix?**: Solucionar este problema es crítico para la estabilidad y el rendimiento de la aplicación en producción. Reducirá la carga del servidor y el tráfico de red inútil.
+        1.  Revisar , en el endpoint  ().
+        2.  Asegurarse de que el payload () contiene el campo .
+        3.  Verificar que si  es , el  del payload se incluye en el diccionario  que se usa para el  en MongoDB.
+        4.  Revisar  en la función  para confirmar que el estado  se envía correctamente en la petición a la API.
+    -   **Why fix this issue and what will be achieved with the fix?**: Es el último paso para cerrar una orden y es crítico para la trazabilidad del envío al cliente.
     -   **Status**: IN PROGRESS
     -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Backend
+    -   **Blocked on other issue**: No
+
+-   **Issue 2**:
+    -   **Description**: Según el resumen inicial, el usuario solicitó eliminar la opción de subir fotos de tipo durante para el rol de técnico, dejando solo antes y después. El agente anterior creyó que esto ya estaba hecho, pero es necesario confirmarlo.
+    -   **Next debug checklist**:
+        1.  Revisar .
+        2.  Confirmar si existe la opción/tab/botón para subir fotos de tipo .
+        3.  Si existe, eliminar el elemento de la UI y la lógica asociada.
+    -   **Why fix this issue and what will be achieved with the fix?**: Simplifica el flujo de trabajo del técnico y alinea la aplicación con los requisitos del usuario.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: Frontend
     -   **Blocked on other issue**: No
 
 **In progress Task List**:
--   **Task 1**: Verificación completa de la sección Notificaciones automáticas (P1)
-    -   **Where to resume**: El usuario pidió una revisión completa. El agente anterior corrigió un bug en el reseteo de plantillas, pero no verificó la funcionalidad del modo demo ni los botones para activar/desactivar cada notificación. Se debe revisar el componente  y los endpoints correspondientes en  para asegurar que los cambios se aplican y persisten correctamente.
-    -   **What will be achieved with this?**: Se cumplirá con la petición del usuario de asegurar que toda la sección de notificaciones funciona como se espera.
-    -   **Status**: IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: No
+-   No hay tareas a medias. El agente estaba enfocado en la cadena de bugs reportados por el usuario.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **Task 1: Implementar la integración con Gemini (P1)**: El usuario solicitó la integración con Gemini para funciones de IA. Se debe utilizar la . El agente debe proponer al usuario dónde y cómo se podría aplicar esta IA (ej. sugerencias de respuesta, análisis de datos, etc.) y luego implementarlo.
+    *   **Task 1: Probar y validar el Módulo de Compras (P0)**: El usuario debe probar la subida de una factura PDF real para verificar que la IA extrae los datos correctamente y que el inventario se actualiza.
+    *   **Task 2: Implementar automatizaciones de Insurama (P1)**: Implementar la sincronización automática de estados (Recibido, Reparado, Enviado) desde el CRM hacia Insurama.
+
 -   **Future Tasks**:
-    -   **Task 2: Implementar la integración real con la API de GLS (P2)**: Se investigó y se descubrió que la integración actual es solo una UI sin funcionalidad. Se necesita implementar un cliente de API () para generar etiquetas de envío, solicitar recogidas y consultar el tracking en tiempo real. Esta tarea está bloqueada hasta que el usuario confirme que desea proceder y proporcione las credenciales de la API.
-    -   **Task 3: Implementar el envío de correos con SMTP (P2)**: Aunque el usuario mencionó la configuración SMTP, no se ha verificado si el sistema realmente envía correos electrónicos. Se debe conectar la lógica de notificaciones al servicio de correo configurado.
+    *   **Task 3: Integración completa con GLS (P2)**: Implementar la generación de etiquetas, solicitud de recogidas y consulta de tracking.
+    *   **Task 4: Verificación del envío de emails con SMTP (P2)**: Confirmar que las notificaciones por correo electrónico funcionan.
+    *   **Task 5: Acortar el SKU generado en el inventario (P2)**: Refactorizar la lógica en  para crear un código más corto.
 
 **Completed work in this session**
--   Se importó y configuró el proyecto desde GitHub.
--   Se crearon los 3 usuarios iniciales.
--   Se solucionó un problema de redirección en el frontend para URLs antiguas.
--   **Se reparó y optimizó la integración de Insurama**: Se solucionaron las credenciales, se implementó un sistema de caché en MongoDB que redujo los tiempos de carga de ~60s a <1s, se corrigió un bug que no mostraba precios de competidores y se enriqueció la UI con más datos.
--   Se resolvieron los fallos que impedían el despliegue del backend a producción, mejorando la resiliencia de la conexión a la base de datos.
--   Se corrigió un bug en la función de reseteo de plantillas de notificación.
--   Se implementó un panel de inteligencia de precios para Insurama que se alimenta de datos procesados en segundo plano.
--   Se investigó y clarificó el estado de la integración de GLS (no funcional).
-
-**Earlier issues found/mentioned but not fixed**
--   Ninguno.
-
-**Known issue recurrence from previous fork**
--   N/A
+-   **Cálculo de Costes y Presupuesto Corregido**: Se implementó una función () que recalcula automáticamente los totales de la orden (presupuesto, coste, beneficio) al modificar materiales o mano de obra, solucionando un problema crítico de integridad de datos.
+-   **Flujo de Finalización de Orden Corregido**: Se arregló la cadena de errores Transición no válida. Ahora el técnico debe completar el QC para marcar como Reparado, y el admin puede finalizar la orden cambiando el estado a Enviado.
+-   **Protección de Fotos Implementada**: Se añadió una salvaguarda en el backend para que las fotos de una orden no puedan ser borradas accidentalmente durante una actualización.
+-   **Bug de Visualización de Imágenes Solucionado**: Se diagnosticó que el problema eran archivos de prueba inválidos y se confirmó que el sistema funciona correctamente con imágenes válidas.
+-   **Descarga de Fotos en ZIP Arreglada**: Se corrigió el frontend para descargar el archivo ZIP directamente sin abrir una nueva pestaña.
+-   **Error en Módulo de Compras Solucionado**: Se corrigió un error de importación () que bloqueaba el módulo.
+-   **Impresión de Etiquetas Corregida**: Se ajustó el CSS de impresión en  para ser compatible con etiquetas de 29x90mm para la impresora Brother QL-800.
+-   **Mejora de UX (Sin Recarga de Página)**: Se modificaron los componentes  y  para usar estado local, evitando recargas de página completas al gestionar materiales.
+-   **Consistencia de Datos en Analíticas**: Se actualizaron los endpoints de finanzas y analíticas para usar los nuevos campos de totales calculados, asegurando que los dashboards reflejen la información correcta.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend**: FastAPI, Python, Motor (cliente asíncrono de MongoDB), Pydantic.
--   **Frontend**: React, Axios, Tailwind CSS, React Router.
--   **Base de datos**: MongoDB.
--   **Arquitectura**: Aplicación full-stack con una API REST que sirve a un cliente de React (SPA).
--   **Caching**: Se ha implementado una estrategia de caché en MongoDB para mitigar la lentitud de la API externa de Sumbroker/Insurama.
+-   **Backend**: FastAPI, Python, Motor (MongoDB asíncrono), Pydantic.
+-   **Frontend**: React, Axios, Tailwind CSS, Shadcn UI, React Router.
+-   **Gestión de estado**: Se pasó de un enfoque de recarga completa () a uno de gestión de estado local en componentes (, ) para mejorar la UX.
+-   **Integridad de datos**: Se centralizó la lógica de negocio crítica (cálculos financieros) en una única función en el backend para garantizar la consistencia.
 
 **key DB schema**
--   : Almacena la información de los usuarios del CRM.
--   : Guarda las credenciales y el token de la API de Sumbroker.
--   : Colección clave para el rendimiento. Almacena respuestas cacheadas de la API de Sumbroker con una clave y un timestamp.
--   : Almacena datos procesados sobre competidores para alimentar el dashboard de inteligencia de precios.
+-   : Se han añadido y ahora se utilizan activamente los siguientes campos calculados: , , , , , .
 
 **changes in tech stack**
 -   Ninguno.
 
 **All files of reference**
--   : Contiene toda la lógica de comunicación con la API de Sumbroker, incluyendo el reintento, la autenticación y la gestión de la caché.
--   : Endpoints que ahora consultan la caché antes de contactar a la API externa.
--   : Componente principal del frontend para la integración de Insurama, modificado para mostrar más datos y un botón de sincronización manual.
--   : Archivo sospechoso de contener la lógica de polling excesivo de notificaciones.
--   : Modificado para hacer la conexión a MongoDB más resiliente durante el arranque.
--   : Modificado para manejar el arranque de forma más robusta.
+-    (Archivo más modificado: lógica de estados, QC, cálculos y protección de fotos)
+-    (Archivo más modificado: UI para resumen financiero y flujo de finalización)
+-    (Modificado para alinear dashboards con nuevos cálculos)
+-    (Modificado para la impresión de etiquetas)
+-    (Refactorizado para mejorar UX)
+-    (Refactorizado para mejorar UX)
+-    (Corregido)
+-    (Modificado para añadir nuevos endpoints)
 
 **Areas that need refactoring**:
--   La lógica de polling de notificaciones en el frontend debe ser refactorizada urgentemente para evitar la sobrecarga del servidor.
+-   La lógica de generación de SKU en  podría ser revisada para crear códigos más cortos, según una solicitud anterior del usuario.
 
 **key api endpoints**
--   : Obtiene la lista de presupuestos (ahora desde caché).
--   : Inicia una sincronización en segundo plano para actualizar la caché de Insurama.
--   : Devuelve los KPIs para el panel de inteligencia de precios.
--   : Endpoint que está siendo llamado excesivamente.
+-   : Modificado para proteger los campos de fotos y gestionar los campos de QC.
+-   : Modificado para permitir la transición de estado  ->  y añadir validaciones de QC para el técnico.
+-   : Endpoint para descargar todas las fotos de una orden.
+-   : Nuevo endpoint de utilidad para recalcular los totales de todas las órdenes existentes.
+-    y : Endpoints de analíticas actualizados para usar los totales precalculados de las órdenes.
 
 **Critical Info for New Agent**
--   La API de Sumbroker (Insurama) es extremadamente lenta. Para solucionar esto, se implementó un **sistema de caché en MongoDB**. El flujo de trabajo es: servir desde caché, y luego actualizar la caché en segundo plano. No intentes llamar a la API directamente en las rutas sin pasar por la capa de caché.
--   La tarea más urgente es resolver el **polling excesivo** de la API de notificaciones, ya que afecta directamente al rendimiento en producción.
--   El usuario ha mencionado las integraciones de **Gemini** y **SMTP** pero no se han implementado. Deberías considerarlas como las siguientes tareas a proponer una vez que se resuelva el problema del polling.
+-   **El usuario prueba en producción**: El usuario reporta bugs desde su entorno de producción, que tiene más datos que el entorno de preview. Esto es clave para entender por qué el agente a veces no puede replicar un problema (ej. orden no encontrada).
+-   **Lógica de cálculo centralizada**: Cualquier cambio futuro en precios, costes o impuestos debe tener en cuenta la función  en  para mantener la integridad de los datos financieros.
+-   **Protección de fotos activa**: El backend ahora ignora activamente los intentos de borrar los arrays de fotos en las órdenes. Si es necesario implementar una función de borrado, debe hacerse explícitamente.
 
 **documents and test reports created in this job**
--   
--   
+-    (actualizado)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.   -> Resuelto.
-2.  Log de error de despliegue () -> Resuelto (backend no arrancaba).
-3.   -> Resuelto (se arregló la pipeline de datos para el dashboard).
-4.  Log de error de despliegue () -> Resuelto (se explicó que era por el calentamiento de la caché y se añadió más caché).
-5.  Log de error de despliegue (mostrando  y muchos ) -> Se identificó el problema de polling excesivo.
-6.   -> Confirmación del usuario sobre la gravedad del polling. (Pendiente de solución)
-7.   -> Se revisó y corrigió un bug, pero falta una verificación completa. (Pendiente de verificación)
-8.   -> Resuelto.
-9.  Imagen con credenciales de Insurama -> Resuelto (credenciales actualizadas).
-10.  -> Resuelto.
+1.  **no me puedo creer que sigamos con el mismo fallo... (con screenshot)**: Usuario reporta el error Transición no válida: reparado → enviado. (Solucionado, se permitió la transición).
+2.  **CUANDO LE DAMOS A DESCRAGAR FOTOS EN ARCHIVO ZIP...**: Usuario reporta que la descarga abre una nueva pestaña. (Solucionado, se corrigió el handler en el frontend).
+3.  **este es el error de validacion que no me permite pasar (con screenshot)**: Usuario reporta que el admin no puede finalizar la orden debido a una validación de QC. (Solucionado, se permitió al admin actualizar campos de QC al finalizar).
+4.  **EL SISTEMA SIGUE CON EL MISMO ERROR Y LAS FOTOS LAS ELIMINA...**: Usuario reporta dos problemas: el error de validación y que las fotos se borran. (Solucionado, se implementó protección de fotos).
+5.  **NO PODEMOS PERMITIR AL TECNICO FINALIZAR REPARACION SI NO REALIZA ESA ACCION...**: Usuario exige que el QC sea obligatorio para el técnico. (Implementado).
+6.  **que son los campos de QC?**: Usuario pide aclaración sobre el Control de Calidad. (Aclarado).
+7.  **cuando el tecnico marca como reparado...**: Usuario clarifica el flujo de trabajo: el trabajo del técnico termina al marcar como Reparado. (Implementado en la lógica de estados).
+8.  **en la ot hay un error de proceso cuando validamos...**: Usuario reporta que el importe es 0 al finalizar la orden. (Solucionado, se implementó el cálculo automático de totales).
+9.  **las etiquetas impresas por inventario...**: Usuario pide que el tamaño de las etiquetas sea 29x90mm. (Solucionado).
+10. **vale el resto de analiticas...estan bien conectadas?**: Usuario pregunta si los dashboards de analíticas están usando los datos correctos tras el cambio en los cálculos. (Verificado y corregido).
 
 **Project Health Check:**
--   **Broken**: La funcionalidad de notificaciones en tiempo real está causando una degradación severa del rendimiento debido al polling excesivo.
--   **Mocked**: N/A.
+-   **Broken**: El guardado del código de envío al finalizar una orden.
+-   **Mocked**: N/A
 
 **3rd Party Integrations**
 -   **MongoDB**: Base de datos principal.
--   **Sumbroker/Insurama API**: Integración externa para presupuestos. Autenticación por usuario/contraseña.
--   **Gemini**: Solicitado, pero no implementado. Usará la .
--   **SMTP (mail.privateemail.com)**: Solicitado, pero la funcionalidad de envío de emails no ha sido implementada ni verificada.
+-   **Sumbroker/Insurama API**: Integración para presupuestos de seguros. Lenta en la primera carga, pero funciona con caché.
+-   **Gemini**: Integrado vía . Se corrigió un error de importación.
+-   **SMTP (mail.privateemail.com)**: Configurado pero no verificado.
+-   **GLS**: No implementado.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES (una vez al principio).
--   **Troubleshoot agent used after agent stuck in loop**: NO.
--   **Test files created**: N/A.
--   **Known regressions**: El polling excesivo de notificaciones es una regresión de rendimiento introducida en algún momento.
+-   **Testing agent used after significant changes**: NO
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: NO
+-   **Known regressions**: Ninguna. Los problemas reportados fueron bugs existentes o efectos secundarios de nuevas implementaciones que ya han sido corregidos.
 
 **Credentials to test flow:**
 -   **Usuario Master**:  / 
--   **Sumbroker API**: Las credenciales están guardadas en la colección  de la base de datos. No es necesario introducirlas manualmente.
+-   **Usuario Admin**:  / 
+-   **Usuario Técnico**:  / 
 
 **What agent forgot to execute**
--   **Implementar la integración con Gemini**: Se mencionó en la fase inicial de recopilación de requisitos pero nunca se planificó ni se trabajó en ello.
--   **Implementar la integración SMTP**: Se mencionó la configuración pero no se implementó la lógica para enviar correos electrónicos a través de ese servicio.</analysis>
+-   El agente identificó correctamente en su simulación final () que el código de envío no se estaba guardando al finalizar una orden. Sin embargo, la sesión terminó antes de que pudiera implementar la corrección para este bug final.</analysis>

@@ -15,7 +15,7 @@ from datetime import datetime
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://workshop-manager-75.preview.emergentagent.com"
+    BASE_URL = "https://workshop-erp-3.preview.emergentagent.com"
 
 # ==== FIXTURES ====
 

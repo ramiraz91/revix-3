@@ -1389,6 +1389,93 @@ export default function OrdenDetalle() {
                 readOnly={!isAdmin()}
                 mostrarCoste={isAdmin()}
               />
+
+              {/* Resumen Financiero */}
+              {(orden.materiales?.length > 0 || orden.mano_obra > 0) && (
+                <div className="mt-6 p-4 bg-gradient-to-r from-slate-50 to-slate-100 border rounded-lg" data-testid="resumen-financiero">
+                  <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-green-600" />
+                    Resumen Financiero
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="p-3 bg-white rounded-lg border">
+                      <p className="text-xs text-muted-foreground">Subtotal Materiales</p>
+                      <p className="text-lg font-semibold">{(orden.subtotal_materiales || 0).toFixed(2)}€</p>
+                    </div>
+                    {orden.mano_obra > 0 && (
+                      <div className="p-3 bg-white rounded-lg border">
+                        <p className="text-xs text-muted-foreground">Mano de Obra</p>
+                        <p className="text-lg font-semibold">{(orden.mano_obra || 0).toFixed(2)}€</p>
+                      </div>
+                    )}
+                    <div className="p-3 bg-white rounded-lg border">
+                      <p className="text-xs text-muted-foreground">IVA</p>
+                      <p className="text-lg font-semibold">{(orden.total_iva || 0).toFixed(2)}€</p>
+                    </div>
+                    <div className="p-3 bg-green-50 rounded-lg border-2 border-green-200">
+                      <p className="text-xs text-green-600 font-medium">TOTAL PRESUPUESTO</p>
+                      <p className="text-xl font-bold text-green-700">{(orden.presupuesto_total || 0).toFixed(2)}€</p>
+                    </div>
+                    {isAdmin() && (
+                      <>
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <p className="text-xs text-amber-600">Coste Total</p>
+                          <p className="text-lg font-semibold text-amber-700">{(orden.coste_total || 0).toFixed(2)}€</p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <p className="text-xs text-blue-600">Beneficio Estimado</p>
+                          <p className="text-lg font-semibold text-blue-700">{(orden.beneficio_estimado || 0).toFixed(2)}€</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Input de mano de obra para admin */}
+                  {isAdmin() && (
+                    <div className="mt-4 pt-4 border-t flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm whitespace-nowrap">Mano de obra:</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-28"
+                          defaultValue={orden.mano_obra || 0}
+                          onBlur={async (e) => {
+                            const valor = parseFloat(e.target.value) || 0;
+                            if (valor !== (orden.mano_obra || 0)) {
+                              try {
+                                await ordenesAPI.actualizarManoObra(id, valor);
+                                toast.success('Mano de obra actualizada');
+                                fetchOrden();
+                              } catch (err) {
+                                toast.error('Error al actualizar mano de obra');
+                              }
+                            }
+                          }}
+                        />
+                        <span className="text-sm text-muted-foreground">€</span>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await ordenesAPI.recalcularTotales(id);
+                            toast.success('Totales recalculados');
+                            fetchOrden();
+                          } catch (err) {
+                            toast.error('Error al recalcular');
+                          }
+                        }}
+                      >
+                        <Calculator className="w-4 h-4 mr-2" />
+                        Recalcular
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

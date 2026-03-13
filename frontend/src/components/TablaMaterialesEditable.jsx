@@ -111,7 +111,7 @@ export default function TablaMaterialesEditable({
   const handleSaveEdit = async (index) => {
     setSaving(true);
     try {
-      await ordenesAPI.editarMaterialCompleto(ordenId, index, {
+      const response = await ordenesAPI.editarMaterialCompleto(ordenId, index, {
         nombre: editData.nombre,
         cantidad: parseInt(editData.cantidad) || 1,
         precio_unitario: parseFloat(editData.precio_unitario) || 0,
@@ -120,9 +120,27 @@ export default function TablaMaterialesEditable({
         descuento: parseFloat(editData.descuento) || 0
       });
       toast.success('Material actualizado');
+      
+      // Actualizar estado local en lugar de recargar toda la página
+      const updatedMateriales = [...localMateriales];
+      updatedMateriales[index] = {
+        ...updatedMateriales[index],
+        nombre: editData.nombre,
+        cantidad: parseInt(editData.cantidad) || 1,
+        precio_unitario: parseFloat(editData.precio_unitario) || 0,
+        coste: parseFloat(editData.coste) || 0,
+        iva: parseFloat(editData.iva) || 21,
+        descuento: parseFloat(editData.descuento) || 0
+      };
+      setLocalMateriales(updatedMateriales);
+      
       setEditingIndex(null);
       setEditData({});
-      onUpdate?.();
+      
+      // Solo notificar al padre si necesita actualizar los totales (silenciosamente)
+      if (response?.data?.totales) {
+        onUpdate?.(response.data.totales);
+      }
     } catch (error) {
       toast.error('Error al actualizar material');
     } finally {

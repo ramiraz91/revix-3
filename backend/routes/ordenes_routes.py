@@ -1336,7 +1336,7 @@ TRANSICIONES_VALIDAS = {
     "cuarentena": ["recibida", "cancelado"],
     "en_taller": ["reparado", "validacion", "re_presupuestar", "irreparable", "reemplazo", "cancelado"],  # técnico puede ir directo a validación
     "re_presupuestar": ["en_taller", "cancelado"],
-    "reparado": ["validacion", "en_taller"],  # puede volver si falla QA
+    "reparado": ["validacion", "enviado", "en_taller"],  # Admin puede enviar directamente, puede volver si falla QA
     "validacion": ["enviado", "reparado", "en_taller"],  # puede volver a taller si hay problema
     "enviado": ["garantia"],  # solo para abrir garantía
     "garantia": ["en_taller", "recibida"],

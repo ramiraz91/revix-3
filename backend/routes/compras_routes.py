@@ -97,7 +97,8 @@ def generar_codigo_lote() -> str:
 async def extraer_datos_factura_ia(pdf_content: bytes, filename: str) -> FacturaExtraida:
     """Usa Gemini para extraer datos de la factura PDF"""
     try:
-        from emergentintegrations.llm import LlmChat
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
+        import tempfile
         
         prompt = """Analiza esta factura de compra de un proveedor de repuestos de móviles/electrónica.
 
@@ -128,10 +129,40 @@ Extrae la siguiente información en formato JSON:
 Si no puedes leer algún dato, déjalo como null. Los precios deben ser números sin símbolos de moneda.
 Responde SOLO con el JSON, sin texto adicional."""
 
-        chat = LlmChat(EMERGENT_LLM_KEY, "Eres un experto en análisis de facturas. Extrae datos con precisión.").with_model("gemini", "gemini-3-flash-preview")
+        # Guardar PDF temporalmente para poder pasarlo como FileContentWithMimeType
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+            tmp_file.write(pdf_content)
+            tmp_path = tmp_file.name
         
-        # Enviar el PDF como archivo adjunto
-        response = await chat.with_file(pdf_content, filename, "application/pdf").send_async(prompt)
+        try:
+            # Crear instancia de chat con Gemini
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"compras-{uuid.uuid4()}",
+                system_message="Eres un experto en análisis de facturas. Extrae datos con precisión."
+            ).with_model("gemini", "gemini-2.5-flash")
+            
+            # Crear archivo adjunto
+            pdf_file = FileContentWithMimeType(
+                file_path=tmp_path,
+                mime_type="application/pdf"
+            )
+            
+            # Crear mensaje con archivo adjunto
+            user_message = UserMessage(
+                text=prompt,
+                file_contents=[pdf_file]
+            )
+            
+            # Enviar mensaje y obtener respuesta
+            response = await chat.send_message(user_message)
+        finally:
+            # Limpiar archivo temporal
+            import os as temp_os
+            try:
+                temp_os.unlink(tmp_path)
+            except:
+                pass
         
         # Parsear respuesta JSON
         import json

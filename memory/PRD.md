@@ -1,122 +1,76 @@
-# Revix CRM/ERP - PRD (Product Requirements Document)
+# Revix CRM/ERP - Product Requirements Document
 
-## Versión Actual: 1.0.0
-📅 Última actualización: 2026-03-14
-📋 Ver [CHANGELOG.md](/app/CHANGELOG.md) para historial completo
+## Descripción
+CRM/ERP para gestión integral de un taller de reparaciones de dispositivos electrónicos. Gestiona clientes, órdenes de trabajo, inventario, compras, facturación, contabilidad y comunicaciones.
 
-## Original Problem Statement
-Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para taller de reparaciones con FastAPI + MongoDB backend y React frontend. Configurar DB_NAME=production, crear usuarios de acceso y preparar para deploy.
+## Stack Tecnológico
+- **Backend**: FastAPI, Python, Motor (MongoDB async)
+- **Frontend**: React, Axios, Tailwind CSS, Shadcn UI
+- **Base de Datos**: MongoDB (Atlas en producción)
+- **Almacenamiento**: Cloudinary (imágenes)
+- **Integraciones**: Insurama/Sumbroker, SMTP, Gemini AI (vía Emergent LLM Key)
 
-## Architecture
-- **Backend**: FastAPI (Python) running on port 8001
-- **Frontend**: React with TailwindCSS + ShadCN UI
-- **Database**: MongoDB (DB_NAME: production)
-- **AI**: Gemini via Emergent LLM Key (emergentintegrations)
-- **Email**: SMTP (mail.privateemail.com)
-- **Images**: Cloudinary (cloud: dw0exxafh) - almacenamiento permanente
-- **Domain**: revix.es
+## Versión Actual: v1.2.0
 
-## What's Been Implemented
+## Módulos del Sistema
+1. **Autenticación** - Login, roles (master/admin/tecnico), endpoint de emergencia
+2. **Clientes** - CRUD, historial de órdenes
+3. **Órdenes de Trabajo** - Ciclo completo: recepción → diagnóstico → presupuesto → reparación → validación → envío
+4. **Inventario** - Gestión de repuestos, stock, lotes, alertas
+5. **Compras** - Pedidos a proveedores, auto-registro en contabilidad
+6. **Finanzas** (CENTRALIZADO v1.2.0) - Dashboard unificado con KPIs, facturas, cobros/pagos, gastos, inventario, evolución
+7. **Contabilidad** - Facturas (venta/compra), albaranes, pagos, informes IVA, Modelo 347
+8. **Insurama** - Integración con aseguradora, polling de presupuestos
+9. **Comunicaciones** - Email (SMTP), notificaciones automáticas
+10. **Calendario** - Gestión de citas y tareas
+11. **Incidencias** - Gestión básica de incidencias
+12. **Garantías** - Gestión de garantías de reparaciones
 
-### Session 1 - Initial Import
-- [x] Code imported from GitHub (ramiraz91/revix)
-- [x] DB configured as 'production', 3 users created
-- [x] All services running
+## Completado
+- [x] Integración Cloudinary para imágenes persistentes (v1.1.0)
+- [x] Endpoint de emergencia para acceso (/api/auth/emergency-access) (v1.1.0)
+- [x] Corrección SMTP y notificaciones automáticas (v1.1.0)
+- [x] Página de recuperar contraseña (v1.1.0)
+- [x] Flujo órdenes irreparables → enviado (v1.1.0)
+- [x] Sistema de versionado (v1.1.0)
+- [x] Guía de despliegue (DEPLOYMENT_GUIDE.md) (v1.1.0)
+- [x] **Auditoría funcional completa** (v1.2.0)
+- [x] **Dashboard Financiero Centralizado** con 6 tabs (v1.2.0)
+- [x] **Auto-facturación** de órdenes al pasar a ENVIADO (v1.2.0)
+- [x] **Auto-registro de compras** en contabilidad al confirmar (v1.2.0)
+- [x] Navegación unificada Finanzas y Logística (v1.2.0)
 
-### Session 2 - Bug Fixes
-- [x] Legacy URL redirects (/ordenes/nueva → /crm/ordenes/nueva)
+## Pendientes (P0)
+- [ ] Validar creación automática de órdenes desde Insurama con el usuario
+- [ ] Validar notificaciones SMTP en producción post-despliegue
 
-### Session 3 - Insurama Improvements
-- [x] Timeouts 120s→180s backend, 200s frontend
-- [x] Retry + re-authentication (MAX_RETRIES=2)
-- [x] Fixed competitor prices bug
-- [x] Added reserve_value, claim_real_value, margin badges
-- [x] Winner badges, price difference, improved competitor view
+## Pendientes (P1)
+- [ ] Integración completa con GLS (etiquetas, recogidas, tracking)
+- [ ] Refinar flujo de garantías e incidencias (conectar con órdenes e inventario)
 
-### Session 4 - Performance: MongoDB Cache System
-- [x] **Cache presupuestos**: First load from Sumbroker (35-57s), subsequent loads from MongoDB cache (0.1s)
-- [x] **Cache competidores**: First load (42s), cached (0.2s)
-- [x] **Background sync**: Stale cache triggers background refresh without blocking UI
-- [x] **Fallback**: If Sumbroker is down, serves stale cache
-- [x] **Pre-warm endpoint**: POST /api/insurama/sync forces background refresh
-- [x] Cache TTL: 10 minutes
-- [x] Credenciales Sumbroker: servicios@revix.es (conexion_ok=True, 674 presupuestos)
+## Pendientes (P2)
+- [ ] Acortar SKU generado en inventario
+- [ ] Mejorar automatización de albaranes (conectar con facturas)
 
-### Session 4 - Email Config Fix
-- [x] Fixed plantilla reset not resetting `asunto` field
+## Arquitectura de Archivos Clave
+```
+/app
+├── backend/routes/
+│   ├── finanzas_routes.py       # Dashboard financiero centralizado
+│   ├── contabilidad_routes.py   # Facturas, albaranes, pagos, informes
+│   ├── ordenes_routes.py        # Órdenes + auto-facturación
+│   ├── compras_routes.py        # Compras + auto-registro contable
+│   └── auth_routes.py           # Autenticación + emergency access
+├── frontend/src/pages/
+│   ├── FinanzasDashboard.jsx    # Hub financiero unificado
+│   └── Contabilidad.jsx         # Gestión detallada facturas/albaranes
+├── version.json                 # v1.2.0
+├── CHANGELOG.md                 # Historial de cambios
+└── memory/
+    ├── PRD.md                   # Este archivo
+    └── DEPLOYMENT_GUIDE.md      # Guía de despliegue producción
+```
 
-### Session 5 - Bug Fixes (12 Mar 2026)
-- [x] **Bug 1 - Subestados para técnico**: Añadido componente `OrdenSubestadoCard` a la vista del técnico (`OrdenTecnico.jsx`) para que pueda cambiar subestados como "Esperando repuestos", igual que el admin
-- [x] **Bug 2 - Fotos del técnico no visibles al admin**: Modificado `todasLasFotos` en `OrdenDetalle.jsx` para incluir `fotos_antes` y `fotos_despues` que sube el técnico. Ahora el admin puede ver todas las fotos categorizadas con badges ANTES/DESPUÉS
-- [x] **UX - Carga múltiple de fotos**: Añadido atributo `multiple` a todos los inputs de archivo para permitir subir varias fotos a la vez
-- [x] **UX - Tab persistente**: Los tabs de la orden ahora mantienen su posición después de actualizar datos (añadir materiales, subir fotos, etc.)
-- [x] **Polling excesivo de notificaciones**: Reducido el polling de `PresupuestoAceptadoPopup.jsx` de 5s a 60s y `Layout.jsx` de 30s a 180s (3 minutos)
-- [x] **Verificación notificaciones automáticas**: Verificado funcionamiento correcto con toggles y modo demo
-- [x] **Dashboard financiero para Master**: Añadidas métricas de Total Cobrado, Total Gastos, Pendiente Cobrar y Margen de Beneficio en `/crm/analiticas`
-- [x] **Dashboard Insurama mejorado**: Añadidas métricas reales del negocio (Total Órdenes, Ratio Aceptación, Ticket Medio, Ingresos, Gastos, Beneficio, estado de órdenes) + métricas de competencia
-- [x] **Panel de Facturación Completo**: Nueva página de Analíticas con 3 tabs:
-  - **Facturación**: Filtro por período (semana/mes/trimestre/año), total a facturar, clasificación por estado, desglose semanal, costes y beneficios
-  - **Proyecciones**: Ritmo diario, proyección mensual/anual, análisis de tendencia vs período anterior
-  - **Operaciones**: KPIs operativos, ingresos/órdenes por mes, distribución por estado, ranking técnicos
-- [x] **Módulo de Compras con Trazabilidad**: Nueva sección `/crm/compras` con:
-  - Upload de facturas PDF con extracción automática IA (Gemini)
-  - Revisión y confirmación de productos antes de aplicar
-  - Creación automática de inventario o actualización de stock existente
-  - Sistema de trazabilidad por lote (código TRZ-AAAA-MMDD-NNN)
-  - Dashboard de compras con métricas y alertas de stock bajo
-- [x] **Búsqueda por código de barras**: Añadido `codigo_barras` al buscador de materiales/repuestos
-
-## Prioritized Backlog
-### P1 (High)
-- Configure SMTP password for real email sending
-- GLS API real integration
-
-### P2 (Medium)  
-- Auto-refresh scheduler (cron job every 10 min)
-- WebSocket notifications
-- Full ISO 9001 module testing
-
-### Session 6 - Bug Fixes (13 Mar 2026)
-- [x] **Error módulo compras (LlmChat)**: Corregido import de `emergentintegrations.llm.chat` usando sintaxis correcta con `LlmChat`, `UserMessage` y `FileContentWithMimeType`
-- [x] **Endpoint descarga ZIP de fotos**: Creado `/api/ordenes/{id}/fotos-zip` para descargar todas las fotos de una orden en formato ZIP
-- [x] **División galería de fotos (Admin)**: Las fotos ahora se organizan en secciones separadas: "ANTES", "DESPUÉS" y "OTRAS FOTOS" con bordes de colores distintivos
-- [x] **Bug visualización imágenes**: Verificado funcionamiento correcto - el problema eran archivos de prueba corruptos eliminados
-- [x] **Cálculos financieros automatizados**: Función `recalcular_totales_orden` que calcula presupuesto, coste y beneficio automáticamente
-- [x] **Flujo de estados corregido**: Técnico → REPARADO → Admin → ENVIADO con validación QC obligatoria
-- [x] **Protección de fotos**: Backend ignora intentos de borrar arrays de fotos durante actualizaciones
-- [x] **Descarga ZIP sin nueva pestaña**: Corregido handler frontend para descarga directa
-- [x] **Etiquetas inventario 29x90mm**: Ajustado CSS de impresión para Brother QL-800
-- [x] **Mejora UX sin recarga**: TablaMaterialesEditable y TecnicoMaterialesCard usan estado local
-- [x] **Consistencia analíticas**: Endpoints de finanzas usan campos calculados de órdenes
-
-### Session 7 - Verificación P0 (13 Mar 2026)
-- [x] **Código de envío se guarda correctamente**: Verificado que `codigo_recogida_salida` se almacena al finalizar orden con estado ENVIADO
-- [x] **Sin fotos "durante" para técnico**: Confirmado que TecnicoFotosCard solo tiene tabs ANTES, DESPUÉS y General
-- [x] **Órdenes irreparables pueden finalizarse**: Añadida transición `irreparable → enviado` para poder contabilizar dispositivos irreparables
-
-### Session 8 - Cloudinary Integration (14 Mar 2026)
-- [x] **Integración Cloudinary**: Las fotos ahora se almacenan permanentemente en Cloudinary
-- [x] **Organización por carpetas**: Fotos organizadas en `revix/ordenes/{numero_orden}/{tipo}/`
-- [x] **URLs persistentes**: Las URLs de Cloudinary se guardan en MongoDB y nunca se pierden
-- [x] **Compatibilidad**: Frontend actualizado para manejar tanto URLs de Cloudinary como archivos locales antiguos
-- [x] **Descarga ZIP**: Endpoint actualizado para descargar fotos desde Cloudinary
-- [x] **Credenciales**: Cloud name: dw0exxafh
-
-## Next Tasks
-1. Probar módulo de Compras con un PDF real de factura
-2. Implementar automatizaciones de Insurama (sincronización de estados)
-3. Integración completa con GLS (etiquetas, recogidas, tracking)
-4. Verificar envío de emails SMTP
-5. Acortar SKU generado en inventario
-
-## Completed Tasks
-- ~~Deploy updated code to production~~ - En progreso
-- ~~Polling excesivo de notificaciones~~ - COMPLETADO
-- ~~Notificaciones automáticas~~ - COMPLETADO
-- ~~Integración Gemini IA~~ - YA FUNCIONANDO
-- ~~Dashboard financiero master~~ - COMPLETADO
-- ~~Dashboard Insurama mejorado~~ - COMPLETADO (métricas negocio + competencia)
-- ~~Error módulo compras (LlmChat)~~ - COMPLETADO
-- ~~Endpoint descarga ZIP~~ - COMPLETADO
-- ~~División galería de fotos~~ - COMPLETADO
-- ~~Almacenamiento permanente de fotos~~ - COMPLETADO (Cloudinary)
+## Credenciales de Test
+- Admin: admin@techrepair.local / Admin2026!
+- Emergency key: RevixEmergency2026SecureKey!

@@ -2111,9 +2111,9 @@ async def create_default_users():
         # Create default users
         from auth import hash_password as hp
         defaults = [
-            {"id": "master-001", "email": "master@techrepair.local", "nombre": "Master Admin", "role": "master", "password_hash": hp("master123")},
-            {"id": "admin-001", "email": "admin@techrepair.local", "nombre": "Admin Principal", "role": "admin", "password_hash": hp("admin123")},
-            {"id": "tecnico-001", "email": "tecnico@techrepair.local", "nombre": "Técnico Demo", "role": "tecnico", "password_hash": hp("tecnico123")},
+            {"id": "master-001", "email": "master@revix.es", "nombre": "Master Admin", "role": "master", "password_hash": hp("RevixMaster2026!")},
+            {"id": "admin-001", "email": "admin@techrepair.local", "nombre": "Admin Principal", "role": "admin", "password_hash": hp("Admin2026!")},
+            {"id": "tecnico-001", "email": "tecnico@techrepair.local", "nombre": "Técnico Demo", "role": "tecnico", "password_hash": hp("Tecnico2026!")},
         ]
         for u in defaults:
             existing = await db.users.find_one({"email": u["email"]})

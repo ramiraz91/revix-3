@@ -88,6 +88,7 @@ export default function FinanzasDashboard() {
   const ingresos = dashboard?.ingresos || {};
   const gastosInfo = dashboard?.gastos || {};
   const inv = dashboard?.inventario || {};
+  const kpis = dashboard?.kpis_ordenes || {};
 
   return (
     <div className="space-y-6" data-testid="finanzas-dashboard">
@@ -119,7 +120,56 @@ export default function FinanzasDashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPIs de Órdenes (globales) */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">KPIs Operativos (Global)</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+          <Card data-testid="kpi-ordenes-totales">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Órdenes Totales</p>
+              <p className="text-xl font-bold">{kpis.ordenes_totales || 0}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-ordenes-pendientes">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Pendientes</p>
+              <p className="text-xl font-bold text-amber-600">{kpis.ordenes_pendientes || 0}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-ordenes-enviadas">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Enviadas</p>
+              <p className="text-xl font-bold text-green-600">{kpis.ordenes_enviadas || 0}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-valor-pendientes">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Valor Pendientes</p>
+              <p className="text-lg font-bold text-amber-600">{fmt(kpis.valor_pendientes)}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-valor-enviadas">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Valor Enviadas</p>
+              <p className="text-lg font-bold text-green-600">{fmt(kpis.valor_enviadas)}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-coste-promedio">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Coste Medio/Orden</p>
+              <p className="text-lg font-bold text-red-500">{fmt(kpis.coste_promedio_orden)}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-ticket-medio">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-muted-foreground">Ticket Medio</p>
+              <p className="text-lg font-bold text-blue-600">{fmt(kpis.ticket_medio)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* KPI Cards (periodo) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card data-testid="kpi-ingresos">
           <CardContent className="pt-4">

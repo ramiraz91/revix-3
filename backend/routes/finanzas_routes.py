@@ -156,7 +156,30 @@ async def dashboard_financiero(
     ingresos_pendientes = sum(o.get("presupuesto_total", 0) or 0 for o in ordenes_en_proceso)
     costes_pendientes = sum(o.get("coste_total", 0) or 0 for o in ordenes_en_proceso)
     
-    # ===== 6. CÁLCULOS FINALES =====
+    # ===== 6. KPIs GLOBALES DE ÓRDENES (sin filtro de periodo) =====
+    todas_ordenes = await db.ordenes.find(
+        {},
+        {"_id": 0, "estado": 1, "presupuesto_total": 1, "coste_total": 1}
+    ).to_list(100000)
+    
+    ordenes_totales = len(todas_ordenes)
+    ordenes_enviadas_global = [o for o in todas_ordenes if o.get("estado") == "enviado"]
+    ordenes_pendientes_global = [o for o in todas_ordenes if o.get("estado") not in ("enviado", "cancelado")]
+    
+    count_enviadas = len(ordenes_enviadas_global)
+    count_pendientes = len(ordenes_pendientes_global)
+    
+    valor_enviadas = sum(o.get("presupuesto_total", 0) or 0 for o in ordenes_enviadas_global)
+    valor_pendientes = sum(o.get("presupuesto_total", 0) or 0 for o in ordenes_pendientes_global)
+    
+    coste_total_global = sum(o.get("coste_total", 0) or 0 for o in todas_ordenes if o.get("coste_total"))
+    ordenes_con_coste = len([o for o in todas_ordenes if o.get("coste_total")])
+    coste_promedio = round(coste_total_global / ordenes_con_coste, 2) if ordenes_con_coste > 0 else 0
+    
+    importe_total_global = sum(o.get("presupuesto_total", 0) or 0 for o in todas_ordenes)
+    ticket_medio = round(importe_total_global / ordenes_totales, 2) if ordenes_totales > 0 else 0
+    
+    # ===== 7. CÁLCULOS FINALES =====
     total_ingresos = ingresos_ordenes + total_facturado
     total_gastos = total_compras + materiales_usados
     beneficio_bruto = total_ingresos - total_gastos
@@ -214,6 +237,15 @@ async def dashboard_financiero(
             "valor_coste": round(valor_inventario_coste, 2),
             "valor_venta": round(valor_inventario_venta, 2),
             "margen_potencial": round(valor_inventario_venta - valor_inventario_coste, 2)
+        },
+        "kpis_ordenes": {
+            "ordenes_totales": ordenes_totales,
+            "ordenes_enviadas": count_enviadas,
+            "ordenes_pendientes": count_pendientes,
+            "valor_enviadas": round(valor_enviadas, 2),
+            "valor_pendientes": round(valor_pendientes, 2),
+            "coste_promedio_orden": coste_promedio,
+            "ticket_medio": ticket_medio
         }
     }
 

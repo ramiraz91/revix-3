@@ -33,7 +33,7 @@
   "seed_data_creation": "Test pre-registro TEST-2026-002 exists with estado=pendiente_tramitar. Created and cleaned up test pre-registros for tramitar/rechazar flow tests.",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Nuevas Órdenes feature fully tested. Test pre-registro available: id=fc530ce2-5180-494d-bb31-744b0d2a4794, codigo_siniestro=TEST-2026-002. Poll interval is 7200s (2 hours) in scheduler.py. Routes registered in server.py.",
+  "context_for_next_testing_agent": "Nuevas Órdenes feature fully tested. Test pre-registro available: id=operativa-dash, codigo_siniestro=TEST-2026-002. Poll interval is 7200s (2 hours) in scheduler.py. Routes registered in server.py.",
   "verified_features": [
     "GET /api/nuevas-ordenes/count returns correct count of pending pre_registros (currently 1)",
     "GET /api/nuevas-ordenes/ lists pre_registros with estado=pendiente_tramitar with all required fields",

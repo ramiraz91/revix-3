@@ -474,7 +474,7 @@ export default function Ordenes() {
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(orden.created_at)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -490,7 +490,10 @@ export default function Ordenes() {
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive"
-                                onClick={() => openDeleteDialog(orden)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDeleteDialog(orden);
+                                }}
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Eliminar

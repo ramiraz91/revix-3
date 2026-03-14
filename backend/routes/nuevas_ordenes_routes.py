@@ -182,6 +182,28 @@ async def rechazar_nueva_orden(
     return {"message": "Nueva orden archivada"}
 
 
+@router.post("/actualizar-insurama")
+async def actualizar_desde_insurama(user: dict = Depends(require_admin)):
+    """Fuerza una consulta inmediata a Insurama para buscar nuevos presupuestos aceptados."""
+    import asyncio
+    try:
+        from agent.insurama_poller import poll_insurama_budgets
+        # Ejecutar en background para no bloquear la request
+        asyncio.create_task(poll_insurama_budgets())
+        
+        count = await db.pre_registros.count_documents({
+            "estado": EstadoPreRegistro.PENDIENTE_TRAMITAR.value
+        })
+        
+        return {
+            "message": "Consulta a Insurama iniciada. Actualiza en unos segundos para ver resultados.",
+            "pendientes_tramitar": count
+        }
+    except Exception as e:
+        logger.error(f"Error consultando Insurama: {e}")
+        raise HTTPException(status_code=500, detail=f"Error consultando Insurama: {str(e)}")
+
+
 def import_uuid():
     import uuid
     return uuid.uuid4()

@@ -13,29 +13,30 @@ CRM/ERP para gestión integral de un taller de reparaciones de dispositivos elec
 ## Versión Actual: v1.3.0
 
 ## Flujo Nuevas Órdenes (v1.3.0)
-1. Polling cada 2h consulta Insurama → detecta presupuestos aceptados
+1. Polling cada 2h (o manual con botón "Consultar Insurama") → detecta presupuestos aceptados
 2. Pre-orden llega a "Nuevas Órdenes" como `pendiente_tramitar` (con notificación urgente)
 3. Tramitador revisa datos, introduce código de recogida
 4. Al confirmar → se crea orden de trabajo en `pendiente_recibir`
-5. A partir de ahí sigue el flujo normal: recibida → diagnóstico → presupuesto → reparación → validación → envío
+5. Sigue el flujo normal: recibida → diagnóstico → presupuesto → reparación → validación → envío
 
 ## Reglas de Negocio
 - **Albaranes**: Auto-generados al pasar a VALIDACION o ENVIADO
 - **Facturas**: Solo manuales por decisión del usuario
 - **Compras**: Con factura del proveedor (PDF), sin duplicar en contabilidad
-- **Liquidaciones**: Auto-cruce de códigos al importar Excel (pagados auto salvo duplicados/garantías)
+- **Liquidaciones**: Auto-cruce de códigos al importar Excel
 - **Garantías**: Orden dependiente del mismo dispositivo, ciclo completo nuevo
-- **Nuevas Órdenes**: Presupuestos aceptados → tramitador revisa → código recogida → orden de trabajo
+- **Nuevas Órdenes**: Presupuestos aceptados → tramitador → código recogida → orden
 
 ## Completado
 - [x] Cloudinary, endpoint emergencia, SMTP, recuperar contraseña (v1.1.0)
 - [x] Versionado, guía despliegue, órdenes irreparables (v1.1.0)
 - [x] Auditoría funcional, Dashboard Financiero, auto-albarán (v1.2.0)
 - [x] Liquidaciones auto-cruce, garantías mejoradas (v1.2.1)
-- [x] **Nuevas Órdenes** con polling 2h, tramitación y badge (v1.3.0)
+- [x] Nuevas Órdenes con polling 2h, tramitación y badge (v1.3.0)
+- [x] Botón "Consultar Insurama" para polling manual (v1.3.0)
 
 ## Pendientes (P0)
-- [ ] Validar notificaciones SMTP en producción post-despliegue
+- [ ] Validar notificaciones SMTP en producción
 
 ## Pendientes (P1)
 - [ ] Integración completa con GLS

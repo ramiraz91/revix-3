@@ -27,6 +27,7 @@ export default function NuevasOrdenes() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [tramitarForm, setTramitarForm] = useState({ codigo_recogida: '', agencia_envio: '', notas: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
@@ -42,6 +43,19 @@ export default function NuevasOrdenes() {
   }, []);
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
+
+  const handleActualizarInsurama = async () => {
+    setPolling(true);
+    try {
+      const res = await API.post('/nuevas-ordenes/actualizar-insurama');
+      toast.info(res.data?.message || 'Consultando Insurama...');
+      // Recargar después de unos segundos para dar tiempo al polling
+      setTimeout(() => { cargarDatos(); setPolling(false); }, 5000);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error consultando Insurama');
+      setPolling(false);
+    }
+  };
 
   const handleOpenTramitar = (item) => {
     setSelectedItem(item);
@@ -110,9 +124,15 @@ export default function NuevasOrdenes() {
             Órdenes autorizadas por Insurama pendientes de tramitar
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={cargarDatos} data-testid="refresh-nuevas-btn">
-          <RefreshCw className="w-4 h-4 mr-1" /> Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleActualizarInsurama} disabled={polling} data-testid="actualizar-insurama-btn">
+            {polling ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+            {polling ? 'Consultando...' : 'Consultar Insurama'}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={cargarDatos} data-testid="refresh-nuevas-btn">
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Empty State */}

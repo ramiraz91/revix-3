@@ -4,7 +4,7 @@ El tramitador revisa los datos, añade el código de recogida y confirma la crea
 """
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from config import db, logger
 from auth import require_admin, require_auth
@@ -47,6 +47,52 @@ async def detalle_nueva_orden(pre_registro_id: str, user: dict = Depends(require
     if not pre_reg:
         raise HTTPException(status_code=404, detail="Pre-registro no encontrado")
     return pre_reg
+
+
+@router.put("/{pre_registro_id}")
+async def actualizar_nueva_orden(pre_registro_id: str, request: Request, user: dict = Depends(require_admin)):
+    """Actualizar datos de una pre-orden (cliente, dispositivo, etc.) antes de tramitar."""
+    pre_reg = await db.pre_registros.find_one({"id": pre_registro_id}, {"_id": 0})
+    if not pre_reg:
+        raise HTTPException(status_code=404, detail="Pre-registro no encontrado")
+    if pre_reg.get("estado") not in [EstadoPreRegistro.PENDIENTE_TRAMITAR.value]:
+        raise HTTPException(status_code=400, detail="Solo se pueden editar pre-órdenes pendientes de tramitar")
+    
+    body = await request.json()
+    
+    campos_editables = [
+        "cliente_nombre", "cliente_email", "cliente_telefono",
+        "cliente_direccion", "cliente_codigo_postal", "cliente_ciudad",
+        "cliente_provincia", "cliente_dni",
+        "dispositivo_modelo", "dispositivo_marca", "dispositivo_color",
+        "dispositivo_imei", "numero_serie",
+        "daño_descripcion", "notas",
+        "tipo_servicio", "tipo_seguro", "compania_seguro",
+        "agencia_envio", "codigo_recogida_sugerido"
+    ]
+    
+    update = {}
+    for campo in campos_editables:
+        if campo in body:
+            update[campo] = body[campo]
+    
+    if not update:
+        return pre_reg
+    
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    historial = pre_reg.get("historial", [])
+    historial.append({
+        "evento": "datos_editados",
+        "fecha": datetime.now(timezone.utc).isoformat(),
+        "detalle": f"Datos editados por {user.get('email')}: {', '.join(update.keys())}"
+    })
+    update["historial"] = historial
+    
+    await db.pre_registros.update_one({"id": pre_registro_id}, {"$set": update})
+    
+    updated = await db.pre_registros.find_one({"id": pre_registro_id}, {"_id": 0})
+    return updated
 
 
 @router.post("/{pre_registro_id}/tramitar")

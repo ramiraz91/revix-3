@@ -4,17 +4,12 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
-} from '@/components/ui/dialog';
 import { 
   PackagePlus, RefreshCw, Truck, User, Smartphone, AlertCircle,
-  CheckCircle, XCircle, Clock, FileText, ArrowRight
+  CheckCircle, XCircle, Clock, FileText, ArrowRight, Phone, Mail, MapPin
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -23,10 +18,6 @@ export default function NuevasOrdenes() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
-  const [showTramitar, setShowTramitar] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [tramitarForm, setTramitarForm] = useState({ codigo_recogida: '', agencia_envio: '', notas: '' });
-  const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
 
   const cargarDatos = useCallback(async () => {
@@ -54,36 +45,6 @@ export default function NuevasOrdenes() {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error consultando Insurama');
       setPolling(false);
-    }
-  };
-
-  const handleOpenTramitar = (item) => {
-    setSelectedItem(item);
-    setTramitarForm({
-      codigo_recogida: item.codigo_recogida_sugerido || '',
-      agencia_envio: '',
-      notas: ''
-    });
-    setShowTramitar(true);
-  };
-
-  const handleTramitar = async () => {
-    if (!tramitarForm.codigo_recogida.trim()) {
-      toast.error('El código de recogida es obligatorio');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await API.post(`/nuevas-ordenes/${selectedItem.id}/tramitar`, tramitarForm);
-      toast.success(`Orden ${res.data.numero_orden} creada correctamente`);
-      setShowTramitar(false);
-      cargarDatos();
-      // Navigate to the new order
-      navigate(`/ordenes/${res.data.orden_id}`);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al tramitar');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -151,9 +112,11 @@ export default function NuevasOrdenes() {
       {/* Items */}
       <div className="space-y-3">
         {items.map((item) => (
-          <Card key={item.id} className="hover:shadow-md transition-shadow" data-testid={`nueva-orden-${item.id}`}>
+          <Card key={item.id} className="hover:shadow-md transition-shadow cursor-pointer" 
+                onClick={() => navigate(`/nuevas-ordenes/${item.id}`)}
+                data-testid={`nueva-orden-${item.id}`}>
             <CardContent className="pt-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                 {/* Info principal */}
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -168,23 +131,34 @@ export default function NuevasOrdenes() {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <User className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{item.cliente_nombre || 'Sin nombre'}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="font-medium truncate">{item.cliente_nombre || 'Sin nombre'}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Smartphone className="w-3.5 h-3.5 flex-shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{item.cliente_telefono || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{item.cliente_email || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       <span className="truncate">{item.dispositivo_modelo || 'Sin modelo'}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       <span className="truncate">{item.daño_descripcion || 'Sin descripción'}</span>
                     </div>
                   </div>
                   
-                  {item.cliente_telefono && (
-                    <p className="text-xs text-muted-foreground">Tel: {item.cliente_telefono} {item.cliente_email ? `| ${item.cliente_email}` : ''}</p>
+                  {(item.cliente_direccion || item.cliente_codigo_postal || item.cliente_ciudad) && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {[item.cliente_direccion, item.cliente_codigo_postal, item.cliente_ciudad].filter(Boolean).join(', ')}
+                    </p>
                   )}
                   
                   <p className="text-xs text-muted-foreground">
@@ -193,12 +167,12 @@ export default function NuevasOrdenes() {
                 </div>
 
                 {/* Acciones */}
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => handleRechazar(item)} data-testid={`archivar-${item.id}`}>
                     <XCircle className="w-4 h-4 mr-1" /> Archivar
                   </Button>
-                  <Button size="sm" onClick={() => handleOpenTramitar(item)} data-testid={`tramitar-${item.id}`}>
-                    <Truck className="w-4 h-4 mr-1" /> Tramitar
+                  <Button size="sm" onClick={() => navigate(`/nuevas-ordenes/${item.id}`)} data-testid={`ver-${item.id}`}>
+                    Ver detalle <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
               </div>
@@ -206,79 +180,6 @@ export default function NuevasOrdenes() {
           </Card>
         ))}
       </div>
-
-      {/* Modal Tramitar */}
-      <Dialog open={showTramitar} onOpenChange={setShowTramitar}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Tramitar Orden</DialogTitle>
-            <DialogDescription>
-              Siniestro: <strong>{selectedItem?.codigo_siniestro}</strong> — {selectedItem?.cliente_nombre}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* Resumen */}
-            <div className="p-3 bg-muted/50 rounded-lg space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Dispositivo:</span>
-                <span className="font-medium">{selectedItem?.dispositivo_modelo}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Daño:</span>
-                <span className="font-medium truncate max-w-[200px]">{selectedItem?.daño_descripcion}</span>
-              </div>
-              {selectedItem?.sumbroker_price && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Importe:</span>
-                  <span className="font-bold text-green-600">{parseFloat(selectedItem.sumbroker_price).toFixed(2)}€</span>
-                </div>
-              )}
-            </div>
-
-            {/* Código recogida - OBLIGATORIO */}
-            <div>
-              <label className="text-sm font-medium mb-1 block">
-                Código de Recogida <span className="text-red-500">*</span>
-              </label>
-              <Input
-                placeholder="Ej: GLS-12345678"
-                value={tramitarForm.codigo_recogida}
-                onChange={(e) => setTramitarForm(prev => ({ ...prev, codigo_recogida: e.target.value }))}
-                data-testid="input-codigo-recogida"
-              />
-            </div>
-
-            {/* Agencia envío */}
-            <div>
-              <label className="text-sm font-medium mb-1 block">Agencia de envío</label>
-              <Input
-                placeholder="Ej: GLS, SEUR, MRW..."
-                value={tramitarForm.agencia_envio}
-                onChange={(e) => setTramitarForm(prev => ({ ...prev, agencia_envio: e.target.value }))}
-                data-testid="input-agencia-envio"
-              />
-            </div>
-
-            {/* Notas */}
-            <div>
-              <label className="text-sm font-medium mb-1 block">Notas</label>
-              <Textarea
-                placeholder="Notas adicionales..."
-                value={tramitarForm.notas}
-                onChange={(e) => setTramitarForm(prev => ({ ...prev, notas: e.target.value }))}
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTramitar(false)}>Cancelar</Button>
-            <Button onClick={handleTramitar} disabled={submitting || !tramitarForm.codigo_recogida.trim()} data-testid="confirmar-tramitar-btn">
-              {submitting ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <ArrowRight className="w-4 h-4 mr-1" />}
-              Crear Orden de Trabajo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

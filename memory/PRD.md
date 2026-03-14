@@ -12,28 +12,29 @@ CRM/ERP para gestión integral de un taller de reparaciones de dispositivos elec
 
 ## Versión Actual: v1.3.0
 
-## Flujo Nuevas Órdenes (v1.3.0)
+## Flujo Nuevas Órdenes
 1. Polling cada 2h (o manual con botón "Consultar Insurama") → detecta presupuestos aceptados
-2. Pre-orden llega a "Nuevas Órdenes" como `pendiente_tramitar` (con notificación urgente)
-3. Tramitador revisa datos, introduce código de recogida
-4. Al confirmar → se crea orden de trabajo en `pendiente_recibir`
-5. Sigue el flujo normal: recibida → diagnóstico → presupuesto → reparación → validación → envío
+2. Pre-orden llega a "Nuevas Órdenes" como `pendiente_tramitar`
+3. Tramitador abre detalle completo (como orden de trabajo), edita datos si necesario
+4. Introduce código de recogida → crea orden de trabajo en `pendiente_recibir`
+5. Sigue flujo normal
 
 ## Reglas de Negocio
 - **Albaranes**: Auto-generados al pasar a VALIDACION o ENVIADO
 - **Facturas**: Solo manuales por decisión del usuario
-- **Compras**: Con factura del proveedor (PDF), sin duplicar en contabilidad
+- **Compras**: Con factura del proveedor (PDF)
 - **Liquidaciones**: Auto-cruce de códigos al importar Excel
-- **Garantías**: Orden dependiente del mismo dispositivo, ciclo completo nuevo
-- **Nuevas Órdenes**: Presupuestos aceptados → tramitador → código recogida → orden
+- **Garantías**: Orden dependiente del mismo dispositivo
+- **Nuevas Órdenes**: Pre-ordenes editables como una orden completa
 
 ## Completado
 - [x] Cloudinary, endpoint emergencia, SMTP, recuperar contraseña (v1.1.0)
 - [x] Versionado, guía despliegue, órdenes irreparables (v1.1.0)
 - [x] Auditoría funcional, Dashboard Financiero, auto-albarán (v1.2.0)
 - [x] Liquidaciones auto-cruce, garantías mejoradas (v1.2.1)
-- [x] Nuevas Órdenes con polling 2h, tramitación y badge (v1.3.0)
+- [x] Nuevas Órdenes con polling 2h y badge (v1.3.0)
 - [x] Botón "Consultar Insurama" para polling manual (v1.3.0)
+- [x] Vista detalle completa de pre-ordenes con edición de todos los campos (v1.3.0)
 
 ## Pendientes (P0)
 - [ ] Validar notificaciones SMTP en producción
@@ -44,7 +45,3 @@ CRM/ERP para gestión integral de un taller de reparaciones de dispositivos elec
 
 ## Pendientes (P2)
 - [ ] Acortar SKU inventario
-
-## Credenciales de Test
-- Admin: admin@techrepair.local / Admin2026!
-- Emergency key: RevixEmergency2026SecureKey!

@@ -167,68 +167,63 @@ async def save_utopya_config(config: dict):
 
 # ==================== SCRAPER ====================
 
-async def extract_ean_from_product_page(page, url: str) -> str:
+async def extract_ean_sku_from_product_page(page, url: str) -> dict:
     """
-    Extrae el EAN/Referencia de la página individual del producto.
-    Utopya muestra el EAN en la tabla de especificaciones del producto.
-    El formato puede ser numérico (EAN-13) o alfanumérico con guiones (ref. fabricante).
+    Extrae EAN y SKU de la página individual del producto en Utopya.
+    Utopya muestra: "SKU\n179741\nEAN\n661-56050\nGarantía"
     """
     try:
         await page.goto(url, timeout=30000)
         await asyncio.sleep(2)
         
-        ean = await page.evaluate('''() => {
-            // Método 1: Buscar específicamente la fila "EAN" en el texto de la página
-            // Utopya muestra: "SKU\\n179741\\nEAN\\n661-56050\\nGarantía"
+        result = await page.evaluate('''() => {
             const bodyText = document.body.innerText;
+            let ean = '';
+            let sku = '';
             
-            // Buscar patrón: EAN seguido de un valor en la siguiente línea
-            const eanLineMatch = bodyText.match(/\\bEAN\\s*\\n([^\\n]+)/i);
-            if (eanLineMatch && eanLineMatch[1]) {
-                const eanValue = eanLineMatch[1].trim();
-                // Aceptar valores alfanuméricos con guiones (ej: 661-56050)
-                if (eanValue && eanValue.length > 3 && !/^(N\\/D|N\\/A|No disponible|-)$/i.test(eanValue)) {
-                    return eanValue;
+            // Extraer SKU: buscar "SKU" seguido de valor en siguiente línea
+            const skuMatch = bodyText.match(/\\bSKU\\s*\\n([^\\n]+)/i);
+            if (skuMatch && skuMatch[1]) {
+                const val = skuMatch[1].trim();
+                if (val && val.length >= 3 && !/^(N\\/D|N\\/A|No disponible|-)$/i.test(val)) {
+                    sku = val;
                 }
             }
             
-            // Método 2: Buscar en tabla de atributos
-            const rows = document.querySelectorAll('.additional-attributes tr, .product-info-main tr, table tr');
-            for (const row of rows) {
-                const cells = row.querySelectorAll('th, td');
-                for (let i = 0; i < cells.length - 1; i++) {
-                    const label = cells[i]?.textContent?.trim().toLowerCase() || '';
-                    if (label === 'ean' || label.includes('ean')) {
-                        const value = cells[i + 1]?.textContent?.trim();
-                        if (value && value.length > 3 && !/^(N\\/D|N\\/A|No disponible|-)$/i.test(value)) {
-                            return value;
+            // Extraer EAN: buscar "EAN" seguido de valor en siguiente línea
+            const eanMatch = bodyText.match(/\\bEAN\\s*\\n([^\\n]+)/i);
+            if (eanMatch && eanMatch[1]) {
+                const val = eanMatch[1].trim();
+                if (val && val.length > 3 && !/^(N\\/D|N\\/A|No disponible|-)$/i.test(val)) {
+                    ean = val;
+                }
+            }
+            
+            // Fallback: buscar en tabla de atributos
+            if (!ean || !sku) {
+                const rows = document.querySelectorAll('.additional-attributes tr, .product-info-main tr, table tr');
+                for (const row of rows) {
+                    const cells = row.querySelectorAll('th, td');
+                    for (let i = 0; i < cells.length - 1; i++) {
+                        const label = cells[i]?.textContent?.trim().toLowerCase() || '';
+                        const value = cells[i + 1]?.textContent?.trim() || '';
+                        if (!ean && (label === 'ean' || label.includes('ean'))) {
+                            if (value.length > 3 && !/^(N\\/D|N\\/A|-)$/i.test(value)) ean = value;
+                        }
+                        if (!sku && (label === 'sku' || label.includes('sku'))) {
+                            if (value.length >= 3 && !/^(N\\/D|N\\/A|-)$/i.test(value)) sku = value;
                         }
                     }
                 }
             }
             
-            // Método 3: Buscar EAN numérico estándar (13 dígitos)
-            const eanNumMatch = bodyText.match(/\\bEAN[:\\s]+([\\d]{13})\\b/i);
-            if (eanNumMatch) {
-                return eanNumMatch[1];
-            }
-            
-            // Método 4: Buscar en data attributes
-            const productEl = document.querySelector('[data-ean], [data-gtin]');
-            if (productEl) {
-                const ean = productEl.getAttribute('data-ean') || productEl.getAttribute('data-gtin');
-                if (ean && ean.length > 3) {
-                    return ean;
-                }
-            }
-            
-            return '';
+            return { ean: ean, sku: sku };
         }''')
         
-        return ean or ''
+        return result or {'ean': '', 'sku': ''}
     except Exception as e:
-        logger.warning(f"Utopya: Error extrayendo EAN de {url}: {e}")
-        return ''
+        logger.warning(f"Utopya: Error extrayendo EAN/SKU de {url}: {e}")
+        return {'ean': '', 'sku': ''}
 
 async def scrape_utopya_products(email: str, password: str, selected_categories: List[str], margen: float = 25.0):
     """
@@ -460,8 +455,6 @@ async def scrape_utopya_products(email: str, password: str, selected_categories:
                     utopya_sync_progress["errors"] += 1
                     continue
             
-            await browser.close()
-            
             # Procesar e importar productos
             utopya_sync_progress["status"] = "processing"
             logger.info(f"Utopya: Procesando {len(all_products)} productos...")
@@ -478,6 +471,38 @@ async def scrape_utopya_products(email: str, password: str, selected_categories:
             utopya_sync_progress["total"] = len(unique_products)
             logger.info(f"Utopya: {len(unique_products)} productos únicos")
             
+            # Fase de extracción de EAN/SKU: visitar cada producto individualmente
+            utopya_sync_progress["status"] = "extracting_details"
+            detail_page = await context.new_page()
+            
+            for idx, product in enumerate(unique_products):
+                if not utopya_sync_progress["running"]:
+                    break
+                
+                product_url = product.get("url", "")
+                if product_url:
+                    try:
+                        details = await extract_ean_sku_from_product_page(detail_page, product_url)
+                        if details.get("ean"):
+                            product["ean"] = details["ean"]
+                        if details.get("sku"):
+                            product["sku_utopya"] = details["sku"]
+                    except Exception:
+                        pass
+                
+                # Actualizar progreso cada 10 productos
+                if (idx + 1) % 10 == 0:
+                    utopya_sync_progress["processed"] = idx + 1
+                    logger.info(f"Utopya: Detalles extraídos de {idx + 1}/{len(unique_products)} productos")
+            
+            await detail_page.close()
+            utopya_sync_progress["processed"] = 0  # Reset para la fase de importación
+            
+            await browser.close()
+            
+            # Fase de importación a inventario
+            utopya_sync_progress["status"] = "importing"
+            
             for idx, product in enumerate(unique_products):
                 if not utopya_sync_progress["running"]:
                     break
@@ -488,13 +513,15 @@ async def scrape_utopya_products(email: str, password: str, selected_categories:
                     if not product.get("nombre"):
                         continue
                     
-                    # Usar EAN como SKU si está disponible, sino generar hash del nombre
+                    # Usar SKU de Utopya si está disponible, sino EAN, sino hash
                     ean = product.get("ean", "").strip()
-                    # Aceptar EAN numérico o alfanumérico (con guiones, como 661-56050)
-                    if ean and len(ean) >= 5 and ean not in ['N/D', 'N/A', '-', 'No disponible']:
-                        sku = ean.replace('-', '').replace(' ', '').upper()  # Normalizar para SKU
+                    sku_utopya = product.get("sku_utopya", "").strip()
+                    
+                    if sku_utopya:
+                        sku = f"UTO-{sku_utopya}"
+                    elif ean and len(ean) >= 5 and ean not in ['N/D', 'N/A', '-', 'No disponible']:
+                        sku = ean.replace('-', '').replace(' ', '').upper()
                     else:
-                        # Fallback: generar SKU basado en hash del nombre
                         nombre_hash = hashlib.md5(product["nombre"].encode()).hexdigest()[:8].upper()
                         sku = f"UTO-{nombre_hash}"
                     
@@ -509,9 +536,10 @@ async def scrape_utopya_products(email: str, password: str, selected_categories:
                         "categoria": categoria,
                         "categoria_utopya": categoria,
                         "marca": marca,
-                        "sku_proveedor": sku,
-                        "ean": ean if ean else None,  # Guardar EAN original
-                        "codigo_barras": ean if ean else sku,  # Código de barras = EAN
+                        "sku_proveedor": sku_utopya or sku,
+                        "sku_utopya": sku_utopya or None,
+                        "ean": ean if ean else None,
+                        "codigo_barras": ean if ean else sku,
                         "proveedor": "Utopya",
                         "proveedor_id": "utopya",
                         "precio_compra": precio_compra,

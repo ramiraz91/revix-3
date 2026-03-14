@@ -286,6 +286,7 @@ export default function Layout() {
 
               {/* Finanzas y Logística */}
               <SidebarGroup label="Finanzas y Logística">
+                <NavItem path="/finanzas" icon={BarChart3} label="Dashboard Financiero" />
                 <NavItem path="/contabilidad" icon={Receipt} label="Contabilidad" />
                 <NavItem path="/comisiones" icon={DollarSign} label="Comisiones" />
                 <NavItem path="/etiquetas-envio" icon={Truck} label="Etiquetas Envío" />

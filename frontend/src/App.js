@@ -58,6 +58,7 @@ import PreRegistros from "@/pages/PreRegistros";
 import MobileSentrixConfig from "@/pages/MobileSentrixConfig";
 import UtopyaConfig from "@/pages/UtopyaConfig";
 import Contabilidad from "@/pages/Contabilidad";
+import FinanzasDashboard from "@/pages/FinanzasDashboard";
 import FacturaDetalle from "@/pages/FacturaDetalle";
 import Modelo347 from "@/pages/Modelo347";
 import Kits from "@/pages/Kits";

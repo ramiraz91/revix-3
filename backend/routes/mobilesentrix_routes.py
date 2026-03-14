@@ -292,7 +292,7 @@ class MobileSentrixClient:
     
     async def test_connection(self) -> dict:
         """Test API connection - get products list"""
-        return await self._request('GET', '/products?limit=1')
+        return await self._request('GET', '/products', params={'limit': '1'})
     
     async def get_categories(self) -> dict:
         """Get product categories - returns structured tree"""

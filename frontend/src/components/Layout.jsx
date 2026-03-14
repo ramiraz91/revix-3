@@ -321,6 +321,7 @@ export default function Layout() {
 
         {/* Logout */}
         <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-border bg-white">
+          <p className="text-[10px] text-muted-foreground text-center mb-1">v1.0.0</p>
           <Button 
             variant="ghost" 
             className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive h-8 text-xs"

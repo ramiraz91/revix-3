@@ -1,5 +1,9 @@
 # Revix CRM/ERP - PRD (Product Requirements Document)
 
+## Versión Actual: 1.0.0
+📅 Última actualización: 2026-03-14
+📋 Ver [CHANGELOG.md](/app/CHANGELOG.md) para historial completo
+
 ## Original Problem Statement
 Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para taller de reparaciones con FastAPI + MongoDB backend y React frontend. Configurar DB_NAME=production, crear usuarios de acceso y preparar para deploy.
 

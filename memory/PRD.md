@@ -9,6 +9,7 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - **Database**: MongoDB (DB_NAME: production)
 - **AI**: Gemini via Emergent LLM Key (emergentintegrations)
 - **Email**: SMTP (mail.privateemail.com)
+- **Images**: Cloudinary (cloud: dw0exxafh) - almacenamiento permanente
 - **Domain**: revix.es
 
 ## What's Been Implemented

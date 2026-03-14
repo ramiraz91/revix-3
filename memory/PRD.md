@@ -1,59 +1,41 @@
 # Revix CRM/ERP - Product Requirements Document
 
 ## Descripción
-CRM/ERP para gestión integral de un taller de reparaciones de dispositivos electrónicos. Gestiona clientes, órdenes de trabajo, inventario, compras, facturación, contabilidad, liquidaciones y comunicaciones.
+CRM/ERP para gestión integral de un taller de reparaciones de dispositivos electrónicos.
 
 ## Stack Tecnológico
 - **Backend**: FastAPI, Python, Motor (MongoDB async)
 - **Frontend**: React, Axios, Tailwind CSS, Shadcn UI
-- **Base de Datos**: MongoDB (Atlas en producción)
+- **Base de Datos**: MongoDB (Atlas en producción, DB: "production")
 - **Almacenamiento**: Cloudinary (imágenes)
-- **Integraciones**: Insurama/Sumbroker, SMTP, Gemini AI (vía Emergent LLM Key)
+- **Integraciones**: Insurama/Sumbroker (polling 2h), SMTP, Gemini AI
 
-## Versión Actual: v1.2.1
+## Versión Actual: v1.3.0
 
-## Módulos del Sistema y Estado
-1. **Autenticación** - Login, roles (master/admin/tecnico), endpoint de emergencia ✅
-2. **Clientes** - CRUD, historial de órdenes ✅
-3. **Órdenes de Trabajo** - Ciclo completo con auto-albarán ✅
-4. **Inventario** - Repuestos, stock, lotes, alertas ✅
-5. **Compras** - Subida factura PDF → IA → Inventario ✅
-6. **Finanzas** (Hub Central) - Dashboard unificado con 6 tabs ✅
-7. **Contabilidad** - Facturas, albaranes, pagos, IVA ✅
-8. **Liquidaciones** - Importar Excel Insurama, auto-cruce de códigos, marcado automático ✅
-9. **Garantías** - Órdenes dependientes con ciclo completo y presupuesto nuevo ✅
-10. **Insurama** - Integración con aseguradora, polling ✅
-11. **Comunicaciones** - Email SMTP, notificaciones ✅
-12. **Calendario** - Citas y tareas ✅
-13. **Incidencias** - Gestión básica ⚠️
+## Flujo Nuevas Órdenes (v1.3.0)
+1. Polling cada 2h consulta Insurama → detecta presupuestos aceptados
+2. Pre-orden llega a "Nuevas Órdenes" como `pendiente_tramitar` (con notificación urgente)
+3. Tramitador revisa datos, introduce código de recogida
+4. Al confirmar → se crea orden de trabajo en `pendiente_recibir`
+5. A partir de ahí sigue el flujo normal: recibida → diagnóstico → presupuesto → reparación → validación → envío
 
-## Reglas de Negocio Clave
+## Reglas de Negocio
 - **Albaranes**: Auto-generados al pasar a VALIDACION o ENVIADO
-- **Facturas**: Solo manuales, decisión del usuario
-- **Compras**: Registradas con factura del proveedor (PDF), no duplican en contabilidad
-- **Liquidaciones**: Al importar Excel, auto-marcar como pagados salvo duplicados o garantías pendientes
-- **Garantías**: Crean orden dependiente del mismo dispositivo con ciclo completo nuevo
+- **Facturas**: Solo manuales por decisión del usuario
+- **Compras**: Con factura del proveedor (PDF), sin duplicar en contabilidad
+- **Liquidaciones**: Auto-cruce de códigos al importar Excel (pagados auto salvo duplicados/garantías)
+- **Garantías**: Orden dependiente del mismo dispositivo, ciclo completo nuevo
+- **Nuevas Órdenes**: Presupuestos aceptados → tramitador revisa → código recogida → orden de trabajo
 
 ## Completado
-- [x] Cloudinary para imágenes (v1.1.0)
-- [x] Endpoint de emergencia (v1.1.0)
-- [x] SMTP y notificaciones (v1.1.0)
-- [x] Recuperar contraseña (v1.1.0)
-- [x] Órdenes irreparables → enviado (v1.1.0)
-- [x] Sistema de versionado (v1.1.0)
-- [x] Guía de despliegue (v1.1.0)
-- [x] Auditoría funcional completa (v1.2.0)
-- [x] Dashboard Financiero Centralizado (v1.2.0)
-- [x] Auto-albarán en VALIDACION y ENVIADO (v1.2.0)
-- [x] Corrección lógica: facturas manuales, no auto-compras (v1.2.0)
-- [x] Liquidaciones: auto-cruce de códigos al importar Excel (v1.2.1)
-- [x] Garantías: orden dependiente con campos heredados y ciclo completo (v1.2.1)
-- [x] Fix: navegación tras crear garantía (v1.2.1)
-- [x] Badge GARANTÍA y enlaces bidireccionales padre↔hijo (v1.2.1)
+- [x] Cloudinary, endpoint emergencia, SMTP, recuperar contraseña (v1.1.0)
+- [x] Versionado, guía despliegue, órdenes irreparables (v1.1.0)
+- [x] Auditoría funcional, Dashboard Financiero, auto-albarán (v1.2.0)
+- [x] Liquidaciones auto-cruce, garantías mejoradas (v1.2.1)
+- [x] **Nuevas Órdenes** con polling 2h, tramitación y badge (v1.3.0)
 
 ## Pendientes (P0)
-- [ ] Validar creación automática de órdenes desde Insurama
-- [ ] Validar notificaciones SMTP en producción
+- [ ] Validar notificaciones SMTP en producción post-despliegue
 
 ## Pendientes (P1)
 - [ ] Integración completa con GLS
@@ -64,5 +46,4 @@ CRM/ERP para gestión integral de un taller de reparaciones de dispositivos elec
 
 ## Credenciales de Test
 - Admin: admin@techrepair.local / Admin2026!
-- Master: master@test.local / Master2026!
 - Emergency key: RevixEmergency2026SecureKey!

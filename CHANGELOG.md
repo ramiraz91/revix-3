@@ -7,6 +7,26 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.3.0] - 2026-03-14
+
+### Nuevas Órdenes - Flujo Insurama Automatizado
+- Nueva sección **"Nuevas Órdenes"** en el menú principal con **badge contador** en tiempo real
+- **Polling cada 2 horas**: El sistema consulta Insurama automáticamente buscando presupuestos aceptados
+- Los presupuestos aceptados llegan como **pre-órdenes pendientes de tramitar** (no se crean órdenes directamente)
+- **Tramitador revisa** los datos: cliente, dispositivo, daño, importe
+- Tramitador **introduce código de recogida** y agencia → se crea la orden de trabajo en estado `pendiente_recibir`
+- Opción de **archivar** pre-órdenes que no se quieran tramitar
+- Notificación urgente automática cuando se detecta un presupuesto aceptado
+- Estado vacío informativo cuando no hay nuevas órdenes
+
+### Backend
+- Nuevo router `/api/nuevas-ordenes/` con endpoints: count, listar, detalle, tramitar, rechazar
+- Nuevo estado `pendiente_tramitar` en `EstadoPreRegistro`
+- Polling modificado: `_handle_accepted_budget` ya NO crea órdenes automáticamente
+- Intervalo de polling cambiado a 7200s (2 horas)
+
+---
+
 ## [1.2.1] - 2026-03-14
 
 ### Liquidaciones - Auto-cruce de Códigos

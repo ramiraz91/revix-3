@@ -2284,45 +2284,43 @@ async def subir_evidencia_tecnico(
     tipo_foto: str = "general",  # general, antes, despues
     user: dict = Depends(require_auth)
 ):
-    """Subir evidencia/foto por parte del técnico (con compresión automática). tipo_foto puede ser: general, antes, despues"""
+    """Subir evidencia/foto por parte del técnico a Cloudinary. tipo_foto puede ser: general, antes, despues"""
+    from services.cloudinary_service import upload_image
+    
     orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Leer contenido del archivo
-    content = await file.read()
-    original_filename = file.filename or "image.jpg"
+    # Subir a Cloudinary
+    result = await upload_image(
+        file=file,
+        orden_id=orden_id,
+        tipo=tipo_foto,
+        numero_orden=orden.get('numero_orden', orden_id)
+    )
     
-    # Comprimir si es imagen
-    if is_image(original_filename):
-        content, original_filename = compress_image(content, original_filename)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {result.get('error')}")
     
-    file_ext = original_filename.split('.')[-1] if '.' in original_filename else 'jpg'
-    file_name = f"{orden_id}_tec_{tipo_foto}_{str(uuid.uuid4())[:8]}.{file_ext}"
-    file_path = UPLOAD_DIR / file_name
-    
-    async with aiofiles.open(file_path, 'wb') as f:
-        await f.write(content)
-    
-    # Determinar en qué array guardar la foto
+    # Determinar en qué array guardar la URL de Cloudinary
     update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
     
     if tipo_foto == "antes":
         fotos_antes = orden.get('fotos_antes', [])
-        fotos_antes.append(file_name)
+        fotos_antes.append(result["url"])
         update_data["fotos_antes"] = fotos_antes
     elif tipo_foto == "despues":
         fotos_despues = orden.get('fotos_despues', [])
-        fotos_despues.append(file_name)
+        fotos_despues.append(result["url"])
         update_data["fotos_despues"] = fotos_despues
     else:
         # General - va a evidencias_tecnico
         evidencias_tecnico = orden.get('evidencias_tecnico', [])
-        evidencias_tecnico.append(file_name)
+        evidencias_tecnico.append(result["url"])
         update_data["evidencias_tecnico"] = evidencias_tecnico
     
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
-    return {"message": f"Foto ({tipo_foto}) subida correctamente", "file_name": file_name, "tipo": tipo_foto}
+    return {"message": f"Foto ({tipo_foto}) subida a Cloudinary", "url": result["url"], "tipo": tipo_foto, "public_id": result.get("public_id")}
 
 
 # ==================== DESCARGA ZIP DE FOTOS ====================

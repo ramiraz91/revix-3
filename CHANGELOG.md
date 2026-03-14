@@ -7,6 +7,38 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.1.0] - 2026-03-14
+
+### ✨ Nueva Funcionalidad Principal
+- **Dashboard Financiero Centralizado**: Nueva sección que unifica TODA la información financiera
+  - Ingresos de órdenes enviadas
+  - Gastos de compras
+  - Valor del inventario en tiempo real
+  - Evolución mensual (últimos 6 meses)
+  - Desglose por proveedor y materiales consumidos
+  - Balance general del negocio
+
+### 🔗 Conexiones Implementadas
+- **Compras → Contabilidad**: Las compras ahora se pueden registrar como facturas de compra
+- **Órdenes → Facturación**: Las órdenes enviadas se pueden facturar automáticamente
+- **Materiales → Gastos**: Se contabiliza el coste de materiales usados en cada orden
+- **Inventario → Valor**: Cálculo en tiempo real del valor del stock
+
+### 📊 Nuevos Endpoints API
+- `GET /api/finanzas/dashboard` - Dashboard principal con filtro por periodo
+- `GET /api/finanzas/evolucion` - Evolución mensual para gráficos
+- `GET /api/finanzas/gastos/detalle` - Detalle de gastos por categoría
+- `GET /api/finanzas/inventario/valor` - Análisis del valor del inventario
+- `GET /api/finanzas/balance` - Balance general del año
+- `POST /api/finanzas/registrar-compra/{id}` - Conecta compra con contabilidad
+- `POST /api/finanzas/registrar-orden/{id}` - Genera factura de venta
+
+### 📁 Archivos Nuevos
+- `/app/backend/routes/finanzas_routes.py` - Backend del módulo financiero
+- `/app/frontend/src/pages/FinanzasDashboard.jsx` - Frontend del dashboard
+
+---
+
 ## [1.0.0] - 2026-03-14
 
 ### ✨ Nuevas Funcionalidades

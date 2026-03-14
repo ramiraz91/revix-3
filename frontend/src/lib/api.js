@@ -705,7 +705,16 @@ export const contabilidadAPI = {
 };
 
 // ==================== UPLOADS ====================
-export const getUploadUrl = (fileName) => `${BACKEND_URL}/api/uploads/${fileName}`;
+// Soporta tanto URLs de Cloudinary como archivos locales
+export const getUploadUrl = (fileRef) => {
+  if (!fileRef) return '';
+  // Si ya es una URL completa (Cloudinary u otra), devolverla directamente
+  if (fileRef.startsWith('http://') || fileRef.startsWith('https://')) {
+    return fileRef;
+  }
+  // Si es un nombre de archivo local, construir la URL del backend
+  return `${BACKEND_URL}/api/uploads/${fileRef}`;
+};
 
 export { API_SLOW };
 export default API;

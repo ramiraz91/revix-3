@@ -225,380 +225,392 @@ async def extract_ean_sku_from_product_page(page, url: str) -> dict:
         logger.warning(f"Utopya: Error extrayendo EAN/SKU de {url}: {e}")
         return {'ean': '', 'sku': ''}
 
+
+async def _scrape_utopya_httpx(email: str, password: str, urls_to_scrape: list) -> list:
+    """Fallback: scrapear Utopya usando httpx cuando Playwright no está disponible."""
+    import httpx
+    from html.parser import HTMLParser
+    
+    all_products = []
+    
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        # Login
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.9',
+        }
+        
+        # Get login page for form key
+        login_page = await client.get('https://www.utopya.es/es/customer/account/login/', headers=headers)
+        
+        # Extract form_key
+        import re as _re
+        form_key_match = _re.search(r'name="form_key"\s+value="([^"]+)"', login_page.text)
+        form_key = form_key_match.group(1) if form_key_match else ''
+        
+        # Submit login
+        login_data = {
+            'form_key': form_key,
+            'login[username]': email,
+            'login[password]': password,
+            'send': '',
+        }
+        login_headers = {**headers, 'Content-Type': 'application/x-www-form-urlencoded'}
+        await client.post('https://www.utopya.es/es/customer/account/loginPost/', data=login_data, headers=login_headers)
+        
+        logger.info("Utopya httpx: Login enviado")
+        
+        for cat_idx, cat_info in enumerate(urls_to_scrape):
+            if not utopya_sync_progress["running"]:
+                break
+            
+            utopya_sync_progress["current_category"] = cat_info["name"]
+            
+            try:
+                page_num = 1
+                while page_num <= 100:
+                    url = cat_info["url"]
+                    if page_num > 1:
+                        url += f"?p={page_num}"
+                    
+                    resp = await client.get(url, headers=headers)
+                    html = resp.text
+                    
+                    # Parse products from HTML
+                    products_on_page = []
+                    
+                    # Find product items using regex
+                    product_blocks = _re.findall(r'<li[^>]*class="[^"]*product-item[^"]*"[^>]*>(.*?)</li>', html, _re.DOTALL)
+                    
+                    for block in product_blocks:
+                        name_match = _re.search(r'class="product-item-link"[^>]*>\s*([^<]+)', block)
+                        price_match = _re.search(r'data-price-amount="([^"]+)"', block)
+                        link_match = _re.search(r'<a[^>]*class="product-item-link"[^>]*href="([^"]+)"', block)
+                        img_match = _re.search(r'<img[^>]*class="[^"]*product-image-photo[^"]*"[^>]*src="([^"]+)"', block)
+                        
+                        name = name_match.group(1).strip() if name_match else ''
+                        price = float(price_match.group(1)) if price_match else 0
+                        link = link_match.group(1) if link_match else ''
+                        img = img_match.group(1) if img_match else ''
+                        
+                        if name and len(name) > 3:
+                            products_on_page.append({
+                                'nombre': name,
+                                'precio': price,
+                                'ean': '',
+                                'imagen': img,
+                                'url': link,
+                                'marca': cat_info['marca'],
+                                'categoria_utopya': cat_info['name']
+                            })
+                    
+                    if not products_on_page:
+                        break
+                    
+                    all_products.extend(products_on_page)
+                    utopya_sync_progress["total"] = len(all_products)
+                    logger.info(f"Utopya httpx: {cat_info['name']} p{page_num}: {len(products_on_page)} productos ({len(all_products)} total)")
+                    
+                    # Check if there's a next page
+                    if 'class="action  next"' not in html and 'class="action next"' not in html:
+                        break
+                    
+                    page_num += 1
+                    await asyncio.sleep(1)
+                
+                utopya_sync_progress["categories_done"] = cat_idx + 1
+                
+            except Exception as e:
+                logger.error(f"Utopya httpx: Error en {cat_info['name']}: {e}")
+                utopya_sync_progress["errors"] += 1
+        
+        # Extract EAN/SKU from individual product pages
+        utopya_sync_progress["status"] = "extracting_details"
+        for idx, product in enumerate(all_products):
+            if not utopya_sync_progress["running"]:
+                break
+            product_url = product.get("url", "")
+            if product_url:
+                try:
+                    resp = await client.get(product_url, headers=headers)
+                    html = resp.text
+                    
+                    # Extract SKU
+                    sku_match = _re.search(r'SKU\s*</[^>]+>\s*<[^>]+>\s*([^<]+)', html)
+                    if not sku_match:
+                        sku_match = _re.search(r'>\s*SKU\s*<[^>]*>\s*<[^>]*>\s*([^<]+)', html)
+                    if sku_match:
+                        product["sku_utopya"] = sku_match.group(1).strip()
+                    
+                    # Extract EAN
+                    ean_match = _re.search(r'EAN\s*</[^>]+>\s*<[^>]+>\s*([^<]+)', html)
+                    if not ean_match:
+                        ean_match = _re.search(r'>\s*EAN\s*<[^>]*>\s*<[^>]*>\s*([^<]+)', html)
+                    if ean_match:
+                        ean_val = ean_match.group(1).strip()
+                        if ean_val and len(ean_val) > 3 and ean_val not in ['N/D', 'N/A', '-']:
+                            product["ean"] = ean_val
+                    
+                    await asyncio.sleep(0.5)
+                except Exception:
+                    pass
+            
+            if (idx + 1) % 10 == 0:
+                utopya_sync_progress["processed"] = idx + 1
+                logger.info(f"Utopya httpx: Detalles {idx + 1}/{len(all_products)}")
+    
+    return all_products
+
+
+
+
 async def scrape_utopya_products(email: str, password: str, selected_categories: List[str], margen: float = 25.0):
-    """
-    Scraper principal de Utopya usando Playwright con Stealth.
-    Solo descarga las categorías seleccionadas por el usuario.
-    """
+    """Scraper principal de Utopya. Usa Playwright si disponible, httpx como fallback."""
     global utopya_sync_progress
     
     utopya_sync_progress = {
-        "running": True,
-        "total": 0,
-        "processed": 0,
-        "imported": 0,
-        "updated": 0,
-        "errors": 0,
-        "current_category": "",
-        "status": "starting",
-        "last_error": None,
-        "categories_done": 0,
-        "categories_total": 0
+        "running": True, "total": 0, "processed": 0, "imported": 0, "updated": 0,
+        "errors": 0, "current_category": "", "status": "starting",
+        "last_error": None, "categories_done": 0, "categories_total": 0
     }
     
     try:
-        from playwright.async_api import async_playwright
-        from playwright_stealth import Stealth
-        
-        stealth = Stealth()
-        
-        # Construir lista de URLs a scrapear desde las categorías seleccionadas
+        # Construir lista de URLs
         urls_to_scrape = []
         for cat_id in selected_categories:
             parts = cat_id.split(".")
             if len(parts) == 2:
                 marca, subcat = parts
                 if marca in UTOPYA_CATEGORIES and subcat in UTOPYA_CATEGORIES[marca]["subcategories"]:
-                    url = UTOPYA_CATEGORIES[marca]["subcategories"][subcat]["url"]
-                    name = UTOPYA_CATEGORIES[marca]["subcategories"][subcat]["name"]
-                    urls_to_scrape.append({"url": url, "name": name, "marca": marca})
+                    info = UTOPYA_CATEGORIES[marca]["subcategories"][subcat]
+                    urls_to_scrape.append({"url": info["url"], "name": info["name"], "marca": marca})
         
         if not urls_to_scrape:
-            utopya_sync_progress["status"] = "error"
-            utopya_sync_progress["last_error"] = "No hay categorías válidas seleccionadas"
-            utopya_sync_progress["running"] = False
+            utopya_sync_progress.update({"status": "error", "last_error": "No hay categorías válidas seleccionadas", "running": False})
             return
         
         utopya_sync_progress["categories_total"] = len(urls_to_scrape)
-        logger.info(f"Utopya: {len(urls_to_scrape)} categorías a scrapear")
         
-        async with async_playwright() as p:
-            stealth.hook_playwright_context(p)
-            
-            utopya_sync_progress["status"] = "launching_browser"
-            browser = await p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox']
-            )
-            
-            context = await browser.new_context(viewport={'width': 1920, 'height': 1080})
-            page = await context.new_page()
-            
-            # Login
-            utopya_sync_progress["status"] = "logging_in"
-            logger.info("Utopya: Realizando login...")
-            
-            await page.goto('https://www.utopya.es/es/customer/account/login/', timeout=60000)
-            await asyncio.sleep(8)
-            
+        # === FASE 1: Scraping (Playwright o httpx) ===
+        all_products = await _scrape_phase(email, password, urls_to_scrape)
+        
+        # === FASE 2: Deduplicar ===
+        utopya_sync_progress["status"] = "processing"
+        seen = set()
+        unique_products = []
+        for p in all_products:
+            key = p.get("nombre", "")
+            if key and key not in seen:
+                seen.add(key)
+                unique_products.append(p)
+        
+        utopya_sync_progress["total"] = len(unique_products)
+        utopya_sync_progress["processed"] = 0
+        logger.info(f"Utopya: {len(unique_products)} productos únicos de {len(all_products)} totales")
+        
+        # === FASE 3: Importar a inventario ===
+        utopya_sync_progress["status"] = "importing"
+        
+        for idx, product in enumerate(unique_products):
+            if not utopya_sync_progress["running"]:
+                break
             try:
-                await page.fill('#email', email)
-                await page.fill('#pass', password)
-                await page.click('#send2')
-                await asyncio.sleep(5)
-                logger.info("Utopya: Login completado")
-            except Exception as e:
-                logger.error(f"Utopya: Error en login: {e}")
-            
-            all_products = []
-            
-            # Scrapear cada categoría seleccionada
-            utopya_sync_progress["status"] = "scraping"
-            
-            for cat_idx, cat_info in enumerate(urls_to_scrape):
-                if not utopya_sync_progress["running"]:
-                    break
-                    
-                try:
-                    utopya_sync_progress["current_category"] = cat_info["name"]
-                    utopya_sync_progress["categories_done"] = cat_idx
-                    logger.info(f"Utopya: Scrapeando {cat_info['name']} ({cat_idx+1}/{len(urls_to_scrape)})...")
-                    
-                    await page.goto(cat_info["url"], timeout=60000)
-                    await asyncio.sleep(3)
-                    
-                    # Extraer productos de la página de listado
-                    # Utopya muestra el EAN en el listado, lo usamos como SKU
-                    page_products = await page.evaluate('''() => {
-                        const items = [];
-                        document.querySelectorAll('.product-item, .item.product').forEach(el => {
-                            try {
-                                const nameEl = el.querySelector('.product-item-link, .product-name');
-                                const priceEl = el.querySelector('.price, [data-price-amount]');
-                                const imgEl = el.querySelector('img.product-image-photo');
-                                const linkEl = el.querySelector('a.product-item-link, a.product-name');
-                                
-                                const name = nameEl?.textContent?.trim();
-                                let priceText = priceEl?.getAttribute('data-price-amount') || priceEl?.textContent || '0';
-                                priceText = priceText.replace(/[^\\d.,]/g, '').replace(',', '.');
-                                const price = parseFloat(priceText) || 0;
-                                const productUrl = linkEl?.href || '';
-                                
-                                // Buscar EAN en diferentes lugares
-                                let ean = '';
-                                // Buscar en data attributes
-                                const eanEl = el.querySelector('[data-ean], [data-gtin], .ean-value, .product-ean');
-                                if (eanEl) {
-                                    ean = eanEl.getAttribute('data-ean') || eanEl.getAttribute('data-gtin') || eanEl.textContent?.trim() || '';
-                                }
-                                // Buscar en SKU que a veces contiene el EAN
-                                if (!ean) {
-                                    const skuEl = el.querySelector('.sku .value, .product-sku');
-                                    const skuText = skuEl?.textContent?.trim() || '';
-                                    // Si el SKU parece un EAN (13 dígitos), usarlo
-                                    if (/^\\d{13}$/.test(skuText)) {
-                                        ean = skuText;
-                                    }
-                                }
-                                
-                                if (name && name.length > 3) {
-                                    items.push({
-                                        nombre: name,
-                                        precio: price,
-                                        ean: ean,
-                                        imagen: imgEl?.src || '',
-                                        url: productUrl
-                                    });
-                                }
-                            } catch(e) {}
-                        });
-                        return items;
-                    }''')
-                    
-                    for prod in page_products:
-                        prod["marca"] = cat_info["marca"]
-                        prod["categoria_utopya"] = cat_info["name"]
-                    
-                    all_products.extend(page_products)
-                    utopya_sync_progress["total"] = len(all_products)
-                    logger.info(f"Utopya: {len(page_products)} productos en {cat_info['name']} (página 1)")
-                    
-                    # Buscar paginación y obtener más páginas
-                    page_num = 1
-                    max_pages = 100  # Aumentar límite de páginas
-                    while page_num < max_pages and utopya_sync_progress["running"]:
-                        # Buscar botón de siguiente página
-                        next_btn = page.locator('a.action.next, .pages-item-next a, a[title="Siguiente"]')
-                        
-                        has_next = False
-                        try:
-                            if await next_btn.count() > 0:
-                                first_btn = next_btn.first
-                                if await first_btn.is_visible():
-                                    has_next = True
-                        except Exception:
-                            has_next = False
-                        
-                        if not has_next:
-                            break
-                        
-                        try:
-                            await next_btn.first.click()
-                            await asyncio.sleep(3)
-                            page_num += 1
-                            
-                            more_products = await page.evaluate('''() => {
-                                const items = [];
-                                document.querySelectorAll('.product-item, .item.product').forEach(el => {
-                                    const nameEl = el.querySelector('.product-item-link, .product-name');
-                                    const priceEl = el.querySelector('.price, [data-price-amount]');
-                                    const imgEl = el.querySelector('img.product-image-photo');
-                                    const linkEl = el.querySelector('a.product-item-link, a.product-name');
-                                    
-                                    const name = nameEl?.textContent?.trim();
-                                    let priceText = priceEl?.getAttribute('data-price-amount') || priceEl?.textContent || '0';
-                                    priceText = priceText.replace(/[^\\d.,]/g, '').replace(',', '.');
-                                    const productUrl = linkEl?.href || '';
-                                    
-                                    // Buscar EAN
-                                    let ean = '';
-                                    const eanEl = el.querySelector('[data-ean], [data-gtin], .ean-value, .product-ean');
-                                    if (eanEl) {
-                                        ean = eanEl.getAttribute('data-ean') || eanEl.getAttribute('data-gtin') || eanEl.textContent?.trim() || '';
-                                    }
-                                    if (!ean) {
-                                        const skuEl = el.querySelector('.sku .value, .product-sku');
-                                        const skuText = skuEl?.textContent?.trim() || '';
-                                        if (/^\\d{13}$/.test(skuText)) {
-                                            ean = skuText;
-                                        }
-                                    }
-                                    
-                                    if (name && name.length > 3) {
-                                        items.push({
-                                            nombre: name,
-                                            precio: parseFloat(priceText) || 0,
-                                            ean: ean,
-                                            imagen: imgEl?.src || '',
-                                            url: productUrl
-                                        });
-                                    }
-                                });
-                                return items;
-                            }''')
-                            
-                            for prod in more_products:
-                                prod["marca"] = cat_info["marca"]
-                                prod["categoria_utopya"] = cat_info["name"]
-                            
-                            all_products.extend(more_products)
-                            utopya_sync_progress["total"] = len(all_products)
-                            logger.info(f"Utopya: Página {page_num} de {cat_info['name']}: {len(more_products)} productos ({len(all_products)} total)")
-                        except Exception as e:
-                            logger.warning(f"Utopya: Error en paginación página {page_num}: {e}")
-                            break
-                    
-                    utopya_sync_progress["categories_done"] = cat_idx + 1
-                    
-                except Exception as e:
-                    logger.error(f"Utopya: Error en {cat_info['name']}: {e}")
-                    utopya_sync_progress["errors"] += 1
+                utopya_sync_progress["processed"] = idx + 1
+                if not product.get("nombre"):
                     continue
-            
-            # Procesar e importar productos
-            utopya_sync_progress["status"] = "processing"
-            logger.info(f"Utopya: Procesando {len(all_products)} productos...")
-            
-            # Eliminar duplicados
-            seen = set()
-            unique_products = []
-            for p in all_products:
-                key = p.get("nombre", "")
-                if key and key not in seen:
-                    seen.add(key)
-                    unique_products.append(p)
-            
-            utopya_sync_progress["total"] = len(unique_products)
-            logger.info(f"Utopya: {len(unique_products)} productos únicos")
-            
-            # Fase de extracción de EAN/SKU: visitar cada producto individualmente
-            utopya_sync_progress["status"] = "extracting_details"
-            detail_page = await context.new_page()
-            
-            for idx, product in enumerate(unique_products):
-                if not utopya_sync_progress["running"]:
-                    break
                 
-                product_url = product.get("url", "")
-                if product_url:
-                    try:
-                        details = await extract_ean_sku_from_product_page(detail_page, product_url)
-                        if details.get("ean"):
-                            product["ean"] = details["ean"]
-                        if details.get("sku"):
-                            product["sku_utopya"] = details["sku"]
-                    except Exception:
-                        pass
+                ean = product.get("ean", "").strip()
+                sku_utopya = product.get("sku_utopya", "").strip()
                 
-                # Actualizar progreso cada 10 productos
-                if (idx + 1) % 10 == 0:
-                    utopya_sync_progress["processed"] = idx + 1
-                    logger.info(f"Utopya: Detalles extraídos de {idx + 1}/{len(unique_products)} productos")
-            
-            await detail_page.close()
-            utopya_sync_progress["processed"] = 0  # Reset para la fase de importación
-            
-            await browser.close()
-            
-            # Fase de importación a inventario
-            utopya_sync_progress["status"] = "importing"
-            
-            for idx, product in enumerate(unique_products):
-                if not utopya_sync_progress["running"]:
-                    break
-                    
-                try:
-                    utopya_sync_progress["processed"] = idx + 1
-                    
-                    if not product.get("nombre"):
-                        continue
-                    
-                    # Usar SKU de Utopya si está disponible, sino EAN, sino hash
-                    ean = product.get("ean", "").strip()
-                    sku_utopya = product.get("sku_utopya", "").strip()
-                    
-                    if sku_utopya:
-                        sku = f"UTO-{sku_utopya}"
-                    elif ean and len(ean) >= 5 and ean not in ['N/D', 'N/A', '-', 'No disponible']:
-                        sku = ean.replace('-', '').replace(' ', '').upper()
-                    else:
-                        nombre_hash = hashlib.md5(product["nombre"].encode()).hexdigest()[:8].upper()
-                        sku = f"UTO-{nombre_hash}"
-                    
-                    precio_compra = product.get("precio", 0)
-                    precio_venta = round(precio_compra * (1 + margen / 100), 2)
-                    
-                    categoria = product.get("categoria_utopya", "Utopya")
-                    marca = product.get("marca", "").capitalize() if product.get("marca") else None
-                    
-                    repuesto_data = {
-                        "nombre": product["nombre"],
-                        "categoria": categoria,
-                        "categoria_utopya": categoria,
-                        "marca": marca,
-                        "sku_proveedor": sku_utopya or sku,
-                        "sku_utopya": sku_utopya or None,
-                        "ean": ean if ean else None,
-                        "codigo_barras": ean if ean else sku,
-                        "proveedor": "Utopya",
-                        "proveedor_id": "utopya",
-                        "precio_compra": precio_compra,
-                        "precio_venta": precio_venta,
-                        "imagen_url": product.get("imagen"),
-                        "url_proveedor": product.get("url"),
-                        "ultima_sync": datetime.now(timezone.utc).isoformat(),
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                    
-                    # Buscar por EAN, nombre o SKU (para actualizaciones)
-                    search_conditions = [
-                        {"nombre": product["nombre"], "proveedor": "Utopya"},
-                        {"sku_proveedor": sku, "proveedor": "Utopya"}
-                    ]
-                    if ean:
-                        search_conditions.append({"ean": ean, "proveedor": "Utopya"})
-                    
-                    existing = await db.repuestos.find_one({
-                        "$or": search_conditions
-                    })
-                    
-                    if existing:
-                        await db.repuestos.update_one(
-                            {"_id": existing["_id"]},
-                            {"$set": repuesto_data}
-                        )
-                        utopya_sync_progress["updated"] += 1
-                    else:
-                        repuesto_data["id"] = str(uuid.uuid4())
-                        repuesto_data["sku"] = sku
-                        # codigo_barras ya está en repuesto_data con el EAN
-                        repuesto_data["stock"] = 0
-                        repuesto_data["stock_minimo"] = 0
-                        repuesto_data["created_at"] = datetime.now(timezone.utc).isoformat()
-                        
-                        await db.repuestos.insert_one(repuesto_data)
-                        utopya_sync_progress["imported"] += 1
-                    
-                except Exception:
-                    utopya_sync_progress["errors"] += 1
-            
-            config = await get_utopya_config()
-            config["last_sync"] = datetime.now(timezone.utc).isoformat()
-            config["last_sync_count"] = utopya_sync_progress["imported"] + utopya_sync_progress["updated"]
-            await save_utopya_config(config)
-            
-            utopya_sync_progress["status"] = "completed"
-            logger.info(f"Utopya sync completed: {utopya_sync_progress['imported']} imported, {utopya_sync_progress['updated']} updated")
-            
+                if sku_utopya:
+                    sku = f"UTO-{sku_utopya}"
+                elif ean and len(ean) >= 5 and ean not in ['N/D', 'N/A', '-', 'No disponible']:
+                    sku = ean.replace('-', '').replace(' ', '').upper()
+                else:
+                    sku = f"UTO-{hashlib.md5(product['nombre'].encode()).hexdigest()[:8].upper()}"
+                
+                precio_compra = product.get("precio", 0)
+                precio_venta = round(precio_compra * (1 + margen / 100), 2)
+                categoria = product.get("categoria_utopya", "Utopya")
+                marca = product.get("marca", "").capitalize() if product.get("marca") else None
+                
+                repuesto_data = {
+                    "nombre": product["nombre"], "categoria": categoria, "categoria_utopya": categoria,
+                    "marca": marca, "sku_proveedor": sku_utopya or sku, "sku_utopya": sku_utopya or None,
+                    "ean": ean if ean else None, "codigo_barras": ean if ean else sku,
+                    "proveedor": "Utopya", "proveedor_id": "utopya",
+                    "precio_compra": precio_compra, "precio_venta": precio_venta,
+                    "imagen_url": product.get("imagen"), "url_proveedor": product.get("url"),
+                    "ultima_sync": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                search_conditions = [
+                    {"nombre": product["nombre"], "proveedor": "Utopya"},
+                    {"sku_proveedor": sku, "proveedor": "Utopya"}
+                ]
+                if ean:
+                    search_conditions.append({"ean": ean, "proveedor": "Utopya"})
+                
+                existing = await db.repuestos.find_one({"$or": search_conditions})
+                if existing:
+                    await db.repuestos.update_one({"_id": existing["_id"]}, {"$set": repuesto_data})
+                    utopya_sync_progress["updated"] += 1
+                else:
+                    repuesto_data.update({"id": str(uuid.uuid4()), "sku": sku, "stock": 0, "stock_minimo": 0, "created_at": datetime.now(timezone.utc).isoformat()})
+                    await db.repuestos.insert_one(repuesto_data)
+                    utopya_sync_progress["imported"] += 1
+            except Exception:
+                utopya_sync_progress["errors"] += 1
+        
+        config = await get_utopya_config()
+        config["last_sync"] = datetime.now(timezone.utc).isoformat()
+        config["last_sync_count"] = utopya_sync_progress["imported"] + utopya_sync_progress["updated"]
+        await save_utopya_config(config)
+        
+        utopya_sync_progress["status"] = "completed"
+        logger.info(f"Utopya sync completed: {utopya_sync_progress['imported']} imported, {utopya_sync_progress['updated']} updated")
+        
     except Exception as e:
         utopya_sync_progress["status"] = "error"
         utopya_sync_progress["last_error"] = str(e)
         logger.error(f"Utopya sync error: {e}")
         import traceback
         traceback.print_exc()
-    
     finally:
         utopya_sync_progress["running"] = False
+
+
+async def _scrape_phase(email: str, password: str, urls_to_scrape: list) -> list:
+    """Fase de scraping: intenta Playwright, fallback a httpx."""
+    try:
+        from playwright.async_api import async_playwright
+        try:
+            from playwright_stealth import Stealth
+            use_stealth = True
+        except ImportError:
+            use_stealth = False
+            logger.warning("Utopya: playwright_stealth no disponible, usando Playwright básico")
+        return await _scrape_with_playwright(email, password, urls_to_scrape, use_stealth)
+    except ImportError:
+        logger.warning("Utopya: Playwright no disponible, usando httpx")
+    except Exception as e:
+        logger.warning(f"Utopya: Playwright falló ({e}), usando httpx")
+    return await _scrape_utopya_httpx(email, password, urls_to_scrape)
+
+
+async def _scrape_with_playwright(email: str, password: str, urls_to_scrape: list, use_stealth: bool) -> list:
+    """Scraping con Playwright."""
+    global utopya_sync_progress
+    from playwright.async_api import async_playwright
+    
+    all_products = []
+    
+    async with async_playwright() as p:
+        if use_stealth:
+            from playwright_stealth import Stealth
+            Stealth().hook_playwright_context(p)
+        
+        utopya_sync_progress["status"] = "launching_browser"
+        browser = await p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+        context = await browser.new_context(viewport={'width': 1920, 'height': 1080})
+        page = await context.new_page()
+        
+        # Login
+        utopya_sync_progress["status"] = "logging_in"
+        await page.goto('https://www.utopya.es/es/customer/account/login/', timeout=60000)
+        await asyncio.sleep(8)
+        try:
+            await page.fill('#email', email)
+            await page.fill('#pass', password)
+            await page.click('#send2')
+            await asyncio.sleep(5)
+            logger.info("Utopya: Login completado")
+        except Exception as e:
+            logger.error(f"Utopya: Error en login: {e}")
+        
+        utopya_sync_progress["status"] = "scraping"
+        
+        _js_extract = '''() => {
+            const items = [];
+            document.querySelectorAll('.product-item, .item.product').forEach(el => {
+                try {
+                    const n = el.querySelector('.product-item-link, .product-name')?.textContent?.trim();
+                    const p = el.querySelector('.price, [data-price-amount]');
+                    let pt = p?.getAttribute('data-price-amount') || p?.textContent || '0';
+                    pt = pt.replace(/[^\\d.,]/g, '').replace(',', '.');
+                    if (n && n.length > 3) items.push({
+                        nombre: n, precio: parseFloat(pt) || 0, ean: '',
+                        imagen: el.querySelector('img.product-image-photo')?.src || '',
+                        url: el.querySelector('a.product-item-link, a.product-name')?.href || ''
+                    });
+                } catch(e) {}
+            });
+            return items;
+        }'''
+        
+        for cat_idx, cat_info in enumerate(urls_to_scrape):
+            if not utopya_sync_progress["running"]:
+                break
+            utopya_sync_progress["current_category"] = cat_info["name"]
+            try:
+                await page.goto(cat_info["url"], timeout=60000)
+                await asyncio.sleep(5)
+                
+                page_products = await page.evaluate(_js_extract)
+                for prod in page_products:
+                    prod["marca"] = cat_info["marca"]
+                    prod["categoria_utopya"] = cat_info["name"]
+                all_products.extend(page_products)
+                utopya_sync_progress["total"] = len(all_products)
+                
+                # Pagination
+                page_num = 1
+                while page_num < 100 and utopya_sync_progress["running"]:
+                    next_btn = page.locator('a.action.next, .pages-item-next a, a[title="Siguiente"]')
+                    try:
+                        if await next_btn.count() > 0 and await next_btn.first.is_visible():
+                            await next_btn.first.click()
+                            await asyncio.sleep(3)
+                            page_num += 1
+                            more = await page.evaluate(_js_extract)
+                            for prod in more:
+                                prod["marca"] = cat_info["marca"]
+                                prod["categoria_utopya"] = cat_info["name"]
+                            all_products.extend(more)
+                            utopya_sync_progress["total"] = len(all_products)
+                        else:
+                            break
+                    except Exception:
+                        break
+                
+                utopya_sync_progress["categories_done"] = cat_idx + 1
+            except Exception as e:
+                logger.error(f"Utopya: Error en {cat_info['name']}: {e}")
+                utopya_sync_progress["errors"] += 1
+        
+        # Extract EAN/SKU from product detail pages
+        utopya_sync_progress["status"] = "extracting_details"
+        detail_page = await context.new_page()
+        for idx, product in enumerate(all_products):
+            if not utopya_sync_progress["running"]:
+                break
+            if product.get("url"):
+                try:
+                    details = await extract_ean_sku_from_product_page(detail_page, product["url"])
+                    if details.get("ean"):
+                        product["ean"] = details["ean"]
+                    if details.get("sku"):
+                        product["sku_utopya"] = details["sku"]
+                except Exception:
+                    pass
+            if (idx + 1) % 10 == 0:
+                utopya_sync_progress["processed"] = idx + 1
+        await detail_page.close()
+        await browser.close()
+    
+    return all_products
 
 # ==================== ROUTES ====================
 

@@ -2241,28 +2241,27 @@ async def generar_recordatorios_subestado(user: dict = Depends(require_admin)):
 
 @router.post("/ordenes/{orden_id}/evidencias")
 async def subir_evidencia_admin(orden_id: str, file: UploadFile = File(...), user: dict = Depends(require_admin)):
-    """Subir evidencia/foto por parte del admin (con compresión automática)"""
+    """Subir evidencia/foto por parte del admin a Cloudinary (almacenamiento permanente)"""
+    from services.cloudinary_service import upload_image
+    
     orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Leer contenido del archivo
-    content = await file.read()
-    original_filename = file.filename or "image.jpg"
+    # Subir a Cloudinary
+    result = await upload_image(
+        file=file,
+        orden_id=orden_id,
+        tipo="admin",
+        numero_orden=orden.get('numero_orden', orden_id)
+    )
     
-    # Comprimir si es imagen
-    if is_image(original_filename):
-        content, original_filename = compress_image(content, original_filename)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {result.get('error')}")
     
-    file_ext = original_filename.split('.')[-1] if '.' in original_filename else 'jpg'
-    file_name = f"{orden_id}_{str(uuid.uuid4())[:8]}.{file_ext}"
-    file_path = UPLOAD_DIR / file_name
-    
-    async with aiofiles.open(file_path, 'wb') as f:
-        await f.write(content)
-    
+    # Guardar URL de Cloudinary en la orden
     evidencias = orden.get('evidencias', [])
-    evidencias.append(file_name)
+    evidencias.append(result["url"])
     await db.ordenes.update_one({"id": orden_id}, {"$set": {"evidencias": evidencias, "updated_at": datetime.now(timezone.utc).isoformat()}})
     
     # Registrar en auditoría
@@ -2273,10 +2272,10 @@ async def subir_evidencia_admin(orden_id: str, file: UploadFile = File(...), use
         usuario_id=user.get('user_id'),
         usuario_email=user.get('email'),
         rol=user.get('role'),
-        cambios={"evidencia_añadida": file_name}
+        cambios={"evidencia_añadida": result["url"], "cloudinary_id": result.get("public_id")}
     )
     
-    return {"message": "Evidencia subida", "file_name": file_name}
+    return {"message": "Evidencia subida a Cloudinary", "url": result["url"], "public_id": result.get("public_id")}
 
 @router.post("/ordenes/{orden_id}/evidencias-tecnico")
 async def subir_evidencia_tecnico(

@@ -7,6 +7,25 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.2.1] - 2026-03-14
+
+### Liquidaciones - Auto-cruce de Códigos
+- Al importar Excel de Insurama, el sistema cruza automáticamente los códigos de siniestro con las órdenes del sistema
+- Códigos con orden encontrada y sin garantía pendiente → marcados como PAGADO automáticamente
+- Códigos con garantía pendiente → quedan como PENDIENTE (requieren revisión)
+- Códigos duplicados (ya pagados) → se ignoran
+- Códigos no encontrados en el sistema → registrados como pendientes
+- Modal de resultado muestra desglose detallado: auto-liquidados, pendientes garantía, duplicados, no encontrados
+
+### Garantías - Órdenes Dependientes
+- Fix: Navegación tras crear garantía ahora redirige correctamente a la nueva orden
+- La orden de garantía hereda todos los campos del dispositivo, cliente y datos del seguro
+- Se muestra el campo `numero_orden_padre` para referencia clara
+- Badge **GARANTÍA** visible en el header con enlace "Ver original" a la orden padre
+- Sección "Órdenes de Garantía" en OrdenDetalle muestra todas las garantías hijas con estado y enlace
+
+---
+
 ## [1.2.0] - 2026-03-14
 
 ### Auditoría Funcional y Consolidación Financiera

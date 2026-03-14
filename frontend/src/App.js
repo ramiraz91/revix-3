@@ -347,6 +347,11 @@ function AppRoutes() {
             <Contabilidad />
           </ProtectedRoute>
         } />
+        <Route path="finanzas" element={
+          <ProtectedRoute adminOnly>
+            <FinanzasDashboard />
+          </ProtectedRoute>
+        } />
         <Route path="contabilidad/factura/:id" element={
           <ProtectedRoute adminOnly>
             <FacturaDetalle />

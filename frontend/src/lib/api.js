@@ -704,6 +704,30 @@ export const contabilidadAPI = {
   enviarRecordatorio: (facturaId) => API.post(`/contabilidad/recordatorios/enviar/${facturaId}`),
 };
 
+// ==================== FINANZAS (DASHBOARD CENTRALIZADO) ====================
+export const finanzasAPI = {
+  // Dashboard principal
+  getDashboard: (periodo = 'mes') => API.get(`/finanzas/dashboard?periodo=${periodo}`),
+  
+  // Evolución mensual
+  getEvolucion: (meses = 6) => API.get(`/finanzas/evolucion?meses=${meses}`),
+  
+  // Detalle de gastos
+  getDetalleGastos: (periodo = 'mes') => API.get(`/finanzas/gastos/detalle?periodo=${periodo}`),
+  
+  // Valor del inventario
+  getValorInventario: () => API.get('/finanzas/inventario/valor'),
+  
+  // Balance general
+  getBalance: (año) => API.get(`/finanzas/balance${año ? `?año=${año}` : ''}`),
+  
+  // Registrar compra en contabilidad
+  registrarCompra: (compraId) => API.post(`/finanzas/registrar-compra/${compraId}`),
+  
+  // Registrar orden como factura
+  registrarOrden: (ordenId) => API.post(`/finanzas/registrar-orden/${ordenId}`),
+};
+
 // ==================== UPLOADS ====================
 // Soporta tanto URLs de Cloudinary como archivos locales
 export const getUploadUrl = (fileRef) => {

@@ -72,18 +72,32 @@ class EnviarObservacionRequest(BaseModel):
 async def obtener_config_insurama(user: dict = Depends(require_admin)):
     """Obtiene la configuración actual de Insurama/Sumbroker"""
     config = await db.configuracion.find_one({"tipo": "sumbroker"}, {"_id": 0})
+    agent_config = await db.configuracion.find_one({"tipo": "agent_config"}, {"_id": 0})
+    
+    # Verificar estado del agente de polling
+    agent_activo = False
+    try:
+        from agent.scheduler import is_agent_running
+        agent_activo = is_agent_running()
+    except:
+        pass
+    
     if not config:
         return {
             "configurado": False,
             "login": None,
-            "conexion_ok": False
+            "conexion_ok": False,
+            "agente_activo": agent_activo
         }
     
     return {
         "configurado": True,
         "login": config.get("datos", {}).get("login"),
         "conexion_ok": config.get("datos", {}).get("conexion_ok", False),
-        "ultima_verificacion": config.get("datos", {}).get("ultima_verificacion")
+        "ultima_verificacion": config.get("datos", {}).get("ultima_verificacion"),
+        "agente_activo": agent_activo,
+        "poll_interval": agent_config.get("datos", {}).get("poll_interval", 1800) if agent_config else 1800,
+        "auto_create_orders": agent_config.get("datos", {}).get("auto_create_orders", True) if agent_config else True
     }
 
 @router.post("/config")

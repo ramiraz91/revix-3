@@ -59,6 +59,7 @@ from routes.peticiones_routes import router as peticiones_router
 from routes.faqs_routes import router as faqs_router
 from routes.apple_manuals_routes import router as apple_manuals_router
 from routes.compras_routes import router as compras_router
+from routes.finanzas_routes import router as finanzas_router
 
 # ==================== APP SETUP ====================
 app = FastAPI(title="Mobile Repair CRM/ERP API")

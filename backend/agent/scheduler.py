@@ -13,7 +13,7 @@ from agent.insurama_poller import poll_insurama_budgets
 
 _task: Optional[asyncio.Task] = None
 _running = False
-POLL_INTERVAL_DEFAULT = 1800  # 30 minutes
+POLL_INTERVAL_DEFAULT = 7200  # 2 hours
 
 
 async def get_agent_config() -> Optional[dict]:

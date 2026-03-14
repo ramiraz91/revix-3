@@ -658,6 +658,7 @@ class EstadoPreRegistro(str, Enum):
     PENDIENTE_PRESUPUESTO = "pendiente_presupuesto"
     PRESUPUESTO_ENVIADO = "presupuesto_enviado"
     ACEPTADO = "aceptado"
+    PENDIENTE_TRAMITAR = "pendiente_tramitar"
     RECHAZADO = "rechazado"
     ORDEN_CREADA = "orden_creada"
     ARCHIVADO = "archivado"

@@ -33,6 +33,7 @@ import {
   Bot,
   FileText
 } from 'lucide-react';
+import { PackagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -44,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { notificacionesAPI, empresaAPI, getUploadUrl } from '@/lib/api';
+import API from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import AsistenteIA from '@/components/AsistenteIA';
@@ -74,6 +76,7 @@ function SidebarGroup({ label, children, defaultOpen = false }) {
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificacionesPendientes, setNotificacionesPendientes] = useState(0);
+  const [nuevasOrdenesCount, setNuevasOrdenesCount] = useState(0);
   const [empresaLogo, setEmpresaLogo] = useState(null);
   const [empresaNombre, setEmpresaNombre] = useState('Mi Empresa');
   const location = useLocation();
@@ -165,6 +168,25 @@ export default function Layout() {
     }
   }, [isAdmin, isTecnico, user]);
 
+  // Cargar count de nuevas órdenes
+  useEffect(() => {
+    const fetchNuevasOrdenes = async () => {
+      try {
+        const res = await API.get('/nuevas-ordenes/count');
+        setNuevasOrdenesCount(res.data?.count || 0);
+      } catch { /* silently fail */ }
+    };
+    if (isAdmin()) {
+      fetchNuevasOrdenes();
+      const interval = setInterval(fetchNuevasOrdenes, 180000);
+      window.addEventListener('ws-notification', fetchNuevasOrdenes);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('ws-notification', fetchNuevasOrdenes);
+      };
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     setSidebarOpen(false);
   }, [location]);
@@ -255,6 +277,7 @@ export default function Layout() {
           {/* Principal - Todos los usuarios */}
           <SidebarGroup label="Principal" defaultOpen>
             <NavItem path="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem path="/nuevas-ordenes" icon={PackagePlus} label="Nuevas Órdenes" badge={nuevasOrdenesCount} />
             <NavItem path="/ordenes" icon={ClipboardList} label="Órdenes de Trabajo" />
             <NavItem path="/calendario" icon={Calendar} label="Calendario" />
             <NavItem path="/scanner" icon={QrCode} label="Escáner QR" />

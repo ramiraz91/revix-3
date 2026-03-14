@@ -53,6 +53,7 @@ from routes.contabilidad_routes import router as contabilidad_router
 from routes.kits_routes import router as kits_router
 from routes.inteligencia_precios_routes import router as inteligencia_router
 from routes.liquidaciones_routes import router as liquidaciones_router
+from routes.nuevas_ordenes_routes import router as nuevas_ordenes_router
 from routes.web_publica_routes import router as web_publica_router
 from routes.iso_routes import router as iso_router
 from routes.peticiones_routes import router as peticiones_router
@@ -108,6 +109,7 @@ api_router.include_router(contabilidad_router)
 api_router.include_router(kits_router)
 api_router.include_router(inteligencia_router)
 api_router.include_router(liquidaciones_router)
+api_router.include_router(nuevas_ordenes_router)
 api_router.include_router(web_publica_router)
 api_router.include_router(iso_router)
 api_router.include_router(peticiones_router)

@@ -105,7 +105,8 @@ async def poll_insurama_budgets():
                 
                 if status == 3 and estado_pre not in [
                     EstadoPreRegistro.ORDEN_CREADA.value,
-                    EstadoPreRegistro.ACEPTADO.value
+                    EstadoPreRegistro.ACEPTADO.value,
+                    EstadoPreRegistro.PENDIENTE_TRAMITAR.value
                 ]:
                     # ACCEPTED — create order and notify with popup
                     result = await _handle_accepted_budget(codigo, pre_reg, b)
@@ -262,90 +263,89 @@ async def _handle_new_budget(codigo: str, budget: dict, prc: dict, cb: dict):
 
 
 async def _handle_accepted_budget(codigo: str, pre_reg: dict, budget: dict) -> bool:
-    """Create work order from accepted budget."""
+    """
+    Budget accepted: mark as pendiente_tramitar for manual review.
+    The tramitador will review, add pickup code, and then create the order.
+    """
     historial = pre_reg.get("historial", [])
     historial.append({
         "evento": "presupuesto_aceptado_polling",
         "fecha": datetime.now(timezone.utc).isoformat(),
-        "detalle": "Aceptación detectada por polling Sumbroker"
+        "detalle": "Aceptación detectada por polling Sumbroker. Pendiente de tramitar."
     })
+    
+    # Scrape full portal data for enrichment
+    datos_portal = await scrape_portal_data(codigo)
+    
+    update_data = {
+        "estado": EstadoPreRegistro.PENDIENTE_TRAMITAR.value,
+        "historial": historial,
+        "sumbroker_status": 3,
+        "sumbroker_status_text": "Aceptado",
+        "sumbroker_price": budget.get("price"),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if datos_portal:
+        update_data["datos_portal"] = datos_portal
+        # Enrich pre_registro with portal data
+        dp = datos_portal
+        if dp.get("client_full_name"):
+            update_data["cliente_nombre"] = dp["client_full_name"]
+        if dp.get("client_phone"):
+            update_data["cliente_telefono"] = dp["client_phone"]
+        if dp.get("client_email"):
+            update_data["cliente_email"] = dp["client_email"]
+        device_brand = dp.get("device_brand") or ""
+        device_model = dp.get("device_model") or ""
+        if device_brand or device_model:
+            update_data["dispositivo_modelo"] = f"{device_brand} {device_model}".strip()
+        if dp.get("device_imei"):
+            update_data["dispositivo_imei"] = dp["device_imei"]
+        if dp.get("device_colour"):
+            update_data["dispositivo_color"] = dp["device_colour"]
+        if dp.get("damage_description"):
+            update_data["daño_descripcion"] = dp["damage_description"]
+        if dp.get("tracking_number"):
+            update_data["codigo_recogida_sugerido"] = dp["tracking_number"]
     
     await db.pre_registros.update_one(
         {"codigo_siniestro": codigo},
-        {"$set": {
-            "estado": EstadoPreRegistro.ACEPTADO.value,
-            "historial": historial,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }}
+        {"$set": update_data}
     )
     
-    # Scrape full portal data
-    datos_portal = await scrape_portal_data(codigo)
-    if datos_portal:
-        await db.pre_registros.update_one(
-            {"codigo_siniestro": codigo},
-            {"$set": {"datos_portal": datos_portal}}
-        )
+    # Urgent notification with popup
+    cliente_nombre = update_data.get("cliente_nombre") or pre_reg.get("cliente_nombre", "")
+    dispositivo = update_data.get("dispositivo_modelo") or pre_reg.get("dispositivo_modelo", "")
+    precio = budget.get("price") or ""
     
-    # Create order
-    orden_id = await create_orden_from_pre_registro(pre_reg, datos_portal)
+    notif_msg = (f"PRESUPUESTO ACEPTADO: Siniestro {codigo}. "
+                 f"{cliente_nombre} — {dispositivo}. "
+                 f"Importe: {precio}€. Pendiente de tramitar en Nuevas Órdenes.")
     
-    if orden_id:
-        historial.append({
-            "evento": "orden_creada",
-            "fecha": datetime.now(timezone.utc).isoformat(),
-            "detalle": f"Orden {orden_id} creada desde polling"
-        })
-        await db.pre_registros.update_one(
-            {"codigo_siniestro": codigo},
-            {"$set": {
-                "estado": EstadoPreRegistro.ORDEN_CREADA.value,
-                "orden_id": orden_id,
-                "historial": historial,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        # Notification
-        orden = await db.ordenes.find_one(
-            {"id": orden_id},
-            {"_id": 0, "numero_orden": 1, "dispositivo": 1, "cliente_id": 1}
-        )
-        cliente = None
-        if orden and orden.get("cliente_id"):
-            cliente = await db.clientes.find_one(
-                {"id": orden["cliente_id"]}, {"_id": 0, "nombre": 1, "apellidos": 1}
-            )
-        cliente_nombre = f"{cliente.get('nombre', '')} {cliente.get('apellidos', '')}".strip() if cliente else ""
-        dispositivo = orden.get("dispositivo", {}).get("modelo", "") if orden else ""
-        
-        await db.notificaciones.insert_one({
-            "id": str(uuid.uuid4()),
-            "tipo": "presupuesto_aceptado",
-            "titulo": "PRESUPUESTO ACEPTADO",
-            "mensaje": f"Presupuesto aceptado para {codigo}. {cliente_nombre} — {dispositivo}. Orden creada: {orden.get('numero_orden', '') if orden else ''}",
-            "orden_id": orden_id,
-            "codigo_siniestro": codigo,
-            "urgente": True,
-            "popup": True,
-            "leida": False,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-        
-        # Broadcast via WebSocket
-        ws = _get_ws_broadcast()
-        if ws:
-            asyncio.create_task(ws.notify_event(
-                "presupuesto_aceptado",
-                {"titulo": "PRESUPUESTO ACEPTADO", "mensaje": f"{codigo} — {cliente_nombre} — {dispositivo}", "urgente": True, "popup": True, "orden_id": orden_id}
-            ))
-        
-        await log_agent("orden_creada_polling", "ok", "info", codigo=codigo,
-                        detalles={"orden_id": orden_id})
-        return True
+    await db.notificaciones.insert_one({
+        "id": str(uuid.uuid4()),
+        "tipo": "presupuesto_aceptado",
+        "titulo": "PRESUPUESTO ACEPTADO - Nueva Orden",
+        "mensaje": notif_msg,
+        "codigo_siniestro": codigo,
+        "urgente": True,
+        "popup": True,
+        "leida": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
     
-    await log_agent("error_creando_orden_polling", "error", "error", codigo=codigo)
-    return False
+    # Broadcast via WebSocket
+    ws = _get_ws_broadcast()
+    if ws:
+        asyncio.create_task(ws.notify_event(
+            "presupuesto_aceptado",
+            {"titulo": "PRESUPUESTO ACEPTADO", "mensaje": notif_msg, "urgente": True, "popup": True}
+        ))
+    
+    await log_agent("presupuesto_aceptado_pendiente_tramitar", "ok", "info", codigo=codigo,
+                    detalles={"budget_id": budget.get("id"), "precio": precio})
+    return True
 
 
 async def _handle_rejected_budget(codigo: str, pre_reg: dict, budget: dict, status_text: str):

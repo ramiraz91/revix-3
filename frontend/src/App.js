@@ -28,6 +28,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Ordenes from "@/pages/Ordenes";
+import NuevasOrdenes from "@/pages/NuevasOrdenes";
 import OrdenDetalle from "@/pages/OrdenDetalle";
 import OrdenTecnico from "@/pages/OrdenTecnico";
 import NuevaOrden from "@/pages/NuevaOrden";
@@ -193,6 +194,7 @@ function AppRoutes() {
       }>
         <Route index element={<Navigate to="/crm/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="nuevas-ordenes" element={<NuevasOrdenes />} />
         <Route path="ordenes" element={<Ordenes />} />
         <Route path="ordenes/nueva" element={
           <ProtectedRoute adminOnly>

@@ -10,27 +10,30 @@ import sys
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# ==================== MONGODB - CONFIGURACIÓN BLINDADA ====================
-mongo_url = os.environ.get('MONGO_URL', '')
+# ==================== MONGODB - CONFIGURACIÓN INTELIGENTE ====================
+# 
+# IMPORTANTE: Esta configuración funciona así:
+# - En PREVIEW: Usa localhost (MongoDB local del preview)
+# - En PRODUCCIÓN: Emergent sobrescribe MONGO_URL automáticamente
+#
+# Si necesitas conectar a MongoDB Atlas específico, configura MONGO_URL en .env
+# Ejemplo: MONGO_URL="mongodb+srv://usuario:pass@cluster.mongodb.net/"
+#
 
-# VALIDACIÓN CRÍTICA: No permitir localhost en producción
-if not mongo_url:
-    print("❌ ERROR CRÍTICO: MONGO_URL no está configurada en .env")
-    print("   La aplicación no puede iniciarse sin conexión a la base de datos.")
-    sys.exit(1)
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 
-# Detectar si es localhost (entorno de desarrollo)
+# Detectar si es localhost (entorno de desarrollo/preview)
 is_localhost = 'localhost' in mongo_url or '127.0.0.1' in mongo_url
+is_atlas = 'mongodb.net' in mongo_url or 'mongodb+srv' in mongo_url
 
-if is_localhost:
-    print("⚠️  ADVERTENCIA: Usando MongoDB LOCAL (localhost)")
-    print("   Esto es válido SOLO para desarrollo/preview.")
-    print("   Para producción, configura MONGO_URL con MongoDB Atlas.")
-else:
-    # Es MongoDB Atlas u otro servidor remoto
+if is_atlas:
     parsed = urlparse(mongo_url)
-    host_display = parsed.hostname or "remoto"
-    print(f"✅ MongoDB conectado a: {host_display}")
+    host_display = parsed.hostname or "MongoDB Atlas"
+    print(f"✅ MongoDB PRODUCCIÓN conectado a: {host_display}")
+elif is_localhost:
+    print("🔧 MongoDB LOCAL (preview/desarrollo)")
+else:
+    print(f"ℹ️  MongoDB conectado a: {mongo_url[:50]}...")
 
 client = AsyncIOMotorClient(
     mongo_url,
@@ -41,7 +44,7 @@ client = AsyncIOMotorClient(
 
 db_name = os.environ.get('DB_NAME', 'production')
 db = client[db_name]
-print(f"✅ Base de datos: {db_name}")
+print(f"📁 Base de datos: {db_name}")
 
 # JWT
 JWT_SECRET = os.environ.get('JWT_SECRET', 'techrepair-secret-key-2026')

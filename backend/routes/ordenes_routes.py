@@ -2492,13 +2492,13 @@ async def crear_garantia_simple(orden_id: str, user: dict = Depends(require_admi
     
     now = datetime.now(timezone.utc)
     
-    # 1. Crear la nueva orden de garantía
+    # 1. Crear la nueva orden de garantía con toda la info del dispositivo
     nueva_orden = OrdenTrabajo(
         cliente_id=orden_padre['cliente_id'],
         dispositivo=orden_padre['dispositivo'],
         agencia_envio=orden_padre.get('agencia_envio', ''),
         codigo_recogida_entrada=orden_padre.get('codigo_recogida_entrada', ''),
-        notas=f"Garantía de orden {orden_padre['numero_orden']}",
+        notas=f"GARANTÍA de orden {orden_padre['numero_orden']}. {orden_padre.get('notas', '')}".strip(),
         orden_padre_id=orden_id,
         es_garantia=True,
         tipo_servicio="garantia_fabricante"
@@ -2513,6 +2513,21 @@ async def crear_garantia_simple(orden_id: str, user: dict = Depends(require_admi
     doc = nueva_orden.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     doc['updated_at'] = doc['updated_at'].isoformat()
+    
+    # Heredar campos relevantes de la orden padre
+    campos_heredar = [
+        'cliente_nombre', 'cliente_email', 'cliente_telefono',
+        'dispositivo_marca', 'dispositivo_modelo', 'dispositivo_color',
+        'numero_serie', 'imei', 'codigo_insurama', 'numero_autorizacion',
+        'tipo_seguro', 'compania_seguro'
+    ]
+    for campo in campos_heredar:
+        if orden_padre.get(campo):
+            doc[campo] = orden_padre[campo]
+    
+    # Referencia clara a la orden padre
+    doc['numero_orden_padre'] = orden_padre['numero_orden']
+    
     await db.ordenes.insert_one(doc)
     doc.pop('_id', None)
     

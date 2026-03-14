@@ -265,25 +265,27 @@ async def importar_liquidacion_excel(
 ):
     """
     Importa una liquidación desde un archivo Excel de Insurama.
-    Detecta automáticamente los siniestros y los marca como del mes indicado.
+    Auto-cruza los códigos con las órdenes del sistema:
+    - Si la orden existe y no tiene garantía pendiente → marca como PAGADO
+    - Si tiene garantía pendiente → marca como PENDIENTE (requiere revisión)
+    - Duplicados (ya pagados) → se ignoran
     """
     try:
         import openpyxl
         
-        # Leer el archivo
         contents = await file.read()
         wb = openpyxl.load_workbook(io.BytesIO(contents))
         
-        # Buscar la hoja de Siniestros
         if "Siniestros" not in wb.sheetnames:
-            raise HTTPException(status_code=400, detail="No se encontró la hoja 'Siniestros' en el archivo")
+            # Intentar con la primera hoja
+            ws = wb.active
+            if not ws:
+                raise HTTPException(status_code=400, detail="No se encontró la hoja 'Siniestros' en el archivo")
+        else:
+            ws = wb["Siniestros"]
         
-        ws = wb["Siniestros"]
-        
-        # Leer encabezados (fila 1)
         headers = [cell.value for cell in ws[1]]
         
-        # Mapear columnas
         col_map = {}
         for idx, header in enumerate(headers):
             if header:
@@ -310,20 +312,22 @@ async def importar_liquidacion_excel(
         if "siniestro" not in col_map:
             raise HTTPException(status_code=400, detail="No se encontró la columna 'Siniestro' en el archivo")
         
-        # Determinar mes si no se especificó
         if not mes:
-            # Intentar determinar del nombre del archivo o de las fechas
             mes = datetime.now(timezone.utc).strftime("%Y-%m")
         
-        # Procesar filas
-        importados = []
+        now = datetime.now(timezone.utc)
+        fecha_pago = now.isoformat()
+        
+        # Resultados detallados
+        auto_liquidados = []       # Cruzados y pagados automáticamente
+        pendientes_garantia = []   # Tienen garantía pendiente, necesitan revisión
+        ya_pagados = []            # Duplicados: ya estaban pagados
+        no_encontrados = []        # Sin orden en el sistema
         errores = []
-        actualizados = []
         
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
             try:
                 codigo = row[col_map["siniestro"]] if col_map.get("siniestro") is not None else None
-                
                 if not codigo or not str(codigo).strip():
                     continue
                 
@@ -342,24 +346,15 @@ async def importar_liquidacion_excel(
                 # Parsear fechas
                 fecha_apertura = None
                 fecha_cierre = None
-                
                 if col_map.get("fecha_apertura") is not None:
                     val = row[col_map["fecha_apertura"]]
                     if val:
-                        if isinstance(val, datetime):
-                            fecha_apertura = val.isoformat()
-                        else:
-                            fecha_apertura = str(val)
-                
+                        fecha_apertura = val.isoformat() if isinstance(val, datetime) else str(val)
                 if col_map.get("fecha_cierre") is not None:
                     val = row[col_map["fecha_cierre"]]
                     if val:
-                        if isinstance(val, datetime):
-                            fecha_cierre = val.isoformat()
-                        else:
-                            fecha_cierre = str(val)
+                        fecha_cierre = val.isoformat() if isinstance(val, datetime) else str(val)
                 
-                # Crear registro
                 liquidacion_data = {
                     "codigo_siniestro": codigo,
                     "poliza": str(row[col_map["poliza"]]) if col_map.get("poliza") is not None and row[col_map["poliza"]] else None,
@@ -371,45 +366,113 @@ async def importar_liquidacion_excel(
                     "compania": str(row[col_map["compania"]]) if col_map.get("compania") is not None and row[col_map["compania"]] else None,
                     "producto": str(row[col_map["producto"]]) if col_map.get("producto") is not None and row[col_map["producto"]] else None,
                     "mes_liquidacion": mes,
-                    "estado": "pendiente",
-                    "updated_at": datetime.now(timezone.utc).isoformat()
+                    "updated_at": fecha_pago
                 }
                 
-                # Verificar si ya existe
+                # 1. Verificar si ya existe y está pagado (duplicado)
                 existente = await db.liquidaciones.find_one({"codigo_siniestro": codigo})
+                if existente and existente.get("estado") == "pagado":
+                    ya_pagados.append({"codigo": codigo, "importe": importe, "fecha_pago": existente.get("fecha_pago")})
+                    continue
+                
+                # 2. Buscar la orden en el sistema por código Insurama
+                orden = await db.ordenes.find_one(
+                    {"codigo_insurama": {"$regex": f"^{codigo}$", "$options": "i"}},
+                    {"_id": 0, "id": 1, "numero_orden": 1, "ordenes_garantia": 1, "estado": 1, "cliente_nombre": 1}
+                )
+                
+                if not orden:
+                    # Sin orden en el sistema - registrar pero no marcar como pagado
+                    liquidacion_data["estado"] = "pendiente"
+                    liquidacion_data["nota_auto"] = "Código no encontrado en órdenes del sistema"
+                    if existente:
+                        await db.liquidaciones.update_one({"codigo_siniestro": codigo}, {"$set": liquidacion_data})
+                    else:
+                        liquidacion_data["created_at"] = fecha_pago
+                        await db.liquidaciones.insert_one(liquidacion_data)
+                    no_encontrados.append({"codigo": codigo, "importe": importe})
+                    continue
+                
+                # 3. Verificar garantías pendientes
+                garantia_ids = orden.get("ordenes_garantia", [])
+                tiene_garantia_pendiente = False
+                if garantia_ids:
+                    estados_finales = ["enviado", "cancelado"]
+                    garantias_pendientes = await db.ordenes.count_documents({
+                        "id": {"$in": garantia_ids},
+                        "estado": {"$nin": estados_finales}
+                    })
+                    tiene_garantia_pendiente = garantias_pendientes > 0
+                
+                if tiene_garantia_pendiente:
+                    # Tiene garantía pendiente - registrar pero NO marcar como pagado
+                    liquidacion_data["estado"] = "pendiente"
+                    liquidacion_data["tiene_garantia"] = True
+                    liquidacion_data["nota_auto"] = "Garantía pendiente de resolución"
+                    liquidacion_data["orden_id"] = orden["id"]
+                    if existente:
+                        await db.liquidaciones.update_one({"codigo_siniestro": codigo}, {"$set": liquidacion_data})
+                    else:
+                        liquidacion_data["created_at"] = fecha_pago
+                        await db.liquidaciones.insert_one(liquidacion_data)
+                    pendientes_garantia.append({
+                        "codigo": codigo, "importe": importe,
+                        "numero_orden": orden.get("numero_orden"),
+                        "motivo": "Garantía pendiente"
+                    })
+                    continue
+                
+                # 4. Todo OK → Marcar como PAGADO automáticamente
+                liquidacion_data["estado"] = "pagado"
+                liquidacion_data["fecha_pago"] = fecha_pago
+                liquidacion_data["orden_id"] = orden["id"]
+                liquidacion_data["auto_liquidado"] = True
                 
                 if existente:
-                    # Actualizar sin cambiar estado si ya está pagado
-                    if existente.get("estado") != "pagado":
-                        await db.liquidaciones.update_one(
-                            {"codigo_siniestro": codigo},
-                            {"$set": liquidacion_data}
-                        )
-                    actualizados.append(codigo)
+                    await db.liquidaciones.update_one({"codigo_siniestro": codigo}, {"$set": liquidacion_data})
                 else:
-                    liquidacion_data["created_at"] = datetime.now(timezone.utc).isoformat()
+                    liquidacion_data["created_at"] = fecha_pago
                     await db.liquidaciones.insert_one(liquidacion_data)
-                    importados.append(codigo)
+                
+                # Actualizar la orden
+                await db.ordenes.update_one(
+                    {"id": orden["id"]},
+                    {"$set": {
+                        "liquidacion_registrada": True,
+                        "liquidacion_fecha": fecha_pago,
+                        "liquidacion_mes": mes,
+                        "updated_at": fecha_pago
+                    }}
+                )
+                
+                auto_liquidados.append({
+                    "codigo": codigo, "importe": importe,
+                    "numero_orden": orden.get("numero_orden"),
+                    "cliente": orden.get("cliente_nombre")
+                })
                     
             except Exception as e:
                 errores.append({"fila": row_idx, "error": str(e)})
         
-        # Calcular total importado
-        total_importe = 0
-        for codigo in importados + actualizados:
-            liq = await db.liquidaciones.find_one({"codigo_siniestro": codigo}, {"importe_presupuesto": 1})
-            if liq:
-                total_importe += liq.get("importe_presupuesto", 0)
+        total_liquidado = sum(i["importe"] for i in auto_liquidados)
+        total_pendiente = sum(i["importe"] for i in pendientes_garantia) + sum(i["importe"] for i in no_encontrados)
         
         return {
             "success": True,
             "mes": mes,
-            "importados": len(importados),
-            "actualizados": len(actualizados),
-            "errores": len(errores),
-            "total_procesados": len(importados) + len(actualizados),
-            "total_importe": round(total_importe, 2),
-            "codigos_importados": importados[:20],  # Primeros 20
+            "resumen": {
+                "auto_liquidados": len(auto_liquidados),
+                "pendientes_garantia": len(pendientes_garantia),
+                "ya_pagados": len(ya_pagados),
+                "no_encontrados": len(no_encontrados),
+                "errores": len(errores),
+                "total_liquidado": round(total_liquidado, 2),
+                "total_pendiente": round(total_pendiente, 2)
+            },
+            "auto_liquidados": auto_liquidados,
+            "pendientes_garantia": pendientes_garantia,
+            "ya_pagados": ya_pagados,
+            "no_encontrados": no_encontrados,
             "detalles_errores": errores[:10] if errores else []
         }
         

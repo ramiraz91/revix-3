@@ -83,6 +83,10 @@ export default function Liquidaciones() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Import result
+  const [importResult, setImportResult] = useState(null);
+  const [showImportResult, setShowImportResult] = useState(false);
+
   useEffect(() => {
     cargarDatos();
     cargarHistorial();
@@ -141,7 +145,20 @@ export default function Liquidaciones() {
     setImporting(true);
     try {
       const res = await liquidacionesAPI.importarExcel(file, mesSeleccionado);
-      toast.success(`Importados ${res.importados} siniestros, ${res.actualizados} actualizados. Total: ${res.total_importe}€`);
+      const r = res.resumen || {};
+      setImportResult(res);
+      setShowImportResult(true);
+      
+      if (r.auto_liquidados > 0) {
+        toast.success(`${r.auto_liquidados} siniestros liquidados automáticamente (${r.total_liquidado}€)`);
+      }
+      if (r.pendientes_garantia > 0) {
+        toast.warning(`${r.pendientes_garantia} siniestros con garantía pendiente`);
+      }
+      if (r.no_encontrados > 0) {
+        toast.info(`${r.no_encontrados} códigos no encontrados en el sistema`);
+      }
+      
       cargarDatos();
       cargarHistorial();
     } catch (error) {
@@ -616,6 +633,89 @@ export default function Liquidaciones() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNotasModal(false)}>Cancelar</Button>
             <Button onClick={handleGuardarNotas}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Resultado de Importación */}
+      <Dialog open={showImportResult} onOpenChange={setShowImportResult}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resultado de Importación</DialogTitle>
+          </DialogHeader>
+          {importResult && (
+            <div className="space-y-4">
+              {/* Resumen */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-green-50 rounded-lg text-center border border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{importResult.resumen?.auto_liquidados || 0}</p>
+                  <p className="text-xs text-green-700">Auto-liquidados</p>
+                  <p className="text-sm font-medium text-green-600">{importResult.resumen?.total_liquidado?.toFixed(2) || '0.00'}€</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center border border-amber-200">
+                  <p className="text-2xl font-bold text-amber-600">{importResult.resumen?.pendientes_garantia || 0}</p>
+                  <p className="text-xs text-amber-700">Pendientes (garantía)</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg text-center border border-gray-200">
+                  <p className="text-2xl font-bold text-gray-500">{importResult.resumen?.ya_pagados || 0}</p>
+                  <p className="text-xs text-gray-600">Ya pagados (duplicados)</p>
+                </div>
+                <div className="p-3 bg-red-50 rounded-lg text-center border border-red-200">
+                  <p className="text-2xl font-bold text-red-500">{importResult.resumen?.no_encontrados || 0}</p>
+                  <p className="text-xs text-red-600">No encontrados</p>
+                </div>
+              </div>
+
+              {/* Auto-liquidados */}
+              {(importResult.auto_liquidados || []).length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Liquidados automáticamente</p>
+                  <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                    {importResult.auto_liquidados.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs p-1.5 bg-green-50 rounded">
+                        <span className="font-mono">{item.codigo}</span>
+                        <span className="text-muted-foreground">{item.numero_orden}</span>
+                        <span className="font-medium">{item.importe}€</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pendientes garantía */}
+              {(importResult.pendientes_garantia || []).length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-amber-700 mb-1 flex items-center gap-1"><Shield className="w-4 h-4" /> Pendientes por garantía</p>
+                  <div className="space-y-1 max-h-[100px] overflow-y-auto">
+                    {importResult.pendientes_garantia.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs p-1.5 bg-amber-50 rounded">
+                        <span className="font-mono">{item.codigo}</span>
+                        <span className="text-muted-foreground">{item.numero_orden} - {item.motivo}</span>
+                        <span className="font-medium">{item.importe}€</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No encontrados */}
+              {(importResult.no_encontrados || []).length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-red-600 mb-1 flex items-center gap-1"><AlertCircle className="w-4 h-4" /> No encontrados en el sistema</p>
+                  <div className="space-y-1 max-h-[100px] overflow-y-auto">
+                    {importResult.no_encontrados.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs p-1.5 bg-red-50 rounded">
+                        <span className="font-mono">{item.codigo}</span>
+                        <span className="font-medium">{item.importe}€</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setShowImportResult(false)}>Cerrar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

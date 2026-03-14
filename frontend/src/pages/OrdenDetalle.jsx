@@ -306,8 +306,8 @@ export default function OrdenDetalle() {
     setCreandoGarantia(true);
     try {
       const response = await ordenesAPI.crearGarantia(id);
-      toast.success('Orden de garantía creada');
-      navigate(`/ordenes/${response.data.id}`);
+      toast.success(`Orden de garantía ${response.data.orden_garantia?.numero_orden} creada`);
+      navigate(`/ordenes/${response.data.orden_garantia?.id}`);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al crear garantía');
     } finally {
@@ -1001,6 +1001,35 @@ export default function OrdenDetalle() {
 
       {/* Blocked Warning - Using refactored component */}
       <OrdenBloqueadaWarning orden={orden} onAbrirDesbloqueo={handleAbrirDesbloqueo} />
+
+      {/* Garantías vinculadas */}
+      {ordenesGarantia.length > 0 && (
+        <Card className="border-red-200 bg-red-50/30" data-testid="garantias-vinculadas">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-red-700">
+              <Shield className="w-4 h-4" />
+              Órdenes de Garantía ({ordenesGarantia.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {ordenesGarantia.map((g) => (
+                <div key={g.id} className="flex items-center justify-between p-2 bg-white rounded border cursor-pointer hover:bg-red-50"
+                     onClick={() => navigate(`/ordenes/${g.id}`)}
+                     data-testid={`garantia-link-${g.id}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-medium text-sm">{g.numero_orden}</span>
+                    <Badge className={`badge-status status-${g.estado} text-[10px]`}>{g.estado}</Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(g.created_at).toLocaleDateString('es-ES')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Métricas de Tiempo */}
       {metricas && (

@@ -103,6 +103,15 @@ export function OrdenDetalleHeader({
               )}
             </div>
             <p className="text-muted-foreground mt-1">
+              {orden.es_garantia && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 mr-2">
+                  <Shield className="w-3 h-3" />
+                  GARANTÍA de {orden.numero_orden_padre || 'orden padre'}
+                  {orden.orden_padre_id && (
+                    <a href={`/ordenes/${orden.orden_padre_id}`} className="underline ml-1 hover:text-red-800">Ver original</a>
+                  )}
+                </span>
+              )}
               {orden.numero_autorizacion && (
                 <span className="text-xs font-mono mr-3">OT: {orden.numero_orden}</span>
               )}

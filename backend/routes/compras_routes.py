@@ -30,6 +30,7 @@ class ProductoFactura(BaseModel):
     linea: int
     descripcion: str
     codigo_referencia: Optional[str] = None
+    ean: Optional[str] = None  # Código EAN / código de barras
     cantidad: int = 1
     precio_unitario: float = 0
     precio_total: float = 0
@@ -115,7 +116,8 @@ Extrae la siguiente información en formato JSON:
         {
             "linea": 1,
             "descripcion": "descripción del producto",
-            "codigo_referencia": "código o referencia si existe",
+            "codigo_referencia": "código SKU o referencia del proveedor si existe",
+            "ean": "código EAN, código de barras, GTIN o UPC si existe (suele ser numérico de 8-13 dígitos)",
             "cantidad": número,
             "precio_unitario": número (sin IVA),
             "precio_total": número (sin IVA),
@@ -125,6 +127,14 @@ Extrae la siguiente información en formato JSON:
     "confianza_extraccion": número del 0 al 100 indicando confianza en la extracción,
     "notas_extraccion": "cualquier nota o advertencia sobre la extracción"
 }
+
+IMPORTANTE sobre códigos de producto:
+- "codigo_referencia": es el código SKU o referencia interna del proveedor (puede ser alfanumérico, ej: "REP-1234", "MS-LCD-IP14")
+- "ean": es el código de barras EAN/GTIN (normalmente numérico de 8-13 dígitos, ej: "8435607600123") o referencia de fabricante (ej: "661-56050")
+- Si la factura muestra columnas como "Ref.", "Código", "SKU", "Part Number" → va en codigo_referencia
+- Si la factura muestra "EAN", "Código de barras", "GTIN", "UPC" → va en ean
+- Si solo hay un código y parece numérico de 8-13 dígitos, ponlo en ean
+- Si solo hay un código alfanumérico corto, ponlo en codigo_referencia
 
 Si no puedes leer algún dato, déjalo como null. Los precios deben ser números sin símbolos de moneda.
 Responde SOLO con el JSON, sin texto adicional."""
@@ -184,6 +194,7 @@ Responde SOLO con el JSON, sin texto adicional."""
                 linea=p.get("linea", i + 1),
                 descripcion=p.get("descripcion", ""),
                 codigo_referencia=p.get("codigo_referencia"),
+                ean=p.get("ean"),
                 cantidad=int(p.get("cantidad", 1)),
                 precio_unitario=float(p.get("precio_unitario", 0)),
                 precio_total=float(p.get("precio_total", 0)),
@@ -216,7 +227,6 @@ async def buscar_coincidencias_inventario(productos: List[ProductoFactura]) -> L
     productos_actualizados = []
     
     for producto in productos:
-        # Buscar por código de referencia o nombre similar
         query = {"$or": []}
         
         if producto.codigo_referencia:
@@ -224,8 +234,11 @@ async def buscar_coincidencias_inventario(productos: List[ProductoFactura]) -> L
             query["$or"].append({"codigo_barras": producto.codigo_referencia})
             query["$or"].append({"sku": {"$regex": producto.codigo_referencia, "$options": "i"}})
         
+        if producto.ean:
+            query["$or"].append({"ean": producto.ean})
+            query["$or"].append({"codigo_barras": producto.ean})
+        
         if producto.descripcion:
-            # Buscar por palabras clave del nombre
             palabras = producto.descripcion.split()[:3]
             for palabra in palabras:
                 if len(palabra) > 3:
@@ -369,16 +382,27 @@ async def confirmar_compra(
             # Actualizar stock existente
             cantidad = producto.get("cantidad", 1)
             
+            update_fields = {
+                "precio_compra": producto.get("precio_unitario", 0),
+                "ultimo_proveedor_id": compra.proveedor_id,
+                "ultima_compra": ahora.isoformat(),
+                "updated_at": ahora.isoformat()
+            }
+            
+            # Si la factura trae EAN o referencia, actualizar en el repuesto
+            ean_factura = producto.get("ean")
+            ref_factura = producto.get("codigo_referencia")
+            if ean_factura:
+                update_fields["ean"] = ean_factura
+                update_fields["codigo_barras"] = ean_factura
+            if ref_factura:
+                update_fields["sku_proveedor"] = ref_factura
+            
             await db.repuestos.update_one(
                 {"id": repuesto_id},
                 {
                     "$inc": {"stock": cantidad},
-                    "$set": {
-                        "precio_compra": producto.get("precio_unitario", 0),
-                        "ultimo_proveedor_id": compra.proveedor_id,
-                        "ultima_compra": ahora.isoformat(),
-                        "updated_at": ahora.isoformat()
-                    }
+                    "$set": update_fields
                 }
             )
             
@@ -398,15 +422,19 @@ async def confirmar_compra(
             count = await db.repuestos.count_documents({})
             sku = f"{prefijo}-{count + 1:04d}"
             
+            ean_factura = producto.get("ean")
+            ref_factura = producto.get("codigo_referencia")
+            
             nuevo_repuesto = {
                 "id": nuevo_repuesto_id,
                 "nombre": producto.get("descripcion", "Sin nombre"),
                 "categoria": categoria,
                 "sku": sku,
-                "sku_proveedor": producto.get("codigo_referencia"),
-                "codigo_barras": producto.get("codigo_referencia") or "",
+                "sku_proveedor": ref_factura or "",
+                "ean": ean_factura or None,
+                "codigo_barras": ean_factura or ref_factura or "",
                 "precio_compra": producto.get("precio_unitario", 0),
-                "precio_venta": round(producto.get("precio_unitario", 0) * 1.5, 2),  # Margen 50% sugerido
+                "precio_venta": round(producto.get("precio_unitario", 0) * 1.5, 2),
                 "stock": producto.get("cantidad", 1),
                 "stock_minimo": 5,
                 "proveedor_id": compra.proveedor_id,

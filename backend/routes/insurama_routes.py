@@ -596,9 +596,36 @@ async def listar_presupuestos_insurama(
 
 @router.post("/sync")
 async def forzar_sincronizacion(background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
-    """Fuerza una sincronización de presupuestos en background"""
+    """Fuerza una sincronización de presupuestos y activa el polling si no está activo"""
+    # Sincronizar presupuestos
     background_tasks.add_task(_sync_presupuestos_cache, 50)
-    return {"message": "Sincronización iniciada en background"}
+    
+    # Verificar y activar el agente si no está corriendo
+    agente_iniciado = False
+    try:
+        from agent.scheduler import start_agent, is_agent_running
+        if not is_agent_running():
+            # Asegurar que agent_config existe y está activo
+            await db.configuracion.update_one(
+                {"tipo": "agent_config"},
+                {"$set": {
+                    "datos.estado": "activo",
+                    "datos.poll_interval": 1800,
+                    "datos.auto_create_orders": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }},
+                upsert=True
+            )
+            start_agent()
+            agente_iniciado = True
+            logger.info("Agente de polling iniciado tras sincronización forzada")
+    except Exception as e:
+        logger.error(f"Error iniciando agente: {e}")
+    
+    return {
+        "message": "Sincronización iniciada en background",
+        "agente_iniciado": agente_iniciado
+    }
 
 @router.get("/presupuesto/{codigo}")
 async def obtener_presupuesto_insurama(

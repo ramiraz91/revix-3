@@ -94,30 +94,25 @@ class MobileSentrixClient:
     def _percent_encode(self, s: str) -> str:
         return urllib.parse.quote(str(s), safe='')
     
-    def _generate_signature(self, method: str, url: str, params: dict) -> str:
-        """Generate OAuth 1.0a signature"""
-        # Sort parameters
+    def _generate_signature(self, method: str, url: str, params: dict, token_secret: str = None) -> str:
+        """Generate OAuth 1.0a HMAC-SHA1 signature"""
         sorted_params = sorted(params.items())
         param_string = '&'.join([f"{self._percent_encode(k)}={self._percent_encode(v)}" 
                                   for k, v in sorted_params])
         
-        # Create signature base string
         base_string = '&'.join([
             method.upper(),
             self._percent_encode(url),
             self._percent_encode(param_string)
         ])
         
-        # Create signing key
-        signing_key = f"{self._percent_encode(self.consumer_secret)}&"
-        if self.access_token_secret:
-            signing_key += self._percent_encode(self.access_token_secret)
+        ts = token_secret if token_secret is not None else (self.access_token_secret or '')
+        signing_key = f"{self._percent_encode(self.consumer_secret)}&{self._percent_encode(ts)}"
         
-        # Generate HMAC-SHA256 signature
         signature = hmac.new(
             signing_key.encode('utf-8'),
             base_string.encode('utf-8'),
-            hashlib.sha256
+            hashlib.sha1
         ).digest()
         
         return base64.b64encode(signature).decode('utf-8')
@@ -127,7 +122,7 @@ class MobileSentrixClient:
         oauth_params = {
             'oauth_consumer_key': self.consumer_key,
             'oauth_nonce': self._generate_nonce(),
-            'oauth_signature_method': 'HMAC-SHA256',
+            'oauth_signature_method': 'HMAC-SHA1',
             'oauth_timestamp': self._generate_timestamp(),
             'oauth_version': '1.0'
         }
@@ -153,73 +148,92 @@ class MobileSentrixClient:
         return f'OAuth {header_params}'
     
     def get_authorization_url(self, callback_url: str, for_admin: bool = False) -> str:
-        """Generate URL for user authorization (Step 1)"""
-        endpoint = "/oauth/authorize/identifier"
-        params = {
-            'consumer': 'revix.es',
-            'authtype': '1',
-            'flowentry': 'SignIn',
-            'consumer_key': self.consumer_key,
-            'consumer_secret': self.consumer_secret,
-            'callback': callback_url
-        }
-        
-        if for_admin:
-            params['authorize_for'] = 'admin'
-        
-        query_string = '&'.join([f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items()])
-        return f"{self.base_url}{endpoint}?{query_string}"
+        """Generate URL for user authorization (Step 1 of 3-legged OAuth)"""
+        # This is not used directly anymore - see get_request_token
+        endpoint = "/admin/oauth_authorize"
+        return f"{self.base_url}{endpoint}"
     
-    async def exchange_tokens(self, oauth_token: str, oauth_verifier: str) -> dict:
-        """Exchange oauth_token and oauth_verifier for access_token (Step 2)"""
-        endpoint = "/oauth/authorize/identifiercallback"
-        url = f"{self.base_url}{endpoint}"
+    async def get_request_token(self, callback_url: str) -> dict:
+        """Step 1: Get request token from /oauth/initiate"""
+        url = f"{self.base_url}/oauth/initiate"
         
-        # Intentar primero con JSON, luego con form-urlencoded si falla
-        payload = {
-            "consumer_key": self.consumer_key,
-            "consumer_secret": self.consumer_secret,
-            "oauth_token": oauth_token,
-            "oauth_verifier": oauth_verifier
+        oauth_params = {
+            'oauth_callback': callback_url,
+            'oauth_consumer_key': self.consumer_key,
+            'oauth_nonce': self._generate_nonce(),
+            'oauth_signature_method': 'HMAC-SHA1',
+            'oauth_timestamp': self._generate_timestamp(),
+            'oauth_version': '1.0'
         }
+        
+        signature = self._generate_signature('POST', url, oauth_params, token_secret='')
+        oauth_params['oauth_signature'] = signature
+        
+        header_params = ', '.join([
+            f'{self._percent_encode(k)}="{self._percent_encode(v)}"'
+            for k, v in sorted(oauth_params.items())
+        ])
+        auth_header = f'OAuth {header_params}'
         
         try:
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                # Intento 1: JSON
-                headers_json = {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'User-Agent': 'NEXORA-CRM/1.0 (Revix.es Integration)'
-                }
-                response = await client.post(url, json=payload, headers=headers_json)
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.post(url, headers={'Authorization': auth_header, 'Accept': '*/*'})
+                
+                if response.status_code == 200:
+                    # Parse response: oauth_token=xxx&oauth_token_secret=yyy&oauth_callback_confirmed=true
+                    data = dict(urllib.parse.parse_qsl(response.text))
+                    if data.get('oauth_token'):
+                        authorize_url = f"{self.base_url}/admin/oauth_authorize?oauth_token={data['oauth_token']}"
+                        return {
+                            "success": True,
+                            "oauth_token": data['oauth_token'],
+                            "oauth_token_secret": data['oauth_token_secret'],
+                            "authorize_url": authorize_url
+                        }
+                    return {"success": False, "error": f"Respuesta inesperada: {response.text[:200]}"}
+                else:
+                    return {"success": False, "error": f"HTTP {response.status_code}: {response.text[:200]}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def exchange_tokens(self, oauth_token: str, oauth_verifier: str, request_token_secret: str = '') -> dict:
+        """Step 3: Exchange request token + verifier for access token via /oauth/token"""
+        url = f"{self.base_url}/oauth/token"
+        
+        oauth_params = {
+            'oauth_consumer_key': self.consumer_key,
+            'oauth_nonce': self._generate_nonce(),
+            'oauth_signature_method': 'HMAC-SHA1',
+            'oauth_timestamp': self._generate_timestamp(),
+            'oauth_token': oauth_token,
+            'oauth_verifier': oauth_verifier,
+            'oauth_version': '1.0'
+        }
+        
+        signature = self._generate_signature('POST', url, oauth_params, token_secret=request_token_secret)
+        oauth_params['oauth_signature'] = signature
+        
+        header_params = ', '.join([
+            f'{self._percent_encode(k)}="{self._percent_encode(v)}"'
+            for k, v in sorted(oauth_params.items())
+        ])
+        auth_header = f'OAuth {header_params}'
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.post(url, headers={'Authorization': auth_header, 'Accept': '*/*'})
                 
                 logger.info(f"Token exchange response: {response.status_code} - {response.text[:300]}")
                 
-                # Si falla con JSON, probar form-urlencoded
-                if response.status_code != 200 or '"status":0' in response.text:
-                    logger.info("Reintentando con form-urlencoded...")
-                    headers_form = {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                    form_data = f"consumer_key={self.consumer_key}&consumer_secret={self.consumer_secret}&oauth_token={oauth_token}&oauth_verifier={oauth_verifier}"
-                    response = await client.post(url, content=form_data, headers=headers_form)
-                    logger.info(f"Token exchange (form) response: {response.status_code} - {response.text[:300]}")
-                
                 if response.status_code == 200:
-                    try:
-                        data = response.json()
-                        if data.get("status") == 1 and data.get("data"):
-                            return {
-                                "success": True,
-                                "access_token": data["data"].get("access_token"),
-                                "access_token_secret": data["data"].get("access_token_secret")
-                            }
-                        else:
-                            return {"success": False, "error": f"Respuesta de MobileSentrix: {data.get('messgae', data)}"}
-                    except:
-                        return {"success": False, "error": f"Respuesta no JSON: {response.text[:200]}"}
+                    data = dict(urllib.parse.parse_qsl(response.text))
+                    if data.get('oauth_token'):
+                        return {
+                            "success": True,
+                            "access_token": data['oauth_token'],
+                            "access_token_secret": data['oauth_token_secret']
+                        }
+                    return {"success": False, "error": f"Respuesta inesperada: {response.text[:200]}"}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}: {response.text[:200]}"}
         except Exception as e:
@@ -231,15 +245,15 @@ class MobileSentrixClient:
         if not self.access_token:
             return {"success": False, "error": "No hay Access Token configurado. Completa el proceso de autorización primero."}
         
-        # MobileSentrix usa /api/rest/ no /rest/V1/
         url = f"{self.base_url}/api/rest{endpoint}"
         
-        # Usar Bearer token simple (no OAuth header)
+        auth_header = self._get_oauth_header(method, url, params)
+        
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': 'NEXORA-CRM/1.0 (Revix.es Integration)',
-            'Authorization': f'Bearer {self.access_token}'
+            'User-Agent': 'Revix-CRM/1.0',
+            'Authorization': auth_header
         }
         
         try:
@@ -530,16 +544,13 @@ async def save_config(config: MobileSentrixConfig, user: dict = Depends(require_
 
 @router.get("/oauth/start")
 async def start_oauth(request: Request, user: dict = Depends(require_master)):
-    """Iniciar proceso de autorización OAuth - devuelve URL para abrir en navegador"""
+    """Iniciar proceso OAuth 1.0a - Paso 1: obtener request token y URL de autorización"""
     config = await get_mobilesentrix_config()
     if not config.get("consumer_key") or not config.get("consumer_secret"):
         raise HTTPException(status_code=400, detail="Primero guarda Consumer Key y Consumer Secret")
     
-    # Construir callback URL desde el request
-    # Primero intentar desde env, si no desde el request
     frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
     if not frontend_url:
-        # Construir desde el request
         scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
         host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
         frontend_url = f"{scheme}://{host}"
@@ -549,51 +560,62 @@ async def start_oauth(request: Request, user: dict = Depends(require_master)):
     client = MobileSentrixClient(
         consumer_key=config["consumer_key"],
         consumer_secret=config["consumer_secret"],
-        environment=config.get("environment", "staging")
+        environment=config.get("environment", "production")
     )
     
-    auth_url = client.get_authorization_url(callback_url, for_admin=False)
+    result = await client.get_request_token(callback_url)
     
-    return {
-        "authorization_url": auth_url,
-        "callback_url": callback_url,
-        "instructions": "Abre la URL de autorización en tu navegador y completa el login en MobileSentrix"
-    }
+    if result.get("success"):
+        # Store request token secret for later exchange
+        config["_request_token"] = result["oauth_token"]
+        config["_request_token_secret"] = result["oauth_token_secret"]
+        await save_mobilesentrix_config(config)
+        
+        return {
+            "authorization_url": result["authorize_url"],
+            "callback_url": callback_url,
+            "instructions": "Abre la URL de autorización en tu navegador, inicia sesión en MobileSentrix y autoriza la aplicación"
+        }
+    else:
+        raise HTTPException(status_code=400, detail=result.get("error", "Error obteniendo request token"))
 
 @router.get("/oauth/callback")
 async def oauth_callback(oauth_token: str = None, oauth_verifier: str = None):
     """Callback de OAuth - recibe tokens del navegador y los intercambia por Access Token"""
     if not oauth_token or not oauth_verifier:
-        # Mostrar página de error
-        return RedirectResponse(url="/mobilesentrix?error=missing_tokens")
+        return RedirectResponse(url="/crm/integraciones/mobilesentrix?error=missing_tokens")
     
     config = await get_mobilesentrix_config()
     if not config.get("consumer_key") or not config.get("consumer_secret"):
-        return RedirectResponse(url="/mobilesentrix?error=not_configured")
+        return RedirectResponse(url="/crm/integraciones/mobilesentrix?error=not_configured")
     
     client = MobileSentrixClient(
         consumer_key=config["consumer_key"],
         consumer_secret=config["consumer_secret"],
-        environment=config.get("environment", "staging")
+        environment=config.get("environment", "production")
     )
     
-    # Intercambiar tokens
-    result = await client.exchange_tokens(oauth_token, oauth_verifier)
+    # Get stored request token secret
+    request_token_secret = config.get("_request_token_secret", "")
+    
+    result = await client.exchange_tokens(oauth_token, oauth_verifier, request_token_secret)
     
     if result.get("success"):
-        # Guardar access tokens en la configuración
         config["access_token"] = result["access_token"]
         config["access_token_secret"] = result["access_token_secret"]
         config["oauth_completed"] = True
         config["oauth_completed_at"] = datetime.now(timezone.utc).isoformat()
+        # Clean up temp tokens
+        config.pop("_request_token", None)
+        config.pop("_request_token_secret", None)
         await save_mobilesentrix_config(config)
         
         logger.info("MobileSentrix OAuth completed successfully")
-        return RedirectResponse(url="/mobilesentrix?oauth=success")
+        return RedirectResponse(url="/crm/integraciones/mobilesentrix?oauth=success")
     else:
         logger.error(f"MobileSentrix OAuth failed: {result.get('error')}")
         error_msg = urllib.parse.quote(result.get("error", "unknown"))
-        return RedirectResponse(url=f"/mobilesentrix?oauth=error&message={error_msg}")
+        return RedirectResponse(url=f"/crm/integraciones/mobilesentrix?oauth=error&message={error_msg}")
 
 @router.post("/oauth/exchange")
 async def exchange_tokens_manual(request: OAuthCallbackRequest, user: dict = Depends(require_master)):
@@ -605,16 +627,19 @@ async def exchange_tokens_manual(request: OAuthCallbackRequest, user: dict = Dep
     client = MobileSentrixClient(
         consumer_key=config["consumer_key"],
         consumer_secret=config["consumer_secret"],
-        environment=config.get("environment", "staging")
+        environment=config.get("environment", "production")
     )
     
-    result = await client.exchange_tokens(request.oauth_token, request.oauth_verifier)
+    request_token_secret = config.get("_request_token_secret", "")
+    result = await client.exchange_tokens(request.oauth_token, request.oauth_verifier, request_token_secret)
     
     if result.get("success"):
         config["access_token"] = result["access_token"]
         config["access_token_secret"] = result["access_token_secret"]
         config["oauth_completed"] = True
         config["oauth_completed_at"] = datetime.now(timezone.utc).isoformat()
+        config.pop("_request_token", None)
+        config.pop("_request_token_secret", None)
         await save_mobilesentrix_config(config)
         
         return {"success": True, "message": "Access Token obtenido correctamente"}

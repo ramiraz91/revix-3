@@ -88,7 +88,7 @@ async def obtener_config_insurama(user: dict = Depends(require_admin)):
 
 @router.post("/config")
 async def guardar_config_insurama(credentials: SumbrokerCredentials, user: dict = Depends(require_admin)):
-    """Guarda las credenciales de Insurama/Sumbroker"""
+    """Guarda las credenciales de Insurama/Sumbroker y activa el agente de polling"""
     # Probar conexión primero
     client = SumbrokerClient(credentials.login, credentials.password)
     test_result = await client.test_connection()
@@ -112,8 +112,30 @@ async def guardar_config_insurama(credentials: SumbrokerCredentials, user: dict 
     if not test_result.get("success"):
         raise HTTPException(status_code=400, detail=f"Error de conexión: {test_result.get('error')}")
     
+    # Activar el agente de polling si la conexión es exitosa
+    try:
+        # Crear/actualizar agent_config para activar el polling
+        await db.configuracion.update_one(
+            {"tipo": "agent_config"},
+            {"$set": {
+                "datos.estado": "activo",
+                "datos.poll_interval": 1800,  # 30 minutos
+                "datos.auto_create_orders": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        
+        # Iniciar el agente de polling
+        from agent.scheduler import start_agent, is_agent_running
+        if not is_agent_running():
+            start_agent()
+            logger.info("Agente de polling Insurama iniciado")
+    except Exception as e:
+        logger.error(f"Error iniciando agente de polling: {e}")
+    
     return {
-        "message": "Credenciales guardadas y verificadas",
+        "message": "Credenciales guardadas y verificadas. Agente de polling activado.",
         "conexion": test_result
     }
 

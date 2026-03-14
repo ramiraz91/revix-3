@@ -35,6 +35,7 @@ CRM/ERP para gestión integral de un taller de reparaciones de dispositivos elec
 - [x] Nuevas Órdenes con polling 2h y badge (v1.3.0)
 - [x] Botón "Consultar Insurama" para polling manual (v1.3.0)
 - [x] Vista detalle completa de pre-ordenes con edición de todos los campos (v1.3.0)
+- [x] KPIs financieros y operativos globales en Dashboard Finanzas (v1.3.1)
 
 ## Pendientes (P0)
 - [ ] Validar notificaciones SMTP en producción

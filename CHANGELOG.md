@@ -7,6 +7,16 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.3.1] - 2026-03-14
+
+### KPIs Financieros y Operativos
+- Nuevos **7 contadores globales** en el Dashboard de Finanzas: Órdenes Totales, Pendientes, Enviadas, Valor Pendientes, Valor Enviadas, Coste Medio/Orden y Ticket Medio
+- Los KPIs son **globales** (no dependen del filtro de periodo)
+- Backend: Nuevo bloque `kpis_ordenes` en `GET /api/finanzas/dashboard`
+- Frontend: Nueva sección "KPIs Operativos (Global)" con tarjetas responsivas
+
+---
+
 ## [1.3.0] - 2026-03-14
 
 ### Nuevas Órdenes - Flujo Insurama Automatizado

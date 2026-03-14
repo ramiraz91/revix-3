@@ -476,3 +476,82 @@ async def verificar_token_reset(token: str):
     if datetime.now(timezone.utc) > expires_at:
         return {"valido": False, "motivo": "El enlace ha caducado"}
     return {"valido": True, "email": record["email"]}
+
+
+
+# ==================== ENDPOINT DE EMERGENCIA ====================
+# Este endpoint permite crear/resetear un usuario master cuando no hay acceso
+# Protegido por una clave secreta que debe configurarse en .env
+
+class EmergencyUserCreate(BaseModel):
+    emergency_key: str
+    email: str
+    password: str
+    nombre: str = "Master"
+    apellidos: str = "Admin"
+
+@router.post("/auth/emergency-access")
+async def crear_usuario_emergencia(data: EmergencyUserCreate):
+    """
+    Endpoint de emergencia para crear/resetear usuario master.
+    Requiere EMERGENCY_ACCESS_KEY en el .env del backend.
+    
+    IMPORTANTE: Desactivar o cambiar la clave después de usar.
+    """
+    import os
+    
+    # Verificar clave de emergencia
+    emergency_key = os.environ.get("EMERGENCY_ACCESS_KEY")
+    if not emergency_key:
+        raise HTTPException(status_code=403, detail="Acceso de emergencia no configurado")
+    
+    if data.emergency_key != emergency_key:
+        logger.warning(f"Intento de acceso de emergencia fallido para: {data.email}")
+        raise HTTPException(status_code=403, detail="Clave de emergencia incorrecta")
+    
+    # Hashear la contraseña
+    password_hash = hash_password(data.password)
+    
+    # Verificar si el usuario ya existe
+    existing_user = await db.users.find_one({"email": data.email})
+    
+    if existing_user:
+        # Actualizar contraseña del usuario existente
+        await db.users.update_one(
+            {"email": data.email},
+            {
+                "$set": {
+                    "password_hash": password_hash,
+                    "activo": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        logger.info(f"Contraseña reseteada por emergencia para: {data.email}")
+        return {
+            "message": "Contraseña actualizada correctamente",
+            "email": data.email,
+            "action": "password_reset"
+        }
+    else:
+        # Crear nuevo usuario master
+        import uuid
+        new_user = {
+            "id": str(uuid.uuid4()),
+            "email": data.email,
+            "password_hash": password_hash,
+            "nombre": data.nombre,
+            "apellidos": data.apellidos,
+            "role": "master",
+            "activo": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+        logger.info(f"Usuario master creado por emergencia: {data.email}")
+        return {
+            "message": "Usuario master creado correctamente",
+            "email": data.email,
+            "role": "master",
+            "action": "user_created"
+        }

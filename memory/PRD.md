@@ -90,6 +90,14 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - [x] **Sin fotos "durante" para técnico**: Confirmado que TecnicoFotosCard solo tiene tabs ANTES, DESPUÉS y General
 - [x] **Órdenes irreparables pueden finalizarse**: Añadida transición `irreparable → enviado` para poder contabilizar dispositivos irreparables
 
+### Session 8 - Cloudinary Integration (14 Mar 2026)
+- [x] **Integración Cloudinary**: Las fotos ahora se almacenan permanentemente en Cloudinary
+- [x] **Organización por carpetas**: Fotos organizadas en `revix/ordenes/{numero_orden}/{tipo}/`
+- [x] **URLs persistentes**: Las URLs de Cloudinary se guardan en MongoDB y nunca se pierden
+- [x] **Compatibilidad**: Frontend actualizado para manejar tanto URLs de Cloudinary como archivos locales antiguos
+- [x] **Descarga ZIP**: Endpoint actualizado para descargar fotos desde Cloudinary
+- [x] **Credenciales**: Cloud name: dw0exxafh
+
 ## Next Tasks
 1. Probar módulo de Compras con un PDF real de factura
 2. Implementar automatizaciones de Insurama (sincronización de estados)
@@ -107,3 +115,4 @@ Importar código desde repositorio GitHub (ramiraz91/revix) - CRM/ERP para talle
 - ~~Error módulo compras (LlmChat)~~ - COMPLETADO
 - ~~Endpoint descarga ZIP~~ - COMPLETADO
 - ~~División galería de fotos~~ - COMPLETADO
+- ~~Almacenamiento permanente de fotos~~ - COMPLETADO (Cloudinary)

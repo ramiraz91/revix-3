@@ -2327,9 +2327,10 @@ async def subir_evidencia_tecnico(
 
 @router.get("/ordenes/{orden_id}/fotos-zip")
 async def descargar_fotos_zip(orden_id: str, user: dict = Depends(require_auth)):
-    """Descarga todas las fotos de una orden en un archivo ZIP"""
+    """Descarga todas las fotos de una orden en un archivo ZIP (soporta Cloudinary y local)"""
     import zipfile
     import io
+    import httpx
     from fastapi.responses import StreamingResponse
     
     orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
@@ -2360,13 +2361,28 @@ async def descargar_fotos_zip(orden_id: str, user: dict = Depends(require_auth))
     
     # Crear ZIP en memoria
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for categoria, filename in todas_fotos:
-            file_path = UPLOAD_DIR / filename
-            if file_path.exists():
-                # Crear nombre descriptivo para el archivo dentro del ZIP
-                zip_filename = f"{categoria}_{filename}"
-                zip_file.write(file_path, zip_filename)
+    async with httpx.AsyncClient() as client:
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, (categoria, foto_ref) in enumerate(todas_fotos):
+                try:
+                    # Determinar si es URL de Cloudinary o archivo local
+                    if foto_ref.startswith('http'):
+                        # Es URL de Cloudinary - descargar
+                        response = await client.get(foto_ref, timeout=30.0)
+                        if response.status_code == 200:
+                            # Extraer extensión de la URL
+                            ext = foto_ref.split('.')[-1].split('?')[0] if '.' in foto_ref else 'jpg'
+                            zip_filename = f"{categoria}_{idx+1}.{ext}"
+                            zip_file.writestr(zip_filename, response.content)
+                    else:
+                        # Es archivo local
+                        file_path = UPLOAD_DIR / foto_ref
+                        if file_path.exists():
+                            zip_filename = f"{categoria}_{foto_ref}"
+                            zip_file.write(file_path, zip_filename)
+                except Exception as e:
+                    logger.error(f"Error descargando foto {foto_ref}: {e}")
+                    continue
     
     zip_buffer.seek(0)
     

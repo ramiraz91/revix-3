@@ -266,79 +266,6 @@ async def buscar_proveedor_existente(nombre: str, cif: str) -> Optional[dict]:
 
 # ==================== ENDPOINTS ====================
 
-async def registrar_compra_en_contabilidad(compra_id: str, compra: CompraCreate, proveedor: dict, user: dict):
-    """Registra automáticamente la compra como factura de compra en contabilidad."""
-    from datetime import timedelta
-    now = datetime.now(timezone.utc)
-    factura_id = str(uuid.uuid4())
-    año = now.year
-    
-    # Verificar si ya existe
-    existente = await db.facturas.find_one({"tipo": "compra", "referencia_compra_id": compra_id}, {"_id": 0})
-    if existente:
-        return
-    
-    # Generar número de factura de compra
-    ultimo = await db.contabilidad_series.find_one({"tipo": "factura_compra", "año": año})
-    siguiente_num = (ultimo.get("ultimo_numero", 0) if ultimo else 0) + 1
-    numero_factura = f"FC-{año}-{siguiente_num:05d}"
-    
-    # Crear líneas
-    lineas = []
-    for prod in compra.productos:
-        lineas.append({
-            "descripcion": prod.get("descripcion", ""),
-            "cantidad": prod.get("cantidad", 1),
-            "precio_unitario": prod.get("precio_unitario", 0),
-            "iva_porcentaje": prod.get("iva", 21),
-            "subtotal": prod.get("precio_total", 0)
-        })
-    
-    factura_doc = {
-        "id": factura_id,
-        "tipo": "compra",
-        "numero": numero_factura,
-        "numero_factura_proveedor": compra.numero_factura,
-        "proveedor_id": compra.proveedor_id,
-        "proveedor_nombre": proveedor.get("nombre"),
-        "nombre_fiscal": proveedor.get("nombre_fiscal") or proveedor.get("nombre", ""),
-        "nif_cif": proveedor.get("cif") or proveedor.get("nif") or "",
-        "fecha_factura": compra.fecha_factura,
-        "fecha_emision": now.isoformat(),
-        "fecha_vencimiento": (now + timedelta(days=30)).isoformat(),
-        "lineas": lineas,
-        "base_imponible": compra.base_imponible,
-        "total_iva": compra.total_iva,
-        "total": compra.total_factura,
-        "estado": "emitida",
-        "pendiente_cobro": compra.total_factura,
-        "total_pagado": 0,
-        "pagos": [],
-        "año_fiscal": año,
-        "referencia_compra_id": compra_id,
-        "generada_automaticamente": True,
-        "created_at": now.isoformat(),
-        "created_by": user.get("email", "sistema"),
-        "updated_at": now.isoformat()
-    }
-    
-    await db.facturas.insert_one(factura_doc)
-    
-    await db.contabilidad_series.update_one(
-        {"tipo": "factura_compra", "año": año},
-        {"$set": {"ultimo_numero": siguiente_num}},
-        upsert=True
-    )
-    
-    # Marcar compra como contabilizada
-    await db.compras.update_one(
-        {"id": compra_id},
-        {"$set": {"contabilizada": True, "factura_id": factura_id, "updated_at": now.isoformat()}}
-    )
-    
-    logger.info(f"Compra {compra_id} auto-registrada en contabilidad como {numero_factura}")
-
-
 @router.post("/analizar-factura")
 async def analizar_factura(
     archivo: UploadFile = File(...),
@@ -528,12 +455,6 @@ async def confirmar_compra(
     
     # Guardar compra
     await db.compras.insert_one(compra_doc)
-    
-    # === AUTO-REGISTRO EN CONTABILIDAD ===
-    try:
-        await registrar_compra_en_contabilidad(compra_id, compra, proveedor, user)
-    except Exception as e:
-        logger.error(f"Error auto-registrando compra en contabilidad: {e}")
     
     return {
         "success": True,

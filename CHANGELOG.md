@@ -12,9 +12,8 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 ### Auditoría Funcional y Consolidación Financiera
 
 ### Cambios Principales
-- **Auto-facturación de órdenes**: Al pasar una orden a "enviado", se genera automáticamente la factura de venta (FV-YYYY-NNNNN) y se vincula con el albarán
-- **Auto-registro de compras**: Al confirmar una compra, se genera automáticamente la factura de compra (FC-YYYY-NNNNN) en contabilidad
-- **Dashboard Financiero Unificado**: El nuevo hub `/crm/finanzas` ahora integra:
+- **Auto-albarán en ENVIADO**: Al pasar una orden a "enviado", se genera automáticamente albarán si no tiene uno ya (las facturas se emiten manualmente por el usuario)
+- **Dashboard Financiero Unificado**: El nuevo hub `/crm/finanzas` integra:
   - Resumen financiero con KPIs
   - Listado de facturas (venta y compra)
   - Panel de cobros y pagos pendientes
@@ -25,11 +24,12 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 ### Correcciones
 - **Fix: datos no se mostraban en FinanzasDashboard** - Las respuestas axios no extraían `.data` correctamente
 - **Navegación clarificada**: "Dashboard Financiero" renombrado a "Finanzas", "Contabilidad" renombrado a "Facturas y Albaranes"
-- **Flujo Orden → Albarán → Factura** ahora es completamente automático
+- **Flujo Orden → Albarán** confirmado como automático (facturación es manual)
 
 ### Auditoría Completada
 - Mapa completo de módulos, flujos de negocio y conexiones
-- Identificados y resueltos problemas de duplicación entre módulos contabilidad/finanzas
+- Módulo de compras auditado: correctamente conectado con inventario, proveedores, trazabilidad y dashboard financiero
+- Compras reflejan gastos reales en el dashboard financiero sin duplicar facturas
 - Documentados los hallazgos y plan de acción
 
 ---

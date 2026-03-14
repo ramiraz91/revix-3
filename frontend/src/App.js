@@ -180,6 +180,11 @@ function AppRoutes() {
       <Route path="/crm/forgot-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ForgotPassword />} />
       <Route path="/crm/reset-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ResetPassword />} />
       
+      {/* Rutas alternativas sin /crm para compatibilidad */}
+      <Route path="/login" element={<Navigate to="/crm/login" replace />} />
+      <Route path="/forgot-password" element={<Navigate to="/crm/forgot-password" replace />} />
+      <Route path="/reset-password" element={<Navigate to="/crm/reset-password" replace />} />
+      
       <Route path="/crm" element={
         <ProtectedRoute>
           <Layout />

@@ -5,12 +5,33 @@ from pathlib import Path
 from urllib.parse import urlparse
 import os
 import logging
+import sys
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB - with connection options for both local and Atlas
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+# ==================== MONGODB - CONFIGURACIÓN BLINDADA ====================
+mongo_url = os.environ.get('MONGO_URL', '')
+
+# VALIDACIÓN CRÍTICA: No permitir localhost en producción
+if not mongo_url:
+    print("❌ ERROR CRÍTICO: MONGO_URL no está configurada en .env")
+    print("   La aplicación no puede iniciarse sin conexión a la base de datos.")
+    sys.exit(1)
+
+# Detectar si es localhost (entorno de desarrollo)
+is_localhost = 'localhost' in mongo_url or '127.0.0.1' in mongo_url
+
+if is_localhost:
+    print("⚠️  ADVERTENCIA: Usando MongoDB LOCAL (localhost)")
+    print("   Esto es válido SOLO para desarrollo/preview.")
+    print("   Para producción, configura MONGO_URL con MongoDB Atlas.")
+else:
+    # Es MongoDB Atlas u otro servidor remoto
+    parsed = urlparse(mongo_url)
+    host_display = parsed.hostname or "remoto"
+    print(f"✅ MongoDB conectado a: {host_display}")
+
 client = AsyncIOMotorClient(
     mongo_url,
     serverSelectionTimeoutMS=10000,
@@ -20,7 +41,7 @@ client = AsyncIOMotorClient(
 
 db_name = os.environ.get('DB_NAME', 'production')
 db = client[db_name]
-print(f"[CONFIG] Base de datos: {db_name}")
+print(f"✅ Base de datos: {db_name}")
 
 # JWT
 JWT_SECRET = os.environ.get('JWT_SECRET', 'techrepair-secret-key-2026')

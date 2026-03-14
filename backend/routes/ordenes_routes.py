@@ -404,6 +404,176 @@ async def crear_albaran_automatico(orden_id: str, user: dict):
         logger.error(f"Error creando albarán automático para orden {orden_id}: {e}")
 
 
+async def crear_factura_automatica(orden_id: str, user: dict):
+    """
+    Crear factura de venta automáticamente cuando una orden pasa a ENVIADO.
+    Usa el albarán previamente generado, o crea la factura directamente desde la orden.
+    """
+    try:
+        orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+        if not orden:
+            logger.error(f"Factura automática: Orden {orden_id} no encontrada")
+            return
+        
+        # Verificar si ya está facturada
+        if orden.get("facturada"):
+            logger.info(f"Factura automática: Orden {orden.get('numero_orden')} ya facturada")
+            return
+        
+        factura_existente = await db.facturas.find_one({
+            "tipo": "venta", "orden_id": orden_id
+        }, {"_id": 0})
+        if factura_existente:
+            logger.info(f"Factura automática: Ya existe factura para orden {orden.get('numero_orden')}")
+            return
+        
+        cliente_id = orden.get("cliente_id")
+        cliente = await db.clientes.find_one({"id": cliente_id}, {"_id": 0}) if cliente_id else None
+        
+        now = datetime.now(timezone.utc)
+        factura_id = str(uuid.uuid4())
+        año = now.year
+        
+        # Generar número de factura
+        ultimo = await db.contabilidad_series.find_one({"tipo": "factura_venta", "año": año})
+        siguiente_num = (ultimo.get("ultimo_numero", 0) if ultimo else 0) + 1
+        numero_factura = f"FV-{año}-{siguiente_num:05d}"
+        
+        # Construir líneas desde materiales
+        lineas = []
+        base_imponible = 0
+        total_iva = 0
+        desglose_iva = {}
+        
+        for mat in orden.get("materiales", []):
+            if not mat.get("aprobado", True):
+                continue
+            cantidad = mat.get("cantidad", 1)
+            precio = mat.get("precio_unitario", 0) or 0
+            descuento = mat.get("descuento", 0) or 0
+            iva_pct = mat.get("iva", 21) or 21
+            
+            subtotal = round(cantidad * precio * (1 - descuento / 100), 2)
+            iva = round(subtotal * iva_pct / 100, 2)
+            base_imponible += subtotal
+            total_iva += iva
+            
+            iva_key = f"{iva_pct}%"
+            if iva_key not in desglose_iva:
+                desglose_iva[iva_key] = {"base": 0, "cuota": 0}
+            desglose_iva[iva_key]["base"] += subtotal
+            desglose_iva[iva_key]["cuota"] += iva
+            
+            lineas.append({
+                "descripcion": mat.get("nombre", "Material"),
+                "cantidad": cantidad,
+                "precio_unitario": precio,
+                "descuento": descuento,
+                "iva_porcentaje": iva_pct,
+                "subtotal": subtotal,
+                "repuesto_id": mat.get("repuesto_id"),
+                "orden_id": orden_id
+            })
+        
+        # Mano de obra
+        if orden.get("mano_obra", 0) > 0:
+            mo = orden.get("mano_obra", 0)
+            mo_iva = round(mo * 21 / 100, 2)
+            base_imponible += mo
+            total_iva += mo_iva
+            iva_key = "21%"
+            if iva_key not in desglose_iva:
+                desglose_iva[iva_key] = {"base": 0, "cuota": 0}
+            desglose_iva[iva_key]["base"] += mo
+            desglose_iva[iva_key]["cuota"] += mo_iva
+            lineas.append({
+                "descripcion": "Mano de obra",
+                "cantidad": 1,
+                "precio_unitario": mo,
+                "descuento": 0,
+                "iva_porcentaje": 21,
+                "subtotal": mo,
+                "orden_id": orden_id
+            })
+        
+        total = round(base_imponible + total_iva, 2)
+        nombre_fiscal = ""
+        nif_cif = ""
+        if cliente:
+            nombre_fiscal = cliente.get("nombre_fiscal") or f"{cliente.get('nombre', '')} {cliente.get('apellidos', '')}".strip()
+            nif_cif = cliente.get("dni") or cliente.get("nif") or ""
+        
+        factura_doc = {
+            "id": factura_id,
+            "tipo": "venta",
+            "numero": numero_factura,
+            "estado": "emitida",
+            "cliente_id": cliente_id,
+            "cliente_nombre": nombre_fiscal,
+            "nombre_fiscal": nombre_fiscal,
+            "nif_cif": nif_cif,
+            "direccion_fiscal": cliente.get("direccion") if cliente else None,
+            "orden_id": orden_id,
+            "numero_orden": orden.get("numero_orden"),
+            "albaran_id": orden.get("albaran_id"),
+            "albaran_numero": orden.get("albaran_numero"),
+            "lineas": lineas,
+            "base_imponible": round(base_imponible, 2),
+            "total_iva": round(total_iva, 2),
+            "total": total,
+            "desglose_iva": {k: {"base": round(v["base"], 2), "cuota": round(v["cuota"], 2)} for k, v in desglose_iva.items()},
+            "fecha_emision": now.isoformat(),
+            "fecha_vencimiento": (now + timedelta(days=30)).isoformat(),
+            "año_fiscal": año,
+            "metodo_pago": "transferencia",
+            "pagos": [],
+            "total_pagado": 0,
+            "pendiente_cobro": total,
+            "generada_automaticamente": True,
+            "created_by": user.get("email", "sistema"),
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        }
+        
+        await db.facturas.insert_one(factura_doc)
+        
+        # Actualizar serie
+        await db.contabilidad_series.update_one(
+            {"tipo": "factura_venta", "año": año},
+            {"$set": {"ultimo_numero": siguiente_num}},
+            upsert=True
+        )
+        
+        # Marcar orden como facturada
+        await db.ordenes.update_one(
+            {"id": orden_id},
+            {"$set": {"facturada": True, "factura_id": factura_id, "updated_at": now.isoformat()}}
+        )
+        
+        # Marcar albarán como facturado si existe
+        if orden.get("albaran_id"):
+            await db.albaranes.update_one(
+                {"id": orden.get("albaran_id")},
+                {"$set": {"facturado": True, "factura_id": factura_id, "factura_numero": numero_factura}}
+            )
+        
+        logger.info(f"Factura {numero_factura} creada automáticamente para orden {orden.get('numero_orden')}")
+        
+        # Notificación
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": "factura_generada",
+            "mensaje": f"Factura {numero_factura} generada automáticamente para orden {orden.get('numero_orden')} - Total: {total}€",
+            "orden_id": orden_id,
+            "factura_id": factura_id,
+            "leida": False,
+            "created_at": now.isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creando factura automática para orden {orden_id}: {e}")
+
+
 # ==================== AUDITORÍA ====================
 
 async def registrar_auditoria(
@@ -1506,6 +1676,10 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     # Crear albarán automático cuando se pasa a VALIDACION
     if request.nuevo_estado == OrderStatus.VALIDACION:
         asyncio.create_task(crear_albaran_automatico(orden_id, user))
+    
+    # Auto-facturar cuando se pasa a ENVIADO
+    if request.nuevo_estado == OrderStatus.ENVIADO:
+        asyncio.create_task(crear_factura_automatica(orden_id, user))
     
     return {"message": f"Estado cambiado a {request.nuevo_estado.value}"}
 

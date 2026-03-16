@@ -47,6 +47,7 @@ CRM/ERP para gestion integral de un taller de reparaciones de dispositivos elect
 - [x] Indicador de consentimiento legal visible en vista de orden (v1.4.0)
 - [x] Fix bug TablaMaterialesEditable: materiales -> localMateriales (v1.4.0)
 - [x] Preparacion para redeploy: verificacion completa de dependencias, build, env vars (v1.4.0)
+- [x] Deduplicacion Nuevas Ordenes: si codigo ya existe en ordenes, se descarta sin notificar (v1.4.1)
 
 ## Pendientes (P0)
 - [ ] Verificar notificacion automatica por email al crear orden en produccion

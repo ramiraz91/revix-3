@@ -180,6 +180,30 @@ async def poll_insurama_budgets():
 
 async def _handle_new_budget(codigo: str, budget: dict, prc: dict, cb: dict):
     """Create pre_registro for a new Sumbroker budget."""
+    # Verificar si ya existe una orden con este código — descartamos duplicados
+    existing_order = await db.ordenes.find_one(
+        {"numero_autorizacion": codigo}, {"_id": 1}
+    )
+    if existing_order:
+        logger.info(f"Código {codigo} ya tiene orden creada — pre_registro descartado (sin notificación)")
+        # Crear pre_registro silencioso como orden_creada para tracking interno
+        pre_reg_id = str(uuid.uuid4())
+        await db.pre_registros.insert_one({
+            "id": pre_reg_id,
+            "codigo_siniestro": codigo,
+            "estado": EstadoPreRegistro.ORDEN_CREADA.value,
+            "origen": "polling_insurama",
+            "descartado_duplicado": True,
+            "historial": [{
+                "evento": "descartado_duplicado",
+                "fecha": datetime.now(timezone.utc).isoformat(),
+                "detalle": f"Código ya existe en órdenes — no se notifica"
+            }],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return
+
     policy = cb.get("policy") or {}
     client_name = policy.get("complete_name") or \
                   f"{policy.get('name', '')} {policy.get('last_name_1', '')}".strip()
@@ -267,6 +291,29 @@ async def _handle_accepted_budget(codigo: str, pre_reg: dict, budget: dict) -> b
     Budget accepted: mark as pendiente_tramitar for manual review.
     The tramitador will review, add pickup code, and then create the order.
     """
+    # Verificar si ya existe una orden con este código — descartamos duplicados
+    existing_order = await db.ordenes.find_one(
+        {"numero_autorizacion": codigo}, {"_id": 1}
+    )
+    if existing_order:
+        logger.info(f"Código {codigo} ya tiene orden creada — aceptación descartada (sin notificación)")
+        await db.pre_registros.update_one(
+            {"codigo_siniestro": codigo},
+            {"$set": {
+                "estado": EstadoPreRegistro.ORDEN_CREADA.value,
+                "descartado_duplicado": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            },
+            "$push": {
+                "historial": {
+                    "evento": "descartado_duplicado_aceptacion",
+                    "fecha": datetime.now(timezone.utc).isoformat(),
+                    "detalle": f"Código ya existe en órdenes — aceptación descartada"
+                }
+            }}
+        )
+        return False
+
     historial = pre_reg.get("historial", [])
     historial.append({
         "evento": "presupuesto_aceptado_polling",

@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-03-01T21:31:43.313030",
-  "api_url": "https://repair-crm-dev.preview.emergentagent.com",
+  "api_url": "https://repair-crm-system-1.preview.emergentagent.com",
   "results": [
     {
       "endpoint": "/api/ordenes",

@@ -102,9 +102,9 @@
     "material-search-input"
   ],
   "frontend_pages_verified": {
-    "login": "https://repair-crm-dev.preview.emergentagent.com/login - Working",
-    "dashboard": "https://repair-crm-dev.preview.emergentagent.com/crm/dashboard - Working",
-    "ordenes": "https://repair-crm-dev.preview.emergentagent.com/crm/ordenes - Working (shows 0 orders)"
+    "login": "https://repair-crm-system-1.preview.emergentagent.com/login - Working",
+    "dashboard": "https://repair-crm-system-1.preview.emergentagent.com/crm/dashboard - Working",
+    "ordenes": "https://repair-crm-system-1.preview.emergentagent.com/crm/ordenes - Working (shows 0 orders)"
   },
   "limitations": [
     "Cannot test full re-presupuesto UI flow (no orders in database)",

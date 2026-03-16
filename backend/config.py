@@ -82,7 +82,7 @@ SMTP_SECURE = os.environ.get('SMTP_SECURE', 'true').lower() == 'true'
 SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USER)
 
 # URLs
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://repair-crm-dev.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://repair-crm-system-1.preview.emergentagent.com')
 
 # Upload directory
 UPLOAD_DIR = ROOT_DIR / "uploads"

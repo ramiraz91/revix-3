@@ -86,9 +86,12 @@ export default function Seguimiento() {
   const [empresaConfig, setEmpresaConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
-  // Check URL params and load config on mount
+  const [showRecoverForm, setShowRecoverForm] = useState(false);
+  const [recoverData, setRecoverData] = useState({ email: '', telefono: '', dni: '' });
+  const [recoverLoading, setRecoverLoading] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+  // Check URL params and load config on mount
     const urlToken = params.get('codigo');
     if (urlToken) {
       setToken(urlToken.toUpperCase());
@@ -132,10 +135,16 @@ export default function Seguimiento() {
     try {
       const response = await seguimientoAPI.verificar(token.trim(), telefono.trim());
       const ordenData = response.data.orden || response.data;
+      const yaAcepto = response.data.ya_acepto_legal;
       
-      // Mostrar modal legal antes de enseñar el estado
-      setPendingOrden(ordenData);
-      setShowLegalModal(true);
+      if (yaAcepto) {
+        // Ya aceptó antes, mostrar directamente
+        setOrden(ordenData);
+      } else {
+        // Primera vez, mostrar modal legal
+        setPendingOrden(ordenData);
+        setShowLegalModal(true);
+      }
     } catch (err) {
       const message = err.response?.data?.detail || 'Error al buscar la orden';
       setError(message);
@@ -198,6 +207,25 @@ export default function Seguimiento() {
     return text.replace(/\[NOMBRE_EMPRESA\]/g, nombre);
   };
 
+  const handleRecover = async (e) => {
+    e.preventDefault();
+    if (!recoverData.email && !recoverData.telefono) {
+      toast.error('Introduce al menos tu email o teléfono');
+      return;
+    }
+    setRecoverLoading(true);
+    try {
+      const res = await seguimientoAPI.recuperar(recoverData);
+      toast.success(res.data.message);
+      setShowRecoverForm(false);
+      setRecoverData({ email: '', telefono: '', dni: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se encontraron datos');
+    } finally {
+      setRecoverLoading(false);
+    }
+  };
+
   const openPreview = (fileName) => {
     setPreviewImage(getUploadUrl(fileName));
     setShowImagePreview(true);
@@ -219,24 +247,12 @@ export default function Seguimiento() {
       {/* Header */}
       <header className="bg-white border-b shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          {logoUrl ? (
-            <img 
-              src={getUploadUrl(logoUrl)} 
-              alt={empresaConfig?.nombre || 'Logo'}
-              className="h-10 object-contain"
-              style={{ 
-                maxWidth: empresaConfig?.logo?.ancho_web || 200,
-                maxHeight: empresaConfig?.logo?.alto_web || 40 
-              }}
-            />
-          ) : (
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <Smartphone className="w-5 h-5 text-white" />
-            </div>
-          )}
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+            <Smartphone className="w-5 h-5 text-white" />
+          </div>
           <div>
-            <h1 className="font-bold text-lg">{empresaConfig?.nombre || 'Mi Empresa'}</h1>
-            <p className="text-xs text-muted-foreground">Portal de Seguimiento</p>
+            <h1 className="font-bold text-lg">Portal de Seguimiento</h1>
+            <p className="text-xs text-muted-foreground">Consulta el estado de tu reparación</p>
           </div>
         </div>
       </header>
@@ -309,9 +325,46 @@ export default function Seguimiento() {
               </CardContent>
             </Card>
 
-            <div className="text-center text-sm text-muted-foreground">
-              <p>¿No tienes el código? Revisa el email que te enviamos al crear la orden.</p>
-              <p className="mt-1">También puedes escribirnos a <a href="mailto:help@revix.es" className="text-blue-600 hover:underline font-medium">help@revix.es</a></p>
+            <div className="text-center text-sm text-muted-foreground space-y-3">
+              <p>¿No tienes el código?</p>
+              {!showRecoverForm ? (
+                <Button variant="link" onClick={() => setShowRecoverForm(true)} className="text-blue-600">
+                  Recuperar mis credenciales de seguimiento
+                </Button>
+              ) : (
+                <Card className="max-w-md mx-auto text-left">
+                  <CardContent className="pt-4">
+                    <p className="text-sm font-medium mb-3">Recuperar credenciales</p>
+                    <form onSubmit={handleRecover} className="space-y-3">
+                      <Input
+                        placeholder="Email"
+                        type="email"
+                        value={recoverData.email}
+                        onChange={(e) => setRecoverData(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                      <Input
+                        placeholder="Teléfono"
+                        type="tel"
+                        value={recoverData.telefono}
+                        onChange={(e) => setRecoverData(prev => ({ ...prev, telefono: e.target.value }))}
+                      />
+                      <Input
+                        placeholder="DNI/NIE (opcional)"
+                        value={recoverData.dni}
+                        onChange={(e) => setRecoverData(prev => ({ ...prev, dni: e.target.value }))}
+                      />
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" disabled={recoverLoading} className="flex-1">
+                          {recoverLoading ? 'Enviando...' : 'Enviar credenciales'}
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowRecoverForm(false)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
               {empresaConfig?.telefono && (
                 <p className="mt-1 font-medium">{empresaConfig.telefono}</p>
               )}
@@ -423,7 +476,8 @@ export default function Seguimiento() {
                 <CardTitle className="text-base">Progreso de la reparación</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between overflow-x-auto pb-2">
+                {/* Desktop: horizontal */}
+                <div className="hidden sm:flex items-center justify-between pb-2">
                   {statusOrder.map((status, index) => {
                     const config = statusConfig[status];
                     const Icon = config.icon;
@@ -435,7 +489,7 @@ export default function Seguimiento() {
                         <div className="flex flex-col items-center">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
                             isCompleted ? 'bg-green-500 text-white' :
-                            isCurrent ? `${config.color} text-white ring-4 ring-offset-2 ring-${config.color.replace('bg-', '')}/30` :
+                            isCurrent ? `${config.color} text-white ring-4 ring-offset-2` :
                             'bg-slate-200 text-slate-400'
                           }`}>
                             {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
@@ -451,6 +505,33 @@ export default function Seguimiento() {
                             currentStep > index ? 'bg-green-500' : 'bg-slate-200'
                           }`} />
                         )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Mobile: vertical */}
+                <div className="sm:hidden space-y-2">
+                  {statusOrder.map((status, index) => {
+                    const config = statusConfig[status];
+                    const Icon = config.icon;
+                    const isCompleted = currentStep > index;
+                    const isCurrent = currentStep === index;
+                    
+                    return (
+                      <div key={status} className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isCompleted ? 'bg-green-500 text-white' :
+                          isCurrent ? `${config.color} text-white` :
+                          'bg-slate-200 text-slate-400'
+                        }`}>
+                          {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                        </div>
+                        <span className={`text-sm ${
+                          isCurrent ? 'font-semibold text-primary' : isCompleted ? 'text-green-700' : 'text-muted-foreground'
+                        }`}>
+                          {config.label}
+                        </span>
+                        {isCurrent && <Badge className={`${config.color} text-white text-[10px] ml-auto`}>Actual</Badge>}
                       </div>
                     );
                   })}
@@ -602,9 +683,8 @@ export default function Seguimiento() {
       {/* Footer */}
       <footer className="bg-white border-t mt-16">
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          <p>{empresaConfig?.nombre || 'Mi Empresa'} - Servicio Técnico de Telefonía Móvil</p>
+          <p>Servicio Técnico de Telefonía Móvil</p>
           {empresaConfig?.telefono && <p className="mt-1">Tel: {empresaConfig.telefono}</p>}
-          {empresaConfig?.email && <p>Email: {empresaConfig.email}</p>}
         </div>
       </footer>
 

@@ -294,7 +294,7 @@ async def marcar_leidas_por_orden(orden_id: str):
 @api_router.post("/email/test")
 async def test_smtp_email(data: dict, user: dict = Depends(require_master)):
     """Send a test email to verify SMTP configuration."""
-    to = data.get('to', user.get('email', 'master@techrepair.local'))
+    to = data.get('to', user.get('email', 'master@revix.es'))
     from services.email_service import send_email as smtp_send
     ok = smtp_send(
         to=to,
@@ -303,6 +303,85 @@ async def test_smtp_email(data: dict, user: dict = Depends(require_master)):
         contenido="<p>Si recibes este correo, la configuración SMTP está funcionando correctamente.</p>"
     )
     return {"success": ok, "to": to, "smtp_host": cfg.SMTP_HOST}
+
+@api_router.get("/smtp-config")
+async def get_smtp_config(user: dict = Depends(require_master)):
+    """Get current SMTP configuration."""
+    return {
+        "host": cfg.SMTP_HOST or "",
+        "port": cfg.SMTP_PORT or 465,
+        "secure": getattr(cfg, 'SMTP_SECURE', True),
+        "user": cfg.SMTP_USER or "",
+        "password": "********" if getattr(cfg, 'SMTP_PASS', '') else "",
+        "from_name": cfg.SMTP_FROM if hasattr(cfg, 'SMTP_FROM') else "",
+        "reply_to": getattr(cfg, 'SMTP_REPLY_TO', ''),
+        "configured": cfg.SMTP_CONFIGURED,
+    }
+
+@api_router.post("/smtp-config")
+async def save_smtp_config(data: dict, user: dict = Depends(require_master)):
+    """Save SMTP configuration and test connection."""
+    host = data.get("host", "").strip()
+    port = int(data.get("port", 465))
+    user_email = data.get("user", "").strip()
+    password = data.get("password", "").strip()
+    from_name = data.get("from_name", "").strip()
+    reply_to = data.get("reply_to", "").strip()
+    secure = data.get("secure", True)
+    
+    if not host or not user_email:
+        raise HTTPException(status_code=400, detail="Host y usuario son obligatorios")
+    
+    # If password is masked, keep the current one
+    if password == "********":
+        password = getattr(cfg, 'SMTP_PASS', '')
+    
+    # Test connection first
+    import smtplib, ssl
+    try:
+        context = ssl.create_default_context()
+        if secure and port == 465:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
+                server.login(user_email, password)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.starttls(context=context)
+                server.login(user_email, password)
+        connection_ok = True
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error de conexión SMTP: {str(e)}")
+    
+    # Update runtime config
+    cfg.SMTP_HOST = host
+    cfg.SMTP_PORT = port
+    cfg.SMTP_USER = user_email
+    cfg.SMTP_PASS = password
+    cfg.SMTP_FROM = from_name or f"Revix <{user_email}>"
+    cfg.SMTP_REPLY_TO = reply_to or user_email
+    cfg.SMTP_CONFIGURED = True
+    
+    # Also update the email_service module
+    import services.email_service as es
+    es.SMTP_HOST = host
+    es.SMTP_PORT = port
+    es.SMTP_USER = user_email
+    es.SMTP_PASS = password
+    es.SMTP_FROM = from_name or f"Revix <{user_email}>"
+    es.SMTP_REPLY_TO = reply_to or user_email
+    
+    # Save to DB for persistence
+    await db.configuracion.update_one(
+        {"tipo": "smtp_config"},
+        {"$set": {
+            "tipo": "smtp_config",
+            "datos": {"host": host, "port": port, "user": user_email, "password": password, "from_name": from_name, "reply_to": reply_to, "secure": secure},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": user.get("email")
+        }},
+        upsert=True
+    )
+    
+    return {"success": True, "message": "Configuración SMTP guardada y verificada correctamente"}
 
 @api_router.get("/repuestos/buscar-sku/{sku}")
 async def buscar_repuesto_por_sku(sku: str):
@@ -604,6 +683,13 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
     textos = config_empresa.get("datos", {}).get("textos_legales", TextosLegales().model_dump()) if config_empresa else TextosLegales().model_dump()
 
     consentimiento_registrado = False
+    # Check if client already accepted legal texts for this token
+    consentimiento_previo = await db.consentimientos_seguimiento.find_one(
+        {"token": request.token.upper(), "acepta_condiciones": True, "acepta_rgpd": True},
+        {"_id": 0}
+    )
+    ya_acepto = bool(consentimiento_previo)
+    
     if request.acepta_condiciones or request.acepta_rgpd:
         now = datetime.now(timezone.utc)
         telefono_mask = f"***{telefono_clean[-6:]}" if telefono_clean else "***"
@@ -621,9 +707,10 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
         await db.consentimientos_seguimiento.insert_one(consentimiento)
         await db.ordenes.update_one(
             {"id": orden.get("id")},
-            {"$set": {"ultimo_consentimiento_seguimiento": consentimiento, "updated_at": now.isoformat()}},
+            {"$set": {"consentimiento_legal": True, "ultimo_consentimiento_seguimiento": consentimiento, "updated_at": now.isoformat()}},
         )
         consentimiento_registrado = True
+        ya_acepto = True
 
     # Extraer fechas del historial de estados
     fechas = {
@@ -662,7 +749,88 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
         },
         "textos_legales": textos,
         "consentimiento_registrado": consentimiento_registrado,
+        "ya_acepto_legal": ya_acepto,
     }
+
+class RecuperarCredencialesRequest(BaseModel):
+    email: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    codigo_postal: Optional[str] = None
+
+@api_router.post("/seguimiento/recuperar")
+async def recuperar_credenciales_seguimiento(request: RecuperarCredencialesRequest):
+    """Recuperar credenciales de seguimiento verificando datos del cliente."""
+    if not request.email and not request.telefono:
+        raise HTTPException(status_code=400, detail="Debes proporcionar email o teléfono")
+    
+    # Build query to find client
+    query = {"$and": []}
+    if request.email:
+        query["$and"].append({"email": {"$regex": f"^{request.email.strip()}$", "$options": "i"}})
+    if request.telefono:
+        tel_clean = ''.join(filter(str.isdigit, request.telefono))
+        if len(tel_clean) >= 6:
+            query["$and"].append({"telefono": {"$regex": tel_clean[-6:]}})
+    if request.dni:
+        query["$and"].append({"dni": {"$regex": f"^{request.dni.strip()}$", "$options": "i"}})
+    
+    if not query["$and"]:
+        raise HTTPException(status_code=400, detail="Datos insuficientes")
+    
+    cliente = await db.clientes.find_one(query, {"_id": 0})
+    if not cliente:
+        raise HTTPException(status_code=404, detail="No se encontraron datos. Verifica tu información.")
+    
+    # Find orders for this client
+    ordenes = await db.ordenes.find(
+        {"cliente_id": cliente.get("id"), "token_seguimiento": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "numero_orden": 1, "token_seguimiento": 1, "estado": 1, "dispositivo": 1}
+    ).sort("created_at", -1).to_list(10)
+    
+    if not ordenes:
+        raise HTTPException(status_code=404, detail="No se encontraron órdenes activas para estos datos")
+    
+    # Send email with tracking credentials
+    if cliente.get("email"):
+        from services.email_service import send_email as smtp_send
+        
+        ordenes_html = ""
+        for o in ordenes:
+            link = f"{cfg.FRONTEND_URL}/web/consulta?codigo={o.get('token_seguimiento', '')}"
+            ordenes_html += f"""<tr>
+                <td style="padding:8px;border:1px solid #e2e8f0;">{o.get('numero_orden','')}</td>
+                <td style="padding:8px;border:1px solid #e2e8f0;">{o.get('dispositivo',{}).get('modelo','')}</td>
+                <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">{o.get('token_seguimiento','')}</td>
+                <td style="padding:8px;border:1px solid #e2e8f0;"><a href="{link}" style="color:#2563eb;">Ver estado</a></td>
+            </tr>"""
+        
+        contenido = f"""<p>Hola {cliente.get('nombre','')},</p>
+        <p>Has solicitado recuperar tus credenciales de seguimiento. Aquí tienes tus órdenes:</p>
+        <table style="width:100%;border-collapse:collapse;margin:15px 0;">
+            <tr style="background:#f8fafc;">
+                <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Orden</th>
+                <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Dispositivo</th>
+                <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Código</th>
+                <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Enlace</th>
+            </tr>
+            {ordenes_html}
+        </table>
+        <p>Usa el código junto con tu número de teléfono para acceder al portal de seguimiento.</p>"""
+        
+        smtp_send(
+            to=cliente["email"],
+            subject="Revix - Recuperación de credenciales de seguimiento",
+            titulo="Tus credenciales de seguimiento",
+            contenido=contenido
+        )
+    
+    return {
+        "success": True,
+        "message": f"Se han enviado las credenciales al email {cliente.get('email', '')[:3]}***{cliente.get('email', '').split('@')[-1] if '@' in cliente.get('email', '') else ''}",
+        "ordenes_encontradas": len(ordenes)
+    }
+
 
 @api_router.get("/seguimiento/{token}")
 async def obtener_seguimiento_publico(token: str):

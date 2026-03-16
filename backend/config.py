@@ -75,6 +75,10 @@ SENDGRID_FROM_EMAIL = os.environ.get('SENDGRID_FROM_EMAIL', 'help@revix.es')
 SMTP_HOST = os.environ.get('SMTP_HOST', '')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '465'))
 SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASS = os.environ.get('SMTP_PASS', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', '')
+SMTP_REPLY_TO = os.environ.get('SMTP_REPLY_TO', '')
+SMTP_SECURE = os.environ.get('SMTP_SECURE', 'true').lower() == 'true'
 SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USER)
 
 # URLs

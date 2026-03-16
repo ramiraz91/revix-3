@@ -51,6 +51,7 @@ CRM/ERP para gestion integral de un taller de reparaciones de dispositivos elect
 - [x] Deduplicacion Notificaciones Insurama: no se repite notificacion si ya existe para el mismo siniestro+tipo (v1.4.1)
 - [x] Fix fotos admin visibles en seccion Antes para tecnicos en OrdenDetalle (v1.4.1)
 - [x] Fix descarga ZIP de fotos: fetch+blob en vez de window.open (v1.4.1)
+- [x] Fix dashboard inteligencia Insurama: $$REMOVE, _id serialization, $convert precio (v1.4.1)
 
 ## Pendientes (P0)
 - [ ] Verificar notificacion automatica por email al crear orden en produccion

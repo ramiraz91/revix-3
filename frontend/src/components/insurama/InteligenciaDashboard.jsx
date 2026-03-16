@@ -305,7 +305,7 @@ export default function InteligenciaDashboard() {
                     <div key={idx} className="flex items-center gap-4">
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-sm">{disp._id || 'Sin especificar'}</span>
+                          <span className="font-medium text-sm">{disp.dispositivo || 'Sin especificar'}</span>
                           <span className="text-sm text-gray-500">
                             {disp.ganados}/{disp.ganados + disp.perdidos} ({disp.total} total)
                           </span>
@@ -349,7 +349,7 @@ export default function InteligenciaDashboard() {
                     <Card key={idx} className="border">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold">{tipo.total}</div>
-                        <div className="text-sm text-gray-500">{tipo._id || 'OTROS'}</div>
+                        <div className="text-sm text-gray-500">{tipo.tipo || 'OTROS'}</div>
                         <div className="text-xs text-green-600 mt-1">
                           {tipo.ganados} ganados
                         </div>
@@ -391,7 +391,7 @@ export default function InteligenciaDashboard() {
                     const tasa = total > 0 ? (mes.ganados / total * 100) : 0;
                     return (
                       <div key={idx} className="flex items-center gap-4">
-                        <div className="w-20 text-sm font-medium">{mes._id}</div>
+                        <div className="w-20 text-sm font-medium">{mes.mes}</div>
                         <div className="flex-1">
                           <div className="flex gap-1 h-6">
                             <div 

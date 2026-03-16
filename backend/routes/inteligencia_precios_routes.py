@@ -198,7 +198,14 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
                         }
                     }
                 },
-                "precio_presupuesto": {"$ifNull": ["$presupuesto_enviado.precio", "$datos_portal.price"]}
+                "precio_presupuesto": {
+                    "$convert": {
+                        "input": {"$ifNull": ["$presupuesto_enviado.precio", "$datos_portal.price"]},
+                        "to": "double",
+                        "onError": 0,
+                        "onNull": 0
+                    }
+                }
             }},
             {"$group": {
                 "_id": None,
@@ -221,7 +228,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
                     ]}
                 },
                 "precios_presupuestos": {
-                    "$push": {"$cond": [{"$gt": ["$precio_presupuesto", 0]}, "$precio_presupuesto", "$$REMOVE"]}
+                    "$push": "$precio_presupuesto"
                 }
             }}
         ]
@@ -236,7 +243,7 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
         ingresos_pendientes = financiero.get("ingresos_en_proceso", 0)
         gastos_pendientes = financiero.get("gastos_en_proceso", 0)
         
-        precios_presupuestos = financiero.get("precios_presupuestos", [])
+        precios_presupuestos = [p for p in financiero.get("precios_presupuestos", []) if p and isinstance(p, (int, float)) and p > 0]
         ticket_medio = round(sum(precios_presupuestos) / len(precios_presupuestos), 2) if precios_presupuestos else 0
         
         # Ratio de aceptación (basado en estado de presupuesto en datos_portal)
@@ -299,7 +306,8 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
             {"$sort": {"veces_ganado": -1}},
             {"$limit": 10}
         ]
-        top_competidores = await db.historial_mercado.aggregate(pipeline_competidores).to_list(10)
+        top_competidores_raw = await db.historial_mercado.aggregate(pipeline_competidores).to_list(10)
+        top_competidores = [{"competidor_key": c.get("_id", ""), **{k: v for k, v in c.items() if k != "_id"}} for c in top_competidores_raw]
         
         # Dispositivos más rentables (mayor tasa de éxito)
         pipeline_dispositivos = [
@@ -329,7 +337,8 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
             {"$sort": {"tasa_exito": -1, "total": -1}},
             {"$limit": 10}
         ]
-        dispositivos_rentables = await db.historial_mercado.aggregate(pipeline_dispositivos).to_list(10)
+        dispositivos_raw = await db.historial_mercado.aggregate(pipeline_dispositivos).to_list(10)
+        dispositivos_rentables = [{"dispositivo": d.get("_id", ""), **{k: v for k, v in d.items() if k != "_id"}} for d in dispositivos_raw]
         
         # Tipos de reparación más comunes
         pipeline_tipos = [
@@ -342,7 +351,8 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
             {"$sort": {"total": -1}},
             {"$limit": 8}
         ]
-        tipos_reparacion = await db.historial_mercado.aggregate(pipeline_tipos).to_list(8)
+        tipos_raw = await db.historial_mercado.aggregate(pipeline_tipos).to_list(8)
+        tipos_reparacion = [{"tipo": t.get("_id", ""), **{k: v for k, v in t.items() if k != "_id"}} for t in tipos_raw]
         
         # Evolución mensual
         pipeline_mensual = [
@@ -358,7 +368,8 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
             }},
             {"$sort": {"_id": 1}}
         ]
-        evolucion_mensual = await db.historial_mercado.aggregate(pipeline_mensual).to_list(12)
+        evolucion_raw = await db.historial_mercado.aggregate(pipeline_mensual).to_list(12)
+        evolucion_mensual = [{"mes": e.get("_id", ""), **{k: v for k, v in e.items() if k != "_id"}} for e in evolucion_raw]
         
         return {
             # NUEVAS MÉTRICAS REALES DEL NEGOCIO

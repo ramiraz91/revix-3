@@ -2317,7 +2317,47 @@ async def create_default_users():
     if cfg.SMTP_CONFIGURED:
         logger.info("SMTP configurado: %s:%s", cfg.SMTP_HOST, cfg.SMTP_PORT)
     else:
-        logger.warning("SMTP no configurado")
+        # Intentar cargar SMTP config desde la base de datos
+        try:
+            smtp_db_config = await db.configuracion.find_one({"tipo": "smtp_config"}, {"_id": 0})
+            if smtp_db_config and smtp_db_config.get("datos"):
+                datos = smtp_db_config["datos"]
+                if datos.get("host") and datos.get("user"):
+                    cfg.SMTP_HOST = datos["host"]
+                    cfg.SMTP_PORT = int(datos.get("port", 465))
+                    cfg.SMTP_USER = datos["user"]
+                    cfg.SMTP_PASS = datos.get("password", "")
+                    cfg.SMTP_FROM = datos.get("from_name", "") or f"Revix <{datos['user']}>"
+                    cfg.SMTP_REPLY_TO = datos.get("reply_to", "") or datos["user"]
+                    cfg.SMTP_SECURE = datos.get("secure", True)
+                    cfg.SMTP_CONFIGURED = True
+                    # Actualizar también el módulo email_service
+                    import services.email_service as es
+                    es.SMTP_HOST = cfg.SMTP_HOST
+                    es.SMTP_PORT = cfg.SMTP_PORT
+                    es.SMTP_USER = cfg.SMTP_USER
+                    es.SMTP_PASS = cfg.SMTP_PASS
+                    es.SMTP_FROM = cfg.SMTP_FROM
+                    es.SMTP_REPLY_TO = cfg.SMTP_REPLY_TO
+                    logger.info("SMTP cargado desde DB: %s:%s", cfg.SMTP_HOST, cfg.SMTP_PORT)
+                else:
+                    logger.warning("SMTP no configurado (config DB incompleta)")
+            else:
+                logger.warning("SMTP no configurado (ni env vars ni DB)")
+        except Exception as e:
+            logger.error(f"Error cargando SMTP desde DB: {e}")
+
+    # Cargar FRONTEND_URL desde DB si existe
+    try:
+        empresa_config = await db.configuracion.find_one({"tipo": "empresa"}, {"_id": 0})
+        if empresa_config and empresa_config.get("datos", {}).get("url_web"):
+            url_web = empresa_config["datos"]["url_web"].rstrip("/")
+            cfg.FRONTEND_URL = url_web
+            import services.email_service as es
+            es.FRONTEND_URL = url_web
+            logger.info("FRONTEND_URL cargado desde config empresa: %s", url_web)
+    except Exception as e:
+        logger.error(f"Error cargando FRONTEND_URL desde DB: {e}")
 
     # Database initialization - wrapped in try/except to not crash the server
     try:

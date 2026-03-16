@@ -75,21 +75,40 @@ async def send_sms(to_phone: str, message: str) -> dict:
         return {"success": False, "error": str(e)}
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
-    # Primary: Use SMTP (company's own server)
+    """Send email via SMTP directly with raw HTML content (no double-wrapping)."""
     if cfg.SMTP_CONFIGURED:
         try:
-            from services.email_service import send_email as smtp_send
-            ok = smtp_send(to=to_email, subject=subject, titulo=subject,
-                          contenido=html_content)
-            if ok:
-                logger.info(f"Email SMTP enviado a {to_email}")
-                return {"success": True, "type": "smtp"}
+            import smtplib
+            import ssl
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = cfg.SMTP_FROM or f"Revix <{cfg.SMTP_USER}>"
+            msg["To"] = to_email
+            msg["Reply-To"] = cfg.SMTP_REPLY_TO or "help@revix.es"
+            msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+            context = ssl.create_default_context()
+            if cfg.SMTP_SECURE and cfg.SMTP_PORT == 465:
+                with smtplib.SMTP_SSL(cfg.SMTP_HOST, cfg.SMTP_PORT, context=context, timeout=15) as server:
+                    server.login(cfg.SMTP_USER, cfg.SMTP_PASS)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(cfg.SMTP_HOST, cfg.SMTP_PORT, timeout=15) as server:
+                    server.starttls(context=context)
+                    server.login(cfg.SMTP_USER, cfg.SMTP_PASS)
+                    server.send_message(msg)
+
+            logger.info(f"Email SMTP enviado a {to_email}: {subject}")
+            return {"success": True, "type": "smtp"}
         except Exception as e:
             logger.error(f"Error SMTP a {to_email}: {e}")
 
     # Fallback: SendGrid
     if not cfg.sendgrid_client or not cfg.SENDGRID_FROM_EMAIL:
-        logger.warning("Ni SMTP ni SendGrid configurados. Email no enviado.")
+        logger.warning("Ni SMTP ni SendGrid configurados. Email no enviado a %s", to_email)
         return {"success": False, "error": "Email no configurado"}
     try:
         message = Mail(
@@ -389,7 +408,7 @@ def generate_modern_email_html(
     email_type: 'created', 'recibida', 'en_taller', 'reparado', 'enviado', 'fecha_estimada'
     """
     token = orden.get('token_seguimiento', '')
-    link = f"{cfg.FRONTEND_URL}/web/consulta?codigo={token}"
+    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
     estado = orden.get('estado', 'pendiente_recibir')
     dispositivo = orden.get('dispositivo', {})
     
@@ -544,7 +563,7 @@ def generate_modern_email_html(
                         Código de acceso: <strong>{token}</strong>
                     </div>
                     <p style="margin-top:10px;font-size:12px;color:#94a3b8;">
-                        También puedes consultar tu reparación en <strong>revix.es/web/consulta</strong> usando tu código y el teléfono con el que hiciste la orden.
+                        También puedes consultar tu reparación en <strong>revix.es/consulta</strong> usando tu código y el teléfono con el que hiciste la orden.
                     </p>
                 </div>
                 
@@ -565,9 +584,9 @@ def generate_modern_email_html(
                     ¿Tienes alguna pregunta? Estamos aquí para ayudarte.
                 </p>
                 <div class="footer-links">
-                    <a href="{cfg.FRONTEND_URL}/web/contacto">Contacto</a>
-                    <a href="{cfg.FRONTEND_URL}/web/consulta">Portal de Seguimiento</a>
-                    <a href="{cfg.FRONTEND_URL}/web/garantia">Garantía</a>
+                    <a href="{cfg.FRONTEND_URL}/contacto">Contacto</a>
+                    <a href="{cfg.FRONTEND_URL}/consulta">Portal de Seguimiento</a>
+                    <a href="{cfg.FRONTEND_URL}/garantia">Garantía</a>
                 </div>
                 <p class="footer-copyright">
                     © 2025 Revix. Todos los derechos reservados.
@@ -596,7 +615,7 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
     """
     results = {"sms": None, "email": None}
     token = orden.get('token_seguimiento', '')
-    link = f"{cfg.FRONTEND_URL}/web/consulta?codigo={token}"
+    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
     estado = orden.get('estado', 'pendiente_recibir')
 
     # Determinar tipo de email y mensajes

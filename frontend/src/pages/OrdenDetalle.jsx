@@ -972,7 +972,7 @@ export default function OrdenDetalle() {
   const currentStep = currentStatus?.step || 0;
   const totalMateriales = orden.materiales?.reduce((acc, m) => acc + (m.precio_unitario * m.cantidad), 0) || 0;
   const todasLasFotos = [
-    ...(orden.evidencias || []).map(f => ({ src: getUploadUrl(f), tipo: 'admin' })),
+    ...(orden.evidencias || []).map(f => ({ src: getUploadUrl(f), tipo: 'admin', categoria: 'antes' })),
     ...(orden.evidencias_tecnico || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico' })),
     ...(orden.fotos_antes || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico', categoria: 'antes' })),
     ...(orden.fotos_despues || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico', categoria: 'despues' }))

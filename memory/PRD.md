@@ -1,59 +1,60 @@
 # Revix CRM/ERP - Product Requirements Document
 
-## Descripción
-CRM/ERP para gestión integral de un taller de reparaciones de dispositivos electrónicos.
+## Descripcion
+CRM/ERP para gestion integral de un taller de reparaciones de dispositivos electronicos.
 
-## Stack Tecnológico
+## Stack Tecnologico
 - **Backend**: FastAPI, Python, Motor (MongoDB async)
 - **Frontend**: React, Axios, Tailwind CSS, Shadcn UI
-- **Base de Datos**: MongoDB (Atlas en producción, DB: "revix_production")
-- **Almacenamiento**: Cloudinary (imágenes)
+- **Base de Datos**: MongoDB (Atlas en produccion, DB: "revix_production")
+- **Almacenamiento**: Cloudinary (imagenes)
 - **Integraciones**: Insurama/Sumbroker (polling 2h), SMTP, Gemini AI
 
-## Versión Actual: v1.4.0
+## Version Actual: v1.4.0
 
-## Flujo Nuevas Órdenes
-1. Polling cada 2h (o manual con botón "Consultar Insurama") → detecta presupuestos aceptados
-2. Pre-orden llega a "Nuevas Órdenes" como `pendiente_tramitar`
+## Flujo Nuevas Ordenes
+1. Polling cada 2h (o manual con boton "Consultar Insurama") -> detecta presupuestos aceptados
+2. Pre-orden llega a "Nuevas Ordenes" como `pendiente_tramitar`
 3. Tramitador abre detalle completo (como orden de trabajo), edita datos si necesario
-4. Introduce código de recogida → crea orden de trabajo en `pendiente_recibir`
+4. Introduce codigo de recogida -> crea orden de trabajo en `pendiente_recibir`
 5. Sigue flujo normal
 
 ## Reglas de Negocio
 - **Albaranes**: Auto-generados al pasar a VALIDACION o ENVIADO
-- **Facturas**: Solo manuales por decisión del usuario
+- **Facturas**: Solo manuales por decision del usuario
 - **Compras**: Con factura del proveedor (PDF)
-- **Liquidaciones**: Auto-cruce de códigos al importar Excel
-- **Garantías**: Orden dependiente del mismo dispositivo
-- **Nuevas Órdenes**: Pre-ordenes editables como una orden completa
-- **Re-presupuesto**: Cambio de estado a re_presupuestar, notificación al cliente, redirección a materiales
+- **Liquidaciones**: Auto-cruce de codigos al importar Excel
+- **Garantias**: Orden dependiente del mismo dispositivo
+- **Nuevas Ordenes**: Pre-ordenes editables como una orden completa
+- **Re-presupuesto**: Cambio de estado a re_presupuestar, notificacion al cliente, redireccion a materiales
 
 ## Completado
-- [x] Cloudinary, endpoint emergencia, SMTP, recuperar contraseña (v1.1.0)
-- [x] Versionado, guía despliegue, órdenes irreparables (v1.1.0)
-- [x] Auditoría funcional, Dashboard Financiero, auto-albarán (v1.2.0)
-- [x] Liquidaciones auto-cruce, garantías mejoradas (v1.2.1)
-- [x] Nuevas Órdenes con polling 2h y badge (v1.3.0)
-- [x] Botón "Consultar Insurama" para polling manual (v1.3.0)
-- [x] Vista detalle completa de pre-ordenes con edición de todos los campos (v1.3.0)
+- [x] Cloudinary, endpoint emergencia, SMTP, recuperar contrasena (v1.1.0)
+- [x] Versionado, guia despliegue, ordenes irreparables (v1.1.0)
+- [x] Auditoria funcional, Dashboard Financiero, auto-albaran (v1.2.0)
+- [x] Liquidaciones auto-cruce, garantias mejoradas (v1.2.1)
+- [x] Nuevas Ordenes con polling 2h y badge (v1.3.0)
+- [x] Boton "Consultar Insurama" para polling manual (v1.3.0)
+- [x] Vista detalle completa de pre-ordenes con edicion de todos los campos (v1.3.0)
 - [x] KPIs financieros y operativos globales en Dashboard Finanzas (v1.3.1)
-- [x] Eliminación de módulos Utopya, MobileSentrix, Pre-Registros (v1.4.0)
-- [x] Reorganización menú: Logística → Envíos y Recogidas (v1.4.0)
-- [x] Configuración SMTP centralizada con UI (v1.4.0)
-- [x] Portal seguimiento: responsive, sin logo, recuperación credenciales (v1.4.0)
-- [x] Endpoint POST /ordenes/{id}/enviar-whatsapp - Botón "Notificar" (v1.4.0)
+- [x] Eliminacion de modulos Utopya, MobileSentrix, Pre-Registros (v1.4.0)
+- [x] Reorganizacion menu: Logistica -> Envios y Recogidas (v1.4.0)
+- [x] Configuracion SMTP centralizada con UI (v1.4.0)
+- [x] Portal seguimiento: responsive, sin logo, recuperacion credenciales (v1.4.0)
+- [x] Endpoint POST /ordenes/{id}/enviar-whatsapp - Boton "Notificar" (v1.4.0)
 - [x] Flujo Re-presupuesto completo: endpoints, UI dialog, banner, auto-redirect a materiales (v1.4.0)
-- [x] Edición inline de materiales en TablaMaterialesEditable con estado local (v1.4.0)
+- [x] Edicion inline de materiales en TablaMaterialesEditable con estado local (v1.4.0)
 - [x] Indicador de consentimiento legal visible en vista de orden (v1.4.0)
-- [x] Fix bug TablaMaterialesEditable: materiales → localMateriales (v1.4.0)
+- [x] Fix bug TablaMaterialesEditable: materiales -> localMateriales (v1.4.0)
+- [x] Preparacion para redeploy: verificacion completa de dependencias, build, env vars (v1.4.0)
 
 ## Pendientes (P0)
-- [ ] Validar notificaciones SMTP en producción (deploy del usuario)
+- [ ] Verificar notificacion automatica por email al crear orden en produccion
 
 ## Pendientes (P1)
-- [ ] Integración completa con GLS
-- [ ] Refinar módulo de incidencias
+- [ ] Integracion completa con GLS
+- [ ] Refinar modulo de incidencias
 
 ## Pendientes (P2)
 - [ ] Acortar SKU inventario
-- [ ] Módulo playwright_stealth - verificar en producción
+- [ ] Modulo playwright_stealth - verificar en produccion

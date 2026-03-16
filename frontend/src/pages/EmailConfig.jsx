@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { 
   Mail, Settings, Save, Send, Power, AlertTriangle, CheckCircle, RefreshCw, 
   Eye, Smartphone, Package, Wrench, Sparkles, Rocket, Bell, Clock,
-  ExternalLink, Palette, Monitor, Edit, RotateCcw, FileText
+  ExternalLink, Palette, Monitor, Edit, RotateCcw, FileText, Server, Lock, ShieldCheck
 } from 'lucide-react';
 import API, { plantillasEmailAPI } from '@/lib/api';
 import { toast } from 'sonner';
@@ -103,12 +103,56 @@ export default function EmailConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [activeTab, setActiveTab] = useState('cliente');
+  const [activeTab, setActiveTab] = useState('smtp');
+  
+  // SMTP state
+  const [smtp, setSmtp] = useState({
+    host: '', port: 465, secure: true, user: '', password: '', from_name: '', reply_to: '', configured: false
+  });
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchConfig();
     fetchPlantillas();
+    fetchSmtpConfig();
   }, []);
+
+  const fetchSmtpConfig = async () => {
+    try {
+      const res = await API.get('/smtp-config');
+      if (res.data) setSmtp(res.data);
+    } catch (e) { /* first time */ }
+  };
+
+  const handleSaveSmtp = async () => {
+    setSmtpSaving(true);
+    try {
+      const res = await API.post('/smtp-config', smtp);
+      toast.success(res.data?.message || 'Configuración SMTP guardada');
+      fetchSmtpConfig();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error al guardar SMTP');
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    const to = config.demo_mode && config.demo_email ? config.demo_email : (smtp.reply_to || smtp.user);
+    if (!to) { toast.error('No hay dirección de destino para la prueba'); return; }
+    setSmtpTesting(true);
+    try {
+      const res = await API.post('/email/test', { to });
+      if (res.data?.success) toast.success(`Email de prueba enviado a ${to}`);
+      else toast.error('Error al enviar email de prueba');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error de conexión SMTP');
+    } finally {
+      setSmtpTesting(false);
+    }
+  };
 
   const fetchConfig = async () => {
     try {
@@ -345,24 +389,157 @@ export default function EmailConfig() {
 
       {/* Tabs de configuración */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="cliente" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="smtp" className="flex items-center gap-2" data-testid="tab-smtp">
+            <Server className="w-4 h-4" />
+            Servidor SMTP
+          </TabsTrigger>
+          <TabsTrigger value="cliente" className="flex items-center gap-2" data-testid="tab-cliente">
             <Bell className="w-4 h-4" />
             Notif. Cliente
           </TabsTrigger>
-          <TabsTrigger value="admin" className="flex items-center gap-2">
+          <TabsTrigger value="admin" className="flex items-center gap-2" data-testid="tab-admin">
             <Settings className="w-4 h-4" />
             Notif. Admin
           </TabsTrigger>
-          <TabsTrigger value="plantillas" className="flex items-center gap-2">
+          <TabsTrigger value="plantillas" className="flex items-center gap-2" data-testid="tab-plantillas">
             <FileText className="w-4 h-4" />
             Plantillas
           </TabsTrigger>
-          <TabsTrigger value="diseño" className="flex items-center gap-2">
+          <TabsTrigger value="diseño" className="flex items-center gap-2" data-testid="tab-diseno">
             <Palette className="w-4 h-4" />
             Diseño
           </TabsTrigger>
         </TabsList>
+
+        {/* Tab: Servidor SMTP */}
+        <TabsContent value="smtp">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Server className="w-5 h-5" />
+                    Configuración del Servidor SMTP
+                  </CardTitle>
+                  <CardDescription>Configura los datos de conexión de tu servidor de correo saliente.</CardDescription>
+                </div>
+                <Badge 
+                  variant={smtp.configured ? "default" : "destructive"} 
+                  className={smtp.configured ? 'bg-green-500' : ''}
+                  data-testid="smtp-status-badge"
+                >
+                  <ShieldCheck className="w-3 h-3 mr-1" />
+                  {smtp.configured ? 'CONECTADO' : 'NO CONFIGURADO'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label>Servidor SMTP (Host)</Label>
+                  <Input 
+                    value={smtp.host} 
+                    onChange={(e) => setSmtp(p => ({...p, host: e.target.value}))}
+                    placeholder="mail.privateemail.com"
+                    data-testid="smtp-host"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Puerto</Label>
+                  <Input 
+                    type="number" 
+                    value={smtp.port} 
+                    onChange={(e) => setSmtp(p => ({...p, port: parseInt(e.target.value) || 465}))}
+                    data-testid="smtp-port"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Usuario / Email</Label>
+                  <Input 
+                    value={smtp.user} 
+                    onChange={(e) => setSmtp(p => ({...p, user: e.target.value}))}
+                    placeholder="notificaciones@tudominio.com"
+                    data-testid="smtp-user"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contraseña</Label>
+                  <div className="relative">
+                    <Input 
+                      type={showPassword ? 'text' : 'password'} 
+                      value={smtp.password} 
+                      onChange={(e) => setSmtp(p => ({...p, password: e.target.value}))}
+                      placeholder="••••••••"
+                      data-testid="smtp-password"
+                    />
+                    <button 
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <Eye className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nombre del remitente (From)</Label>
+                  <Input 
+                    value={smtp.from_name} 
+                    onChange={(e) => setSmtp(p => ({...p, from_name: e.target.value}))}
+                    placeholder="Revix <notificaciones@tudominio.com>"
+                    data-testid="smtp-from"
+                  />
+                  <p className="text-xs text-muted-foreground">Lo que verá el cliente como remitente</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Responder a (Reply-To)</Label>
+                  <Input 
+                    value={smtp.reply_to} 
+                    onChange={(e) => setSmtp(p => ({...p, reply_to: e.target.value}))}
+                    placeholder="help@tudominio.com"
+                    data-testid="smtp-reply-to"
+                  />
+                  <p className="text-xs text-muted-foreground">Donde llegarán las respuestas del cliente</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-slate-500" />
+                  <div>
+                    <p className="font-medium text-sm">Conexión SSL/TLS</p>
+                    <p className="text-xs text-muted-foreground">Puerto 465 = SSL | Puerto 587 = STARTTLS</p>
+                  </div>
+                </div>
+                <Switch 
+                  checked={smtp.secure} 
+                  onCheckedChange={(v) => setSmtp(p => ({...p, secure: v}))} 
+                  data-testid="smtp-secure"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button onClick={handleSaveSmtp} disabled={smtpSaving} data-testid="smtp-save-btn">
+                  {smtpSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Guardar y Verificar Conexión
+                </Button>
+                <Button variant="outline" onClick={handleTestSmtp} disabled={smtpTesting || !smtp.configured} data-testid="smtp-test-btn">
+                  {smtpTesting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                  Enviar Email de Prueba
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Tab: Notificaciones Cliente */}
         <TabsContent value="cliente">

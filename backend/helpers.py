@@ -610,10 +610,22 @@ def generate_order_email_html(orden: dict, cliente: dict, status_message: str = 
 async def send_order_notification(orden: dict, cliente: dict, notification_type: str = "created"):
     """
     Envía notificaciones al cliente sobre su orden.
-    
-    notification_type: 'created', 'status_change', 'fecha_estimada'
+    Respeta los flags enabled y demo_mode de email_config.
     """
     results = {"sms": None, "email": None}
+
+    # Cargar configuración de notificaciones desde DB
+    try:
+        email_cfg_doc = await cfg.db.configuracion.find_one({"tipo": "email_config"}, {"_id": 0})
+        email_cfg = email_cfg_doc.get("datos", {}) if email_cfg_doc else {}
+    except Exception:
+        email_cfg = {}
+
+    # Verificar si las notificaciones están habilitadas
+    if email_cfg.get("enabled") is False:
+        logger.info(f"Notificaciones desactivadas — email no enviado para orden {orden.get('numero_orden')}")
+        return results
+
     token = orden.get('token_seguimiento', '')
     link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
     estado = orden.get('estado', 'pendiente_recibir')
@@ -621,21 +633,26 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
     # Determinar tipo de email y mensajes
     if notification_type == "created":
         email_type = 'created'
-        sms_message = f"Revix 📱: Orden {orden['numero_orden']} registrada. Sigue tu reparación: {link}"
-        email_subject = f"✨ Nueva Orden de Reparación - {orden['numero_orden']}"
+        sms_message = f"Revix: Orden {orden['numero_orden']} registrada. Sigue tu reparación: {link}"
+        email_subject = f"Nueva Orden de Reparación - {orden['numero_orden']}"
     elif notification_type == "fecha_estimada":
         email_type = 'fecha_estimada'
         fecha = orden.get('fecha_estimada_entrega', 'Próximamente')
-        sms_message = f"Revix 📅: Tu reparación estará lista aproximadamente el {fecha}. Sigue tu orden: {link}"
-        email_subject = f"📅 Fecha de Entrega Estimada - {orden['numero_orden']}"
+        sms_message = f"Revix: Tu reparación estará lista aproximadamente el {fecha}. Sigue tu orden: {link}"
+        email_subject = f"Fecha de Entrega Estimada - {orden['numero_orden']}"
     else:
         # Status change - verificar si debemos notificar
+        estados_activos = email_cfg.get("estados_activos", {})
         if estado not in ESTADOS_NOTIFICAR_AUTO:
             logger.info(f"Estado {estado} no requiere notificación automática")
             return results
+        # Verificar si este estado concreto está activado en la config
+        if estados_activos and estados_activos.get(estado) is False:
+            logger.info(f"Notificación para estado '{estado}' desactivada por configuración")
+            return results
         
         email_type = estado
-        emoji = STATUS_EMOJIS.get(estado, '📱')
+        emoji = STATUS_EMOJIS.get(estado, '')
         status_msg = STATUS_MESSAGES.get(estado, f'Estado: {estado}')
         sms_message = f"Revix {emoji}: {status_msg} Orden: {orden['numero_orden']}. Ver estado: {link}"
         email_subject = f"{emoji} {status_msg[:30]}... - {orden['numero_orden']}"
@@ -643,15 +660,24 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
         if estado == 'enviado' and orden.get('codigo_recogida_salida'):
             sms_message += f" Seguimiento envío: {orden['codigo_recogida_salida']}"
 
+    # Determinar destinatario (demo_mode redirige todo a demo_email)
+    demo_mode = email_cfg.get("demo_mode", False)
+    demo_email = email_cfg.get("demo_email", "")
+    
+    destinatario_email = demo_email if (demo_mode and demo_email) else cliente.get('email', '')
+
     # Enviar notificaciones
-    if cliente.get('telefono'):
+    sms_enabled = email_cfg.get("sms_enabled", True)
+    if sms_enabled and cliente.get('telefono') and not demo_mode:
         results["sms"] = await send_sms(cliente['telefono'], sms_message)
     
-    if cliente.get('email'):
+    if destinatario_email:
         html_content = generate_modern_email_html(orden, cliente, email_type=email_type)
-        results["email"] = await send_email(cliente['email'], email_subject, html_content)
+        results["email"] = await send_email(destinatario_email, email_subject, html_content)
+        if demo_mode:
+            logger.info(f"MODO DEMO: Email redirigido de {cliente.get('email', 'N/A')} → {demo_email}")
     
-    logger.info(f"Notificación enviada para orden {orden.get('numero_orden')}: tipo={notification_type}, estado={estado}")
+    logger.info(f"Notificación para orden {orden.get('numero_orden')}: tipo={notification_type}, estado={estado}, demo={demo_mode}")
     return results
 
 

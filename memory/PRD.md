@@ -48,6 +48,7 @@ CRM/ERP para gestion integral de un taller de reparaciones de dispositivos elect
 - [x] Fix bug TablaMaterialesEditable: materiales -> localMateriales (v1.4.0)
 - [x] Preparacion para redeploy: verificacion completa de dependencias, build, env vars (v1.4.0)
 - [x] Deduplicacion Nuevas Ordenes: si codigo ya existe en ordenes, se descarta sin notificar (v1.4.1)
+- [x] Deduplicacion Notificaciones Insurama: no se repite notificacion si ya existe para el mismo siniestro+tipo (v1.4.1)
 
 ## Pendientes (P0)
 - [ ] Verificar notificacion automatica por email al crear orden en produccion

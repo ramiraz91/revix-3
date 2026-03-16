@@ -14,6 +14,15 @@ from agent.processor import (
     download_portal_photos, log_agent
 )
 
+async def _notificacion_ya_existe(codigo_siniestro: str, tipo: str) -> bool:
+    """Verifica si ya existe una notificación para este siniestro y tipo. Evita duplicados."""
+    existing = await db.notificaciones.find_one(
+        {"codigo_siniestro": codigo_siniestro, "tipo": tipo},
+        {"_id": 1}
+    )
+    return existing is not None
+
+
 # Lazy import to avoid circular deps
 def _get_ws_broadcast():
     try:
@@ -261,26 +270,27 @@ async def _handle_new_budget(codigo: str, budget: dict, prc: dict, cb: dict):
         notif_msg = f"Nuevo siniestro {codigo} ({status_text}). {client_name} — {device_str}"
         urgente = False
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": notif_tipo,
-        "titulo": notif_titulo,
-        "mensaje": notif_msg,
-        "codigo_siniestro": codigo,
-        "pre_registro_id": pre_reg_id,
-        "urgente": urgente,
-        "popup": urgente,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # Broadcast via WebSocket
-    ws = _get_ws_broadcast()
-    if ws:
-        asyncio.create_task(ws.notify_event(
-            notif_tipo,
-            {"titulo": notif_titulo, "mensaje": notif_msg, "urgente": urgente, "popup": urgente}
-        ))
+    if not await _notificacion_ya_existe(codigo, notif_tipo):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": notif_tipo,
+            "titulo": notif_titulo,
+            "mensaje": notif_msg,
+            "codigo_siniestro": codigo,
+            "pre_registro_id": pre_reg_id,
+            "urgente": urgente,
+            "popup": urgente,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Broadcast via WebSocket
+        ws = _get_ws_broadcast()
+        if ws:
+            asyncio.create_task(ws.notify_event(
+                notif_tipo,
+                {"titulo": notif_titulo, "mensaje": notif_msg, "urgente": urgente, "popup": urgente}
+            ))
     
     await log_agent("pre_registro_polling", "ok", "info", codigo=codigo,
                     detalles={"budget_id": budget.get("id"), "status": status_text})
@@ -370,25 +380,26 @@ async def _handle_accepted_budget(codigo: str, pre_reg: dict, budget: dict) -> b
                  f"{cliente_nombre} — {dispositivo}. "
                  f"Importe: {precio}€. Pendiente de tramitar en Nuevas Órdenes.")
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": "presupuesto_aceptado",
-        "titulo": "PRESUPUESTO ACEPTADO - Nueva Orden",
-        "mensaje": notif_msg,
-        "codigo_siniestro": codigo,
-        "urgente": True,
-        "popup": True,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # Broadcast via WebSocket
-    ws = _get_ws_broadcast()
-    if ws:
-        asyncio.create_task(ws.notify_event(
-            "presupuesto_aceptado",
-            {"titulo": "PRESUPUESTO ACEPTADO", "mensaje": notif_msg, "urgente": True, "popup": True}
-        ))
+    if not await _notificacion_ya_existe(codigo, "presupuesto_aceptado"):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": "presupuesto_aceptado",
+            "titulo": "PRESUPUESTO ACEPTADO - Nueva Orden",
+            "mensaje": notif_msg,
+            "codigo_siniestro": codigo,
+            "urgente": True,
+            "popup": True,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Broadcast via WebSocket
+        ws = _get_ws_broadcast()
+        if ws:
+            asyncio.create_task(ws.notify_event(
+                "presupuesto_aceptado",
+                {"titulo": "PRESUPUESTO ACEPTADO", "mensaje": notif_msg, "urgente": True, "popup": True}
+            ))
     
     await log_agent("presupuesto_aceptado_pendiente_tramitar", "ok", "info", codigo=codigo,
                     detalles={"budget_id": budget.get("id"), "precio": precio})
@@ -418,17 +429,18 @@ async def _handle_rejected_budget(codigo: str, pre_reg: dict, budget: dict, stat
     cliente_nombre = pre_reg.get("cliente_nombre", "")
     dispositivo = pre_reg.get("dispositivo_modelo", "")
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": "presupuesto_rechazado",
-        "titulo": "Presupuesto Rechazado",
-        "mensaje": f"El cliente ha rechazado el presupuesto para {codigo}. {cliente_nombre} — {dispositivo}",
-        "codigo_siniestro": codigo,
-        "urgente": False,
-        "popup": False,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
+    if not await _notificacion_ya_existe(codigo, "presupuesto_rechazado"):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": "presupuesto_rechazado",
+            "titulo": "Presupuesto Rechazado",
+            "mensaje": f"El cliente ha rechazado el presupuesto para {codigo}. {cliente_nombre} — {dispositivo}",
+            "codigo_siniestro": codigo,
+            "urgente": False,
+            "popup": False,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
     
     await log_agent("presupuesto_rechazado", "ok", "info", codigo=codigo,
                     detalles={"status_text": status_text})
@@ -464,18 +476,19 @@ async def _handle_status_change(codigo: str, pre_reg: dict, budget: dict,
         titulo = "Cambio estado Insurama"
         urgente = False
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": tipo,
-        "titulo": titulo,
-        "mensaje": f"Siniestro {codigo}: {prev_status_text} → {status_text}",
-        "codigo_siniestro": codigo,
-        "orden_id": orden_id,
-        "urgente": urgente,
-        "popup": urgente,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
+    if not await _notificacion_ya_existe(codigo, tipo):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": tipo,
+            "titulo": titulo,
+            "mensaje": f"Siniestro {codigo}: {prev_status_text} → {status_text}",
+            "codigo_siniestro": codigo,
+            "orden_id": orden_id,
+            "urgente": urgente,
+            "popup": urgente,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
 
 
 async def _handle_photo_rejection(codigo: str, pre_reg: dict, budget: dict, observations: list):
@@ -557,27 +570,28 @@ async def _handle_photo_rejection(codigo: str, pre_reg: dict, budget: dict, obse
                         f"Motivo: {obs_text[:100]}... "
                         f"Reenvíe las fotos desde el portal Sumbroker.")
             
-            await db.notificaciones.insert_one({
-                "id": str(uuid.uuid4()),
-                "tipo": "fotos_rechazadas_insurama",
-                "titulo": "📷 FOTOS RECHAZADAS",
-                "mensaje": notif_msg,
-                "codigo_siniestro": codigo,
-                "orden_id": orden_id,
-                "urgente": True,
-                "popup": True,
-                "leida": False,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            })
-            
-            # WebSocket broadcast
-            ws = _get_ws_broadcast()
-            if ws:
-                asyncio.create_task(ws.notify_event(
-                    "fotos_rechazadas_insurama",
-                    {"titulo": "📷 FOTOS RECHAZADAS", "mensaje": notif_msg, 
-                     "urgente": True, "popup": True, "orden_id": orden_id}
-                ))
+            if not await _notificacion_ya_existe(codigo, "fotos_rechazadas_insurama"):
+                await db.notificaciones.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "tipo": "fotos_rechazadas_insurama",
+                    "titulo": "📷 FOTOS RECHAZADAS",
+                    "mensaje": notif_msg,
+                    "codigo_siniestro": codigo,
+                    "orden_id": orden_id,
+                    "urgente": True,
+                    "popup": True,
+                    "leida": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                
+                # WebSocket broadcast
+                ws = _get_ws_broadcast()
+                if ws:
+                    asyncio.create_task(ws.notify_event(
+                        "fotos_rechazadas_insurama",
+                        {"titulo": "📷 FOTOS RECHAZADAS", "mensaje": notif_msg, 
+                         "urgente": True, "popup": True, "orden_id": orden_id}
+                    ))
             
             await log_agent("fotos_rechazadas_detectado", "ok", "warning", codigo=codigo,
                            detalles={"orden_id": orden_id, "observacion": obs_text[:200]})
@@ -639,26 +653,27 @@ async def _handle_recotizar(codigo: str, pre_reg: dict, budget: dict, status_tex
                  f"{cliente_nombre} — {dispositivo}. "
                  f"Estado Sumbroker: {status_text}")
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": "recotizar_insurama",
-        "titulo": "RECOTIZAR PRESUPUESTO",
-        "mensaje": notif_msg,
-        "codigo_siniestro": codigo,
-        "orden_id": orden_id,
-        "urgente": True,
-        "popup": True,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # WebSocket broadcast
-    ws = _get_ws_broadcast()
-    if ws:
-        asyncio.create_task(ws.notify_event(
-            "recotizar_insurama",
-            {"titulo": "RECOTIZAR PRESUPUESTO", "mensaje": notif_msg, "urgente": True, "popup": True, "orden_id": orden_id}
-        ))
+    if not await _notificacion_ya_existe(codigo, "recotizar_insurama"):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": "recotizar_insurama",
+            "titulo": "RECOTIZAR PRESUPUESTO",
+            "mensaje": notif_msg,
+            "codigo_siniestro": codigo,
+            "orden_id": orden_id,
+            "urgente": True,
+            "popup": True,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # WebSocket broadcast
+        ws = _get_ws_broadcast()
+        if ws:
+            asyncio.create_task(ws.notify_event(
+                "recotizar_insurama",
+                {"titulo": "RECOTIZAR PRESUPUESTO", "mensaje": notif_msg, "urgente": True, "popup": True, "orden_id": orden_id}
+            ))
     
     await log_agent("recotizar_detectado", "ok", "warning", codigo=codigo,
                     detalles={"orden_id": orden_id, "status_text": status_text})
@@ -761,26 +776,27 @@ async def _handle_cancellation(codigo: str, pre_reg: dict):
                  f"Materiales reemplazados por partida de cancelación (42€ IVA inc.). "
                  f"Valide y envíe presupuesto de gastos.")
     
-    await db.notificaciones.insert_one({
-        "id": str(uuid.uuid4()),
-        "tipo": "cancelacion_insurama",
-        "titulo": "CANCELACIÓN INSURAMA",
-        "mensaje": notif_msg,
-        "orden_id": orden_id,
-        "codigo_siniestro": codigo,
-        "urgente": True,
-        "popup": True,
-        "leida": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # WebSocket broadcast
-    ws = _get_ws_broadcast()
-    if ws:
-        asyncio.create_task(ws.notify_event(
-            "cancelacion_insurama",
-            {"titulo": "CANCELACIÓN INSURAMA", "mensaje": notif_msg, "urgente": True, "popup": True, "orden_id": orden_id}
-        ))
+    if not await _notificacion_ya_existe(codigo, "cancelacion_insurama"):
+        await db.notificaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "tipo": "cancelacion_insurama",
+            "titulo": "CANCELACIÓN INSURAMA",
+            "mensaje": notif_msg,
+            "orden_id": orden_id,
+            "codigo_siniestro": codigo,
+            "urgente": True,
+            "popup": True,
+            "leida": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # WebSocket broadcast
+        ws = _get_ws_broadcast()
+        if ws:
+            asyncio.create_task(ws.notify_event(
+                "cancelacion_insurama",
+                {"titulo": "CANCELACIÓN INSURAMA", "mensaje": notif_msg, "urgente": True, "popup": True, "orden_id": orden_id}
+            ))
     
     await log_agent("cancelacion_insurama", "ok", "warning", codigo=codigo,
                     detalles={"orden_id": orden_id, "numero_orden": numero_orden})

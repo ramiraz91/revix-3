@@ -323,10 +323,44 @@ export default function OrdenDetalle() {
   };
 
   // Descargar ZIP de fotos
-  const handleDescargarFotos = () => {
-    const url = ordenesAPI.descargarFotosZip(id);
-    window.open(url, '_blank');
-    toast.success('Descargando fotos...');
+  const handleDescargarFotos = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Sesión expirada. Por favor, inicia sesión de nuevo.');
+      return;
+    }
+    toast.info('Preparando descarga...');
+    try {
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/ordenes/${id}/fotos-zip`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/zip'
+        }
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error en la descarga');
+      }
+      const blob = await response.blob();
+      if (blob.size === 0) throw new Error('El archivo está vacío');
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      a.download = `${orden.numero_orden}_fotos.zip`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+      }, 100);
+      toast.success('Descarga completada');
+    } catch (error) {
+      console.error('Error descargando ZIP:', error);
+      toast.error(error.message || 'Error al descargar fotos');
+    }
   };
 
   // Finalizar orden: cambiar a enviado, registrar en contabilidad y liquidación

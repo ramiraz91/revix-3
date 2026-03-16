@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   BarChart3, TrendingUp, Clock, Users, Trophy, PieChart, DollarSign, 
   Wallet, CreditCard, TrendingDown, ArrowUpRight, ArrowDownRight,
-  Calendar, RefreshCw, FileText, Target, Calculator
+  Calendar, RefreshCw, FileText, Target, Calculator, AlertCircle
 } from 'lucide-react';
 import API from '@/lib/api';
 
@@ -362,7 +362,12 @@ export default function Analiticas() {
                 </Card>
               )}
             </>
-          ) : null}
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 text-muted-foreground gap-2">
+              <AlertCircle className="w-6 h-6" />
+              <p className="text-sm">Error al cargar datos de finanzas. Intente recargar la página.</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* TAB PROYECCIONES */}

@@ -1610,13 +1610,21 @@ async def obtener_analiticas(user: dict = Depends(require_master)):
     for o in ordenes:
         # Usar campos precalculados si existen
         if o.get('presupuesto_total') is not None:
-            precio_venta_orden = o.get('presupuesto_total', 0)
-            coste_orden = o.get('coste_total', 0)
+            try:
+                precio_venta_orden = float(o.get('presupuesto_total', 0) or 0)
+                coste_orden = float(o.get('coste_total', 0) or 0)
+            except (TypeError, ValueError):
+                precio_venta_orden = 0
+                coste_orden = 0
         else:
             # Fallback: cálculo manual para órdenes antiguas
             materiales = o.get('materiales', [])
-            coste_orden = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
-            precio_venta_orden = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+            try:
+                coste_orden = sum(float(m.get('coste', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+                precio_venta_orden = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+            except (TypeError, ValueError):
+                coste_orden = 0
+                precio_venta_orden = 0
         
         if o.get('estado') == 'enviado':
             # Orden cerrada
@@ -1644,12 +1652,20 @@ async def obtener_analiticas(user: dict = Depends(require_master)):
                 
                 # Usar campos precalculados
                 if o.get('presupuesto_total') is not None:
-                    total_venta = o.get('presupuesto_total', 0)
-                    total_coste = o.get('coste_total', 0)
+                    try:
+                        total_venta = float(o.get('presupuesto_total', 0) or 0)
+                        total_coste = float(o.get('coste_total', 0) or 0)
+                    except (TypeError, ValueError):
+                        total_venta = 0
+                        total_coste = 0
                 else:
                     materiales = o.get('materiales', [])
-                    total_venta = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
-                    total_coste = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+                    try:
+                        total_venta = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+                        total_coste = sum(float(m.get('coste', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+                    except (TypeError, ValueError):
+                        total_venta = 0
+                        total_coste = 0
                 
                 ingresos_por_mes[mes] = ingresos_por_mes.get(mes, 0) + total_venta
                 gastos_por_mes[mes] = gastos_por_mes.get(mes, 0) + total_coste
@@ -1779,18 +1795,35 @@ async def obtener_finanzas(
         
         # Usar los campos precalculados, con fallback a cálculo manual si no existen
         if o.get('presupuesto_total') is not None:
-            valor_orden = o.get('presupuesto_total', 0)
-            coste_materiales = o.get('coste_total', 0)
-            beneficio = o.get('beneficio_estimado', 0)
+            try:
+                valor_orden = float(o.get('presupuesto_total', 0) or 0)
+                coste_materiales = float(o.get('coste_total', 0) or 0)
+                beneficio = float(o.get('beneficio_estimado', 0) or 0)
+            except (TypeError, ValueError):
+                valor_orden = 0
+                coste_materiales = 0
+                beneficio = 0
         else:
             # Fallback: calcular manualmente para órdenes antiguas
             materiales = o.get('materiales', [])
-            precio_materiales = sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
-            coste_materiales = sum(m.get('coste', 0) * m.get('cantidad', 1) for m in materiales)
+            try:
+                precio_materiales = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+                coste_materiales = sum(float(m.get('coste', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+            except (TypeError, ValueError):
+                precio_materiales = 0
+                coste_materiales = 0
             
             presupuesto_enviado = o.get('presupuesto_enviado') or {}
             datos_portal = o.get('datos_portal') or {}
-            precio_presupuesto = presupuesto_enviado.get('precio', 0) or datos_portal.get('price', 0)
+            try:
+                precio_presupuesto = float(presupuesto_enviado.get('precio', 0) or 0)
+            except (TypeError, ValueError):
+                precio_presupuesto = 0
+            if precio_presupuesto <= 0:
+                try:
+                    precio_presupuesto = float(datos_portal.get('price', 0) or 0)
+                except (TypeError, ValueError):
+                    precio_presupuesto = 0
             valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
             beneficio = valor_orden - coste_materiales
         
@@ -1839,11 +1872,19 @@ async def obtener_finanzas(
             
             # Usar campos precalculados
             if o.get('presupuesto_total') is not None:
-                precio = o.get('presupuesto_total', 0)
+                try:
+                    precio = float(o.get('presupuesto_total', 0) or 0)
+                except (TypeError, ValueError):
+                    precio = 0
             else:
                 materiales = o.get('materiales', [])
                 pres_env = o.get('presupuesto_enviado') or {}
-                precio = pres_env.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+                try:
+                    precio = float(pres_env.get('precio', 0) or 0)
+                    if precio <= 0:
+                        precio = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+                except (TypeError, ValueError):
+                    precio = 0
             
             semanas[semana_key]["ordenes"] += 1
             semanas[semana_key]["valor"] += precio
@@ -1890,11 +1931,19 @@ async def obtener_finanzas(
     for o in ordenes_anterior:
         # Usar campos precalculados
         if o.get('presupuesto_total') is not None:
-            precio = o.get('presupuesto_total', 0)
+            try:
+                precio = float(o.get('presupuesto_total', 0) or 0)
+            except (TypeError, ValueError):
+                precio = 0
         else:
             materiales = o.get('materiales', [])
             pres_env_ant = o.get('presupuesto_enviado') or {}
-            precio = pres_env_ant.get('precio', 0) or sum(m.get('precio_unitario', 0) * m.get('cantidad', 1) for m in materiales)
+            try:
+                precio = float(pres_env_ant.get('precio', 0) or 0)
+                if precio <= 0:
+                    precio = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+            except (TypeError, ValueError):
+                precio = 0
         total_anterior += precio
     
     variacion_porcentaje = round(((total_facturado + total_pendiente - total_anterior) / total_anterior * 100) if total_anterior > 0 else 0, 1)

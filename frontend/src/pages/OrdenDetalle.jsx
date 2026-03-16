@@ -131,6 +131,7 @@ export default function OrdenDetalle() {
   const [showGenerarEnvio, setShowGenerarEnvio] = useState(false);
   const [showValidacionPopup, setShowValidacionPopup] = useState(false);
   const [showFinalizarOrden, setShowFinalizarOrden] = useState(false);
+  const [showRePresupuesto, setShowRePresupuesto] = useState(false);
   
   // Form data states
   const [linkSeguimiento, setLinkSeguimiento] = useState(null);
@@ -141,6 +142,8 @@ export default function OrdenDetalle() {
   const [previewImage, setPreviewImage] = useState(null);
   const [codigoEnvioFinal, setCodigoEnvioFinal] = useState('');
   const [finalizando, setFinalizando] = useState(false);
+  const [rePresupuestoData, setRePresupuestoData] = useState({ nuevo_importe: '', motivo: '' });
+  const [enviandoRePresupuesto, setEnviandoRePresupuesto] = useState(false);
   
   // Loading states
   const [uploading, setUploading] = useState(false);
@@ -250,6 +253,10 @@ export default function OrdenDetalle() {
   useEffect(() => {
     if (orden && (orden.estado === 'validacion' || orden.estado === 'reparado') && (isAdmin() || isMaster())) {
       setShowValidacionPopup(true);
+    }
+    // Auto-redirect to materials tab when order is in re_presupuestar state
+    if (orden && orden.estado === 're_presupuestar') {
+      setActiveTab('materiales');
     }
   }, [orden?.estado]);
 
@@ -424,19 +431,41 @@ export default function OrdenDetalle() {
     }
   };
 
-  const handleRepresupuestar = async () => {
-    if (!window.confirm('¿Estás seguro de marcar esta orden como "Re-presupuestar"? Se notificará al cliente.')) {
+  const handleRepresupuestar = () => {
+    setRePresupuestoData({ nuevo_importe: '', motivo: '' });
+    setShowRePresupuesto(true);
+  };
+
+  const handleConfirmRePresupuesto = async () => {
+    if (!rePresupuestoData.nuevo_importe || parseFloat(rePresupuestoData.nuevo_importe) <= 0) {
+      toast.error('Introduce un importe válido');
       return;
     }
+    setEnviandoRePresupuesto(true);
     try {
-      await ordenesAPI.cambiarEstado(id, {
-        nuevo_estado: 're_presupuestar',
-        usuario: 'admin'
+      await ordenesAPI.rePresupuesto(id, {
+        nuevo_importe: parseFloat(rePresupuestoData.nuevo_importe),
+        motivo: rePresupuestoData.motivo || undefined,
+        notificar_cliente: true
       });
-      toast.success('Orden marcada para re-presupuestar');
+      toast.success('Re-presupuesto registrado y cliente notificado');
+      setShowRePresupuesto(false);
+      setRePresupuestoData({ nuevo_importe: '', motivo: '' });
       fetchOrden();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al cambiar estado');
+      toast.error(error.response?.data?.detail || 'Error al registrar re-presupuesto');
+    } finally {
+      setEnviandoRePresupuesto(false);
+    }
+  };
+
+  const handleAprobarRePresupuesto = async () => {
+    try {
+      await ordenesAPI.aprobarRePresupuesto(id);
+      toast.success('Re-presupuesto aprobado. Orden devuelta a taller.');
+      fetchOrden();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al aprobar re-presupuesto');
     }
   };
 
@@ -1002,6 +1031,38 @@ export default function OrdenDetalle() {
       {/* Blocked Warning - Using refactored component */}
       <OrdenBloqueadaWarning orden={orden} onAbrirDesbloqueo={handleAbrirDesbloqueo} />
 
+      {/* Banner Re-presupuesto */}
+      {orden.estado === 're_presupuestar' && (
+        <Card className="border-orange-300 bg-orange-50" data-testid="re-presupuesto-banner">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-8 h-8 text-orange-600" />
+                <div>
+                  <p className="font-semibold text-orange-800">Orden en Re-presupuesto</p>
+                  <p className="text-sm text-orange-600">
+                    Nuevo importe propuesto: <strong>{(orden.re_presupuesto_importe || 0).toFixed(2)}€</strong>
+                    {orden.re_presupuesto_motivo && ` — ${orden.re_presupuesto_motivo}`}
+                  </p>
+                </div>
+              </div>
+              {(isAdmin() || isMaster()) && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setActiveTab('materiales')} data-testid="btn-ir-materiales">
+                    <Package className="w-4 h-4 mr-1" />
+                    Ir a Materiales
+                  </Button>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleAprobarRePresupuesto} data-testid="btn-aprobar-re-presupuesto">
+                    <Check className="w-4 h-4 mr-1" />
+                    Aprobar y volver a Taller
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Garantías vinculadas */}
       {ordenesGarantia.length > 0 && (
         <Card className="border-red-200 bg-red-50/30" data-testid="garantias-vinculadas">
@@ -1206,6 +1267,36 @@ export default function OrdenDetalle() {
                 </CardContent>
               </Card>
               <OrdenClienteCard cliente={cliente} onEdit={handleEditCliente} />
+              
+              {/* Legal Consent Status */}
+              {orden.consentimiento_legal !== undefined && (
+                <Card data-testid="consentimiento-legal-card">
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium">Consentimiento Legal</span>
+                      </div>
+                      {orden.consentimiento_legal ? (
+                        <Badge className="bg-green-100 text-green-700 border-green-200" data-testid="consent-accepted">
+                          <Check className="w-3 h-3 mr-1" />
+                          Aceptado
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300" data-testid="consent-pending">
+                          Pendiente
+                        </Badge>
+                      )}
+                    </div>
+                    {orden.ultimo_consentimiento_seguimiento && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Aceptado el {new Date(orden.ultimo_consentimiento_seguimiento.created_at).toLocaleString('es-ES')}
+                        {orden.ultimo_consentimiento_seguimiento.ip && ` · IP: ${orden.ultimo_consentimiento_seguimiento.ip}`}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
               <OrdenDispositivoCard dispositivo={orden.dispositivo} />
               
               {/* Manual de Reparación Apple - Solo visible para técnicos */}
@@ -2219,6 +2310,64 @@ export default function OrdenDetalle() {
                 className="flex-1 bg-green-600 hover:bg-green-700"
               >
                 {finalizando ? 'Finalizando...' : 'Finalizar Orden'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Re-Presupuesto */}
+      <Dialog open={showRePresupuesto} onOpenChange={setShowRePresupuesto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertTriangle className="w-5 h-5" />
+              Nuevo Re-presupuesto
+            </DialogTitle>
+            <DialogDescription>
+              Introduce el nuevo importe y el motivo. Se notificará al cliente por email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="re-presupuesto-importe">Nuevo importe (€) *</Label>
+              <Input
+                id="re-presupuesto-importe"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={rePresupuestoData.nuevo_importe}
+                onChange={(e) => setRePresupuestoData(prev => ({ ...prev, nuevo_importe: e.target.value }))}
+                autoFocus
+                data-testid="re-presupuesto-importe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="re-presupuesto-motivo">Motivo</Label>
+              <Textarea
+                id="re-presupuesto-motivo"
+                placeholder="Ej: Se encontró un daño adicional en la placa..."
+                value={rePresupuestoData.motivo}
+                onChange={(e) => setRePresupuestoData(prev => ({ ...prev, motivo: e.target.value }))}
+                rows={3}
+                data-testid="re-presupuesto-motivo"
+              />
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
+              <p>Se cambiará el estado de la orden a <strong>"Re-presupuestar"</strong> y se enviará un email al cliente informando del nuevo importe.</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowRePresupuesto(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmRePresupuesto}
+                disabled={enviandoRePresupuesto || !rePresupuestoData.nuevo_importe}
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                data-testid="btn-confirmar-re-presupuesto"
+              >
+                {enviandoRePresupuesto ? 'Enviando...' : 'Confirmar Re-presupuesto'}
               </Button>
             </div>
           </div>

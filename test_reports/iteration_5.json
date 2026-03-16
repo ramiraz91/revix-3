@@ -1,0 +1,114 @@
+{
+  "summary": "Testing completed for new CRM/ERP features: enviar-whatsapp endpoint, re-presupuesto flow, and TablaMaterialesEditable bug fix. All 13 backend tests passed (100%). Frontend code verified with no linting errors. Database has 0 orders so UI interaction tests were limited to page loading verification.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/test_reports/pytest/pytest_results_new_endpoints.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_new_endpoints.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "Verified (code linting passed, pages load correctly, no orders in DB for UI testing)"
+  },
+  "test_credentials": {
+    "admin": "admin@techrepair.local / Admin2026!",
+    "jwt_token_generation": "create_token('test-id', 'master@revix.es', 'master') from backend/auth.py"
+  },
+  "seed_data_creation": "No seed data created. Database has 0 orders.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Production database (revix_production on MongoDB Atlas) has 0 orders. All new endpoints exist and return 404 for missing orders (not 405). Frontend components verified: OrdenDetalle.jsx has re-presupuesto dialog (data-testid='re-presupuesto-*'), consentimiento-legal-card, TablaMaterialesEditable uses localMateriales (bug fix confirmed on line 257).",
+  "verified_features": [
+    {
+      "feature": "POST /api/ordenes/{id}/enviar-whatsapp",
+      "tests": [
+        "Returns 404 for missing order (not 405)",
+        "Endpoint exists and accepts POST requests",
+        "Requires authentication"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/ordenes/{id}/re-presupuesto",
+      "tests": [
+        "Returns 404 for missing order",
+        "Endpoint exists and accepts {nuevo_importe, motivo}",
+        "Requires authentication"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/ordenes/{id}/aprobar-re-presupuesto",
+      "tests": [
+        "Returns 404 for missing order",
+        "Endpoint exists and accepts POST requests",
+        "Requires authentication"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Frontend OrdenDetalle.jsx",
+      "tests": [
+        "Code linting passed with no errors",
+        "Re-presupuesto dialog exists with data-testid='re-presupuesto-*'",
+        "Consentimiento legal card exists with data-testid='consentimiento-legal-card'",
+        "Re-presupuesto banner exists with data-testid='re-presupuesto-banner'"
+      ],
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "TablaMaterialesEditable.jsx bug fix",
+      "tests": [
+        "Line 257: Now uses localMateriales.map() instead of materiales.map()",
+        "localMateriales state is properly synchronized with materialesIniciales",
+        "Code linting passed"
+      ],
+      "status": "BUG FIX CONFIRMED"
+    },
+    {
+      "feature": "Frontend api.js methods",
+      "tests": [
+        "ordenesAPI.enviarWhatsApp(id) -> POST /ordenes/{id}/enviar-whatsapp",
+        "ordenesAPI.rePresupuesto(id, data) -> POST /ordenes/{id}/re-presupuesto",
+        "ordenesAPI.aprobarRePresupuesto(id) -> POST /ordenes/{id}/aprobar-re-presupuesto"
+      ],
+      "status": "VERIFIED"
+    }
+  ],
+  "data_testids_verified": [
+    "orden-detalle-page",
+    "re-presupuesto-banner",
+    "btn-ir-materiales",
+    "btn-aprobar-re-presupuesto",
+    "consentimiento-legal-card",
+    "consent-accepted",
+    "consent-pending",
+    "btn-re-presupuestar",
+    "re-presupuesto-importe",
+    "re-presupuesto-motivo",
+    "btn-confirmar-re-presupuesto",
+    "material-search-input"
+  ],
+  "frontend_pages_verified": {
+    "login": "https://repair-crm-dev.preview.emergentagent.com/login - Working",
+    "dashboard": "https://repair-crm-dev.preview.emergentagent.com/crm/dashboard - Working",
+    "ordenes": "https://repair-crm-dev.preview.emergentagent.com/crm/ordenes - Working (shows 0 orders)"
+  },
+  "limitations": [
+    "Cannot test full re-presupuesto UI flow (no orders in database)",
+    "Cannot test OrdenDetalle page rendering (no orders to view)",
+    "Cannot test inline editing in TablaMaterialesEditable (no orders with materials)"
+  ]
+}

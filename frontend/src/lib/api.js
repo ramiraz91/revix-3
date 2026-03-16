@@ -257,6 +257,9 @@ export const ordenesAPI = {
   // Mano de obra y totales
   actualizarManoObra: (id, valor) => API.patch(`/ordenes/${id}/mano-obra`, { mano_obra: valor }),
   recalcularTotales: (id) => API.post(`/ordenes/${id}/recalcular-totales`),
+  // Re-presupuesto
+  rePresupuesto: (id, data) => API.post(`/ordenes/${id}/re-presupuesto`, data),
+  aprobarRePresupuesto: (id) => API.post(`/ordenes/${id}/aprobar-re-presupuesto`),
 };
 
 // ==================== ÓRDENES DE COMPRA ====================

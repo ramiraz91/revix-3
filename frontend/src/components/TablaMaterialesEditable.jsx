@@ -89,7 +89,7 @@ export default function TablaMaterialesEditable({
 
   // Iniciar edición
   const handleStartEdit = (index) => {
-    const material = materiales[index];
+    const material = localMateriales[index];
     setEditData({
       nombre: material.nombre || '',
       cantidad: material.cantidad || 1,

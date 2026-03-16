@@ -1704,6 +1704,177 @@ async def actualizar_mano_obra(orden_id: str, request: ManoObraRequest, user: di
     return {"message": "Mano de obra actualizada", "mano_obra": request.mano_obra, "totales": totales}
 
 
+# ==================== NOTIFICAR (ENVIAR-WHATSAPP) ====================
+
+@router.post("/ordenes/{orden_id}/enviar-whatsapp")
+async def enviar_notificacion_orden(orden_id: str, user: dict = Depends(require_auth)):
+    """Reenvía la notificación por email/SMS al cliente con el link de seguimiento."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    cliente = await db.clientes.find_one({"id": orden.get("cliente_id")}, {"_id": 0})
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    # Ensure order has a tracking token
+    token = orden.get("token_seguimiento")
+    if not token:
+        token = str(uuid.uuid4())[:12].upper()
+        await db.ordenes.update_one({"id": orden_id}, {"$set": {"token_seguimiento": token}})
+        orden["token_seguimiento"] = token
+    
+    try:
+        results = await send_order_notification(orden, cliente, "created")
+        canales = []
+        if results.get("email", {}).get("success"):
+            canales.append("email")
+        if results.get("sms", {}).get("success"):
+            canales.append("SMS")
+        
+        if canales:
+            return {"message": f"Notificación enviada por {', '.join(canales)}"}
+        else:
+            return {"message": "Notificación procesada. Verifica la configuración SMTP si no llega el email."}
+    except Exception as e:
+        logger.error(f"Error enviando notificación manual para orden {orden_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar notificación: {str(e)}")
+
+
+# ==================== RE-PRESUPUESTO ====================
+
+class RePresupuestoRequest(BaseModel):
+    nuevo_importe: float
+    motivo: Optional[str] = None
+    notificar_cliente: bool = True
+
+@router.post("/ordenes/{orden_id}/re-presupuesto")
+async def iniciar_re_presupuesto(orden_id: str, request: RePresupuestoRequest, user: dict = Depends(require_auth)):
+    """Inicia un flujo de re-presupuesto: cambia estado, registra el nuevo importe y notifica al cliente."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    estado_actual = orden.get("estado", "pendiente_recibir")
+    es_admin = user.get("role") in ["admin", "master"]
+    
+    # Validate transition
+    transicion_valida, error_msg = validar_transicion(estado_actual, "re_presupuestar", es_admin)
+    if not transicion_valida:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    now = datetime.now(timezone.utc)
+    historial = orden.get("historial_estados", [])
+    historial.append({
+        "estado": "re_presupuestar",
+        "fecha": now.isoformat(),
+        "usuario": user.get("email", "admin")
+    })
+    
+    update_data = {
+        "estado": "re_presupuestar",
+        "historial_estados": historial,
+        "re_presupuesto_importe": request.nuevo_importe,
+        "re_presupuesto_motivo": request.motivo or "Re-presupuesto solicitado",
+        "re_presupuesto_fecha": now.isoformat(),
+        "re_presupuesto_aprobado": None,
+        "updated_at": now.isoformat()
+    }
+    
+    await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
+    
+    await registrar_evento_ot(
+        ot_doc=orden,
+        action="re_presupuesto",
+        actor=user,
+        source="api",
+        updates={"estado": "re_presupuestar", "nuevo_importe": request.nuevo_importe},
+        before={"estado": estado_actual},
+    )
+    
+    # Notify client
+    if request.notificar_cliente:
+        try:
+            cliente = await db.clientes.find_one({"id": orden.get("cliente_id")}, {"_id": 0})
+            if cliente and cliente.get("email"):
+                from services.email_service import send_email as smtp_send
+                import config as smtp_cfg
+                
+                token = orden.get("token_seguimiento", "")
+                link = f"{smtp_cfg.FRONTEND_URL}/web/consulta?codigo={token}"
+                
+                contenido = f"""
+                <p>Hola {cliente.get('nombre', '')},</p>
+                <p>Te informamos de que tu reparación (orden <strong>{orden.get('numero_orden', '')}</strong>) 
+                necesita un nuevo presupuesto.</p>
+                <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
+                    <p style="font-size:14px;color:#92400e;margin-bottom:8px;"><strong>Nuevo presupuesto:</strong></p>
+                    <p style="font-size:24px;font-weight:bold;color:#d97706;">{request.nuevo_importe:.2f} EUR</p>
+                    {f'<p style="font-size:13px;color:#92400e;margin-top:8px;">Motivo: {request.motivo}</p>' if request.motivo else ''}
+                </div>
+                <p>Puedes consultar el estado de tu reparación en cualquier momento:</p>
+                <p><a href="{link}" style="color:#2563eb;text-decoration:underline;">Ver estado de mi reparación</a></p>
+                <p>Si tienes alguna duda, no dudes en contactarnos.</p>
+                """
+                
+                smtp_send(
+                    to=cliente["email"],
+                    subject=f"Revix - Nuevo presupuesto para tu reparación ({orden.get('numero_orden', '')})",
+                    titulo="Nuevo presupuesto de reparación",
+                    contenido=contenido
+                )
+        except Exception as e:
+            logger.error(f"Error notificando re-presupuesto para orden {orden_id}: {e}")
+    
+    # Create internal notification
+    notif = Notificacion(
+        tipo="re_presupuesto",
+        mensaje=f"Re-presupuesto de {request.nuevo_importe:.2f}EUR para orden {orden.get('numero_orden', '')}. {request.motivo or ''}",
+        orden_id=orden_id
+    )
+    notif_doc = notif.model_dump()
+    notif_doc["created_at"] = notif_doc["created_at"].isoformat()
+    await db.notificaciones.insert_one(notif_doc)
+    
+    return {
+        "message": f"Re-presupuesto de {request.nuevo_importe:.2f}EUR registrado. Estado cambiado a 're_presupuestar'.",
+        "nuevo_importe": request.nuevo_importe,
+        "estado": "re_presupuestar"
+    }
+
+
+@router.post("/ordenes/{orden_id}/aprobar-re-presupuesto")
+async def aprobar_re_presupuesto(orden_id: str, user: dict = Depends(require_auth)):
+    """El admin aprueba el re-presupuesto y vuelve la orden a en_taller."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    if orden.get("estado") != "re_presupuestar":
+        raise HTTPException(status_code=400, detail="La orden no está en estado de re-presupuesto")
+    
+    now = datetime.now(timezone.utc)
+    historial = orden.get("historial_estados", [])
+    historial.append({
+        "estado": "en_taller",
+        "fecha": now.isoformat(),
+        "usuario": user.get("email", "admin") + " (re-presupuesto aprobado)"
+    })
+    
+    update_data = {
+        "estado": "en_taller",
+        "historial_estados": historial,
+        "re_presupuesto_aprobado": True,
+        "re_presupuesto_aprobado_fecha": now.isoformat(),
+        "re_presupuesto_aprobado_por": user.get("email"),
+        "updated_at": now.isoformat()
+    }
+    
+    await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
+    
+    return {"message": "Re-presupuesto aprobado. Orden devuelta a en_taller.", "estado": "en_taller"}
+
+
 @router.post("/ordenes/{orden_id}/recalcular-totales")
 async def recalcular_totales_endpoint(orden_id: str, user: dict = Depends(require_admin)):
     """Fuerza el recálculo de los totales de una orden"""

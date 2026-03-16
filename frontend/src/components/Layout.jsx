@@ -279,6 +279,7 @@ export default function Layout() {
             <NavItem path="/dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem path="/nuevas-ordenes" icon={PackagePlus} label="Nuevas Órdenes" badge={nuevasOrdenesCount} />
             <NavItem path="/ordenes" icon={ClipboardList} label="Órdenes de Trabajo" />
+            <NavItem path="/logistica" icon={Truck} label="Envíos y Recogidas" />
             <NavItem path="/calendario" icon={Calendar} label="Calendario" />
             <NavItem path="/scanner" icon={QrCode} label="Escáner QR" />
             <NavItem path="/incidencias" icon={AlertTriangle} label="Incidencias" />
@@ -320,10 +321,6 @@ export default function Layout() {
                 <NavItem path="/buscar-siniestro" icon={Shield} label="Buscar Siniestro" />
                 {isMaster() && <NavItem path="/insurama" icon={Settings} label="Config. Insurama" />}
                 {isMaster() && <NavItem path="/liquidaciones" icon={Receipt} label="Liquidaciones" />}
-                <NavItem path="/pre-registros" icon={ClipboardList} label="Pre-Registros" />
-                <NavItem path="/logistica" icon={Truck} label="Logística" />
-                {isMaster() && <NavItem path="/mobilesentrix" icon={Package} label="MobileSentrix" />}
-                {isMaster() && <NavItem path="/utopya" icon={Package} label="Utopya" />}
               </SidebarGroup>
             </>
           )}

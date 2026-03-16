@@ -56,9 +56,6 @@ import EtiquetasEnvio from "@/pages/EtiquetasEnvio";
 import NotificacionesTecnico from "@/pages/NotificacionesTecnico";
 import Insurama from "@/pages/Insurama";
 import Logistica from "@/pages/Logistica";
-import PreRegistros from "@/pages/PreRegistros";
-import MobileSentrixConfig from "@/pages/MobileSentrixConfig";
-import UtopyaConfig from "@/pages/UtopyaConfig";
 import Contabilidad from "@/pages/Contabilidad";
 import FinanzasDashboard from "@/pages/FinanzasDashboard";
 import FacturaDetalle from "@/pages/FacturaDetalle";
@@ -166,7 +163,6 @@ function AppRoutes() {
       <Route path="/contabilidad/*" element={<LegacyCRMRedirect />} />
       <Route path="/contabilidad" element={<LegacyCRMRedirect />} />
       <Route path="/logistica" element={<LegacyCRMRedirect />} />
-      <Route path="/pre-registros" element={<LegacyCRMRedirect />} />
       <Route path="/comisiones" element={<LegacyCRMRedirect />} />
       <Route path="/kits" element={<LegacyCRMRedirect />} />
       <Route path="/liquidaciones" element={<LegacyCRMRedirect />} />
@@ -177,8 +173,6 @@ function AppRoutes() {
       <Route path="/buscar-siniestro" element={<LegacyCRMRedirect />} />
       <Route path="/peticiones-exteriores" element={<LegacyCRMRedirect />} />
       <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
-      <Route path="/mobilesentrix" element={<LegacyCRMRedirect />} />
-      <Route path="/utopya" element={<LegacyCRMRedirect />} />
       
       {/* ===== CRM (www.revix.es/crm) ===== */}
       <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />
@@ -328,24 +322,9 @@ function AppRoutes() {
             <BuscarSiniestro />
           </ProtectedRoute>
         } />
-        <Route path="pre-registros" element={
-          <ProtectedRoute adminOnly>
-            <PreRegistros />
-          </ProtectedRoute>
-        } />
         <Route path="logistica" element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Logistica />
-          </ProtectedRoute>
-        } />
-        <Route path="mobilesentrix" element={
-          <ProtectedRoute masterOnly>
-            <MobileSentrixConfig />
-          </ProtectedRoute>
-        } />
-        <Route path="utopya" element={
-          <ProtectedRoute masterOnly>
-            <UtopyaConfig />
           </ProtectedRoute>
         } />
         <Route path="contabilidad" element={

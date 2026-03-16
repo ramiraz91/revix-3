@@ -247,13 +247,11 @@ class MobileSentrixClient:
         
         url = f"{self.base_url}/api/rest{endpoint}"
         
-        auth_header = self._get_oauth_header(method, url, params)
-        
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'User-Agent': 'Revix-CRM/1.0',
-            'Authorization': auth_header
+            'Authorization': f'Bearer {self.access_token}'
         }
         
         try:

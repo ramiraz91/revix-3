@@ -47,8 +47,6 @@ from routes.admin_routes import router as admin_router
 from routes.websocket_routes import router as ws_router
 from routes.insurama_routes import router as insurama_router
 from routes.logistica_routes import router as logistica_router
-from routes.mobilesentrix_routes import router as mobilesentrix_router
-from routes.utopya_routes import router as utopya_router
 from routes.contabilidad_routes import router as contabilidad_router
 from routes.kits_routes import router as kits_router
 from routes.inteligencia_precios_routes import router as inteligencia_router
@@ -103,8 +101,6 @@ api_router.include_router(ordenes_router)
 api_router.include_router(admin_router)
 api_router.include_router(insurama_router)
 api_router.include_router(logistica_router)
-api_router.include_router(mobilesentrix_router)
-api_router.include_router(utopya_router)
 api_router.include_router(contabilidad_router)
 api_router.include_router(kits_router)
 api_router.include_router(inteligencia_router)

@@ -738,7 +738,7 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             "agencia_envio": orden.get('agencia_envio'),
             "codigo_recogida_entrada": orden.get('codigo_recogida_entrada'),
             "codigo_recogida_salida": orden.get('codigo_recogida_salida'),
-            "codigo_seguimiento_salida": orden.get('codigo_seguimiento_salida'),
+            "codigo_seguimiento_salida": orden.get('codigo_seguimiento_salida') or orden.get('codigo_recogida_salida'),
             "diagnostico_tecnico": orden.get('diagnostico_tecnico'),
             "numero_autorizacion": orden.get('numero_autorizacion'),
             "evidencias": orden.get('evidencias', []),

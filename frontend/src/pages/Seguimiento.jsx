@@ -448,8 +448,8 @@ export default function Seguimiento() {
                   {/* Código de Envío (Salida) */}
                   <div className="p-3 bg-white rounded-lg border">
                     <p className="text-xs text-muted-foreground uppercase mb-1">Nº Envío</p>
-                    {orden.codigo_seguimiento_salida ? (
-                      <p className="font-mono font-semibold text-emerald-700">{orden.codigo_seguimiento_salida}</p>
+                    {(orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) ? (
+                      <p className="font-mono font-semibold text-emerald-700">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</p>
                     ) : (
                       <p className="text-muted-foreground text-sm">Pendiente</p>
                     )}
@@ -627,7 +627,7 @@ export default function Seguimiento() {
             </Card>
 
             {/* Shipping Confirmation when Enviado */}
-            {orden.estado === 'enviado' && orden.codigo_seguimiento_salida && (
+            {orden.estado === 'enviado' && (orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
               <Card className="border-emerald-200 bg-emerald-50">
                 <CardContent className="py-4">
                   <div className="flex items-center gap-4">
@@ -635,7 +635,7 @@ export default function Seguimiento() {
                     <div>
                       <p className="font-semibold text-emerald-800">¡Tu dispositivo está en camino!</p>
                       <p className="text-sm text-emerald-700">
-                        Agencia: {orden.agencia_envio} | Código: <span className="font-mono">{orden.codigo_seguimiento_salida}</span>
+                        {orden.agencia_envio && <>Agencia: {orden.agencia_envio} | </>}Código: <span className="font-mono">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</span>
                       </p>
                     </div>
                   </div>

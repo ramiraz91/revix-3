@@ -54,6 +54,7 @@ CRM/ERP para gestion integral de un taller de reparaciones de dispositivos elect
 - [x] Fix dashboard inteligencia Insurama: $$REMOVE, _id serialization, $convert precio (v1.4.1)
 - [x] Fix Analiticas/Finanzas: conversiones float robustas en todos los calculos financieros (v1.4.1)
 - [x] Eliminada factura de prueba FV-2026-00001 de produccion (v1.4.1)
+- [x] Fix codigos envio MRW en portal seguimiento: mapeo codigo_recogida_salida a codigo_seguimiento_salida (v1.4.1)
 
 ## Pendientes (P0)
 - [ ] Verificar notificacion automatica por email al crear orden en produccion

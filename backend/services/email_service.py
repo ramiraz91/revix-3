@@ -25,7 +25,7 @@ SMTP_USER = os.environ.get('SMTP_USER', '')
 SMTP_PASS = os.environ.get('SMTP_PASS', '')
 SMTP_FROM = os.environ.get('SMTP_FROM', 'Revix <notificaciones@revix.es>')
 SMTP_REPLY_TO = os.environ.get('SMTP_REPLY_TO', 'help@revix.es')
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://operativa-dash.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://repair-crm-dev.preview.emergentagent.com')
 
 
 def _build_html_body(titulo: str, contenido: str, link_url: Optional[str] = None, link_text: str = "Ver en Revix") -> str:

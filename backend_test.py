@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 class RevixAPITester:
     def __init__(self):
         # Get backend URL from frontend .env file 
-        self.base_url = "https://operativa-dash.preview.emergentagent.com"
+        self.base_url = "https://repair-crm-dev.preview.emergentagent.com"
         self.api_url = f"{self.base_url}/api"
         self.session = requests.Session()
         self.token = None

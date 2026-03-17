@@ -2573,6 +2573,60 @@ async def descargar_fotos_zip(orden_id: str, user: dict = Depends(require_auth))
     )
 
 
+@router.get("/ordenes/{orden_id}/fotos-zip/{tipo}")
+async def descargar_fotos_zip_por_tipo(orden_id: str, tipo: str, user: dict = Depends(require_auth)):
+    """Descarga fotos de una orden filtradas por tipo: 'antes' o 'despues'."""
+    import zipfile
+    import io
+    import httpx
+    from fastapi.responses import StreamingResponse
+
+    if tipo not in ("antes", "despues"):
+        raise HTTPException(status_code=400, detail="Tipo debe ser 'antes' o 'despues'")
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    fotos = []
+    if tipo == "antes":
+        for f in (orden.get('evidencias') or []):
+            fotos.append(f)
+        for f in (orden.get('fotos_antes') or []):
+            fotos.append(f)
+    else:
+        for f in (orden.get('fotos_despues') or []):
+            fotos.append(f)
+
+    if not fotos:
+        raise HTTPException(status_code=404, detail=f"No hay fotos de '{tipo}' para descargar")
+
+    zip_buffer = io.BytesIO()
+    async with httpx.AsyncClient() as client:
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, foto_ref in enumerate(fotos):
+                try:
+                    if foto_ref.startswith('http'):
+                        response = await client.get(foto_ref, timeout=30.0)
+                        if response.status_code == 200:
+                            ext = foto_ref.split('.')[-1].split('?')[0] if '.' in foto_ref else 'jpg'
+                            zip_file.writestr(f"{tipo}_{idx+1}.{ext}", response.content)
+                    else:
+                        file_path = UPLOAD_DIR / foto_ref
+                        if file_path.exists():
+                            zip_file.write(file_path, f"{tipo}_{foto_ref}")
+                except Exception as e:
+                    logger.error(f"Error descargando foto {foto_ref}: {e}")
+
+    zip_buffer.seek(0)
+    numero_orden = orden.get('numero_orden', orden_id)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={numero_orden}_fotos_{tipo}.zip"}
+    )
+
+
 # ==================== MÉTRICAS ====================
 
 @router.get("/ordenes/{orden_id}/metricas")

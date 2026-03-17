@@ -323,15 +323,19 @@ export default function OrdenDetalle() {
   };
 
   // Descargar ZIP de fotos
-  const handleDescargarFotos = async () => {
+  const handleDescargarFotos = async (tipo = null) => {
     const token = localStorage.getItem('token');
     if (!token) {
       toast.error('Sesión expirada. Por favor, inicia sesión de nuevo.');
       return;
     }
-    toast.info('Preparando descarga...');
+    const label = tipo === 'antes' ? 'Antes' : tipo === 'despues' ? 'Después' : 'Todas';
+    toast.info(`Preparando descarga (${label})...`);
     try {
-      const url = `${process.env.REACT_APP_BACKEND_URL}/api/ordenes/${id}/fotos-zip`;
+      const path = tipo 
+        ? `/api/ordenes/${id}/fotos-zip/${tipo}`
+        : `/api/ordenes/${id}/fotos-zip`;
+      const url = `${process.env.REACT_APP_BACKEND_URL}${path}`;
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -349,7 +353,8 @@ export default function OrdenDetalle() {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = downloadUrl;
-      a.download = `${orden.numero_orden}_fotos.zip`;
+      const suffix = tipo ? `_fotos_${tipo}` : '_fotos';
+      a.download = `${orden.numero_orden}${suffix}.zip`;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -1730,10 +1735,15 @@ export default function OrdenDetalle() {
                     const fotosAntes = todasLasFotos.filter(f => f.categoria === 'antes');
                     return fotosAntes.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Badge className="bg-amber-500 text-white">ANTES</Badge>
-                          <span className="text-muted-foreground text-sm">({fotosAntes.length} fotos)</span>
-                        </h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Badge className="bg-amber-500 text-white">ANTES</Badge>
+                            <span className="text-muted-foreground text-sm">({fotosAntes.length} fotos)</span>
+                          </h3>
+                          <Button variant="outline" size="sm" onClick={() => handleDescargarFotos('antes')} data-testid="download-antes-zip">
+                            <Download className="w-4 h-4 mr-1" /> ZIP Antes
+                          </Button>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {fotosAntes.map((foto, index) => (
                             <div key={`antes-${index}`} className="relative aspect-square rounded-lg border-2 border-amber-300 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
@@ -1754,10 +1764,15 @@ export default function OrdenDetalle() {
                     const fotosDespues = todasLasFotos.filter(f => f.categoria === 'despues');
                     return fotosDespues.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Badge className="bg-green-500 text-white">DESPUÉS</Badge>
-                          <span className="text-muted-foreground text-sm">({fotosDespues.length} fotos)</span>
-                        </h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Badge className="bg-green-500 text-white">DESPUÉS</Badge>
+                            <span className="text-muted-foreground text-sm">({fotosDespues.length} fotos)</span>
+                          </h3>
+                          <Button variant="outline" size="sm" onClick={() => handleDescargarFotos('despues')} data-testid="download-despues-zip">
+                            <Download className="w-4 h-4 mr-1" /> ZIP Después
+                          </Button>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {fotosDespues.map((foto, index) => (
                             <div key={`despues-${index}`} className="relative aspect-square rounded-lg border-2 border-green-300 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
@@ -2262,22 +2277,45 @@ export default function OrdenDetalle() {
             </div>
 
             {/* Botones de descarga */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Button 
                 variant="outline" 
                 className="h-20 flex flex-col items-center justify-center gap-2 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50"
-                onClick={handleDescargarFotos}
+                onClick={() => handleDescargarFotos()}
+                data-testid="download-all-zip"
               >
                 <FileImage className="w-8 h-8 text-blue-600" />
-                <span className="text-sm font-medium">Descargar Fotos (ZIP)</span>
+                <span className="text-sm font-medium">Todas (ZIP)</span>
               </Button>
-              
+
               <Button 
                 variant="outline" 
-                className="h-20 flex flex-col items-center justify-center gap-2 border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-50"
+                className="h-20 flex flex-col items-center justify-center gap-2 border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50"
+                onClick={() => handleDescargarFotos('antes')}
+                data-testid="download-antes-zip-modal"
+              >
+                <FileImage className="w-8 h-8 text-amber-600" />
+                <span className="text-sm font-medium">Antes (ZIP)</span>
+              </Button>
+
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col items-center justify-center gap-2 border-2 border-green-200 hover:border-green-400 hover:bg-green-50"
+                onClick={() => handleDescargarFotos('despues')}
+                data-testid="download-despues-zip-modal"
+              >
+                <FileImage className="w-8 h-8 text-green-600" />
+                <span className="text-sm font-medium">Después (ZIP)</span>
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <Button 
+                variant="outline" 
+                className="h-16 flex items-center justify-center gap-2 border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-50"
                 onClick={handlePrint}
               >
-                <FileText className="w-8 h-8 text-purple-600" />
+                <FileText className="w-6 h-6 text-purple-600" />
                 <span className="text-sm font-medium">Descargar Orden (PDF)</span>
               </Button>
             </div>

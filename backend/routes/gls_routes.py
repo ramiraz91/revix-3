@@ -213,12 +213,136 @@ async def crear_recogida_gls(payload: CrearRecogidaPayload, user: dict = Depends
                 }
             }
         )
+
+        # Enviar email al cliente con etiqueta de recogida
+        try:
+            await _enviar_email_recogida(cfg, payload.orden_id, result["codbarras"])
+        except Exception as e:
+            logger.error(f"Error enviando email de recogida: {e}")
+
         return {**result, "gls_envio": gls_recogida}
     
     return result
 
 
 # ─── Labels ──────────────────────────────────────────────
+
+async def _enviar_email_recogida(cfg: dict, orden_id: str, codbarras: str):
+    """Envía email al cliente con instrucciones de envío y etiqueta GLS adjunta."""
+    import smtplib
+    import ssl
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.application import MIMEApplication
+    import config as app_cfg
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        return
+
+    cliente = orden.get("cliente") or {}
+    email_dst = cliente.get("email", "")
+    if not email_dst:
+        logger.info(f"No se envía email de recogida: cliente sin email en orden {orden_id}")
+        return
+
+    if not app_cfg.SMTP_CONFIGURED:
+        logger.warning("SMTP no configurado, no se puede enviar email de recogida")
+        return
+
+    # Obtener etiqueta PDF
+    etiqueta_pdf = None
+    try:
+        label_result = await obtener_etiqueta_recogida(cfg["uid_cliente"], orden_id, "PDF")
+        if label_result.get("success") and label_result.get("etiqueta_base64"):
+            etiqueta_pdf = base64.b64decode(label_result["etiqueta_base64"])
+    except Exception as e:
+        logger.error(f"Error obteniendo etiqueta para email: {e}")
+
+    nombre_cliente = cliente.get("nombre", "Cliente")
+    numero_orden = orden.get("numero_orden", orden_id)
+    dispositivo = orden.get("dispositivo", {})
+    disp_texto = f"{dispositivo.get('marca', '')} {dispositivo.get('modelo', '')}".strip() or "su dispositivo"
+
+    html = f'''<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f5f5f5;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;margin-top:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+    
+    <div style="background:#1a1a2e;color:#ffffff;padding:30px 40px;text-align:center;">
+      <h1 style="margin:0;font-size:22px;font-weight:600;">Instrucciones de Envío</h1>
+      <p style="margin:8px 0 0;opacity:0.85;font-size:14px;">Orden {numero_orden}</p>
+    </div>
+
+    <div style="padding:30px 40px;">
+      <p style="font-size:16px;color:#333;">Hola <strong>{nombre_cliente}</strong>,</p>
+      
+      <p style="font-size:14px;color:#555;line-height:1.6;">
+        Le confirmamos que hemos generado la etiqueta de recogida para su <strong>{disp_texto}</strong>.
+        GLS pasará a recoger el paquete en la dirección indicada.
+      </p>
+
+      <div style="background:#FFF8E1;border-left:4px solid #F9A825;padding:20px;border-radius:6px;margin:24px 0;">
+        <h3 style="margin:0 0 12px;color:#E65100;font-size:15px;">Antes de entregar el paquete, por favor:</h3>
+        <ol style="margin:0;padding-left:20px;color:#555;font-size:14px;line-height:2;">
+          <li><strong>Restablezca el dispositivo a valores de fábrica</strong> (borrar datos y cuentas)</li>
+          <li><strong>Retire la tarjeta SIM</strong> y cualquier tarjeta de memoria</li>
+          <li><strong>No incluya accesorios</strong>: ni cargador, ni cable, ni funda, ni protector</li>
+          <li><strong>Embale el dispositivo correctamente</strong>: use papel burbuja o similar y una caja resistente</li>
+          <li><strong>Solo el dispositivo</strong> dentro del paquete</li>
+        </ol>
+      </div>
+
+      <div style="background:#E8F5E9;border-left:4px solid #43A047;padding:16px;border-radius:6px;margin:20px 0;">
+        <p style="margin:0;font-size:14px;color:#2E7D32;">
+          <strong>Código de seguimiento:</strong> 
+          <span style="font-family:monospace;font-size:15px;background:#fff;padding:4px 8px;border-radius:4px;">{codbarras}</span>
+        </p>
+      </div>
+
+      {"<p style='font-size:14px;color:#555;'>Encontrará la <strong>etiqueta de envío adjunta</strong> en formato PDF. Imprímala y péguela en el exterior del paquete de forma visible.</p>" if etiqueta_pdf else "<p style='font-size:14px;color:#888;'>La etiqueta de envío estará disponible próximamente. Le informaremos cuando pueda descargarla.</p>"}
+
+      <div style="border-top:1px solid #eee;margin-top:24px;padding-top:16px;">
+        <p style="font-size:13px;color:#888;">Si tiene alguna duda, contacte con nosotros en <a href="mailto:help@revix.es" style="color:#1a1a2e;">help@revix.es</a> o llámenos al 604 319 223.</p>
+      </div>
+    </div>
+
+    <div style="background:#f8f8f8;padding:16px 40px;text-align:center;border-top:1px solid #eee;">
+      <p style="margin:0;font-size:12px;color:#999;">revix.es &mdash; Servicio técnico profesional</p>
+    </div>
+  </div>
+</body>
+</html>'''
+
+    # Construir email con adjunto
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = f"Instrucciones de Envío - Orden {numero_orden}"
+    msg["From"] = app_cfg.SMTP_FROM or f"Revix <{app_cfg.SMTP_USER}>"
+    msg["To"] = email_dst
+    msg["Reply-To"] = app_cfg.SMTP_REPLY_TO or "help@revix.es"
+
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    if etiqueta_pdf:
+        pdf_attachment = MIMEApplication(etiqueta_pdf, _subtype="pdf")
+        pdf_attachment.add_header("Content-Disposition", "attachment", filename=f"etiqueta_recogida_{numero_orden}.pdf")
+        msg.attach(pdf_attachment)
+
+    context = ssl.create_default_context()
+    try:
+        if app_cfg.SMTP_SECURE and app_cfg.SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(app_cfg.SMTP_HOST, app_cfg.SMTP_PORT, context=context, timeout=15) as server:
+                server.login(app_cfg.SMTP_USER, app_cfg.SMTP_PASS)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(app_cfg.SMTP_HOST, app_cfg.SMTP_PORT, timeout=15) as server:
+                server.starttls(context=context)
+                server.login(app_cfg.SMTP_USER, app_cfg.SMTP_PASS)
+                server.send_message(msg)
+        logger.info(f"Email de recogida enviado a {email_dst} para orden {numero_orden}")
+    except Exception as e:
+        logger.error(f"Error SMTP enviando email de recogida a {email_dst}: {e}")
 
 @router.get("/etiqueta/{referencia}")
 async def descargar_etiqueta(referencia: str, tipo: str = "PDF", user: dict = Depends(require_auth)):

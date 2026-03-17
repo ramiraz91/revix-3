@@ -436,26 +436,34 @@ export default function Seguimiento() {
                   <div className="p-3 bg-white rounded-lg border">
                     <p className="text-xs text-muted-foreground uppercase mb-1">Nº Recogida</p>
                     {orden.codigo_recogida_entrada ? (
-                      <p className="font-mono font-semibold text-blue-700">{orden.codigo_recogida_entrada}</p>
+                      <>
+                        <p className="font-mono font-semibold text-blue-700">{orden.codigo_recogida_entrada}</p>
+                        {orden.agencia_envio === 'GLS' && (
+                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.codigo_recogida_entrada}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                            <ExternalLink className="w-3 h-3" /> Seguir recogida en GLS
+                          </a>
+                        )}
+                      </>
                     ) : (
                       <p className="text-muted-foreground text-sm">Pendiente</p>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Código para la recogida inicial
-                    </p>
                   </div>
                   
                   {/* Código de Envío (Salida) */}
                   <div className="p-3 bg-white rounded-lg border">
                     <p className="text-xs text-muted-foreground uppercase mb-1">Nº Envío</p>
                     {(orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) ? (
-                      <p className="font-mono font-semibold text-emerald-700">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</p>
+                      <>
+                        <p className="font-mono font-semibold text-emerald-700">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</p>
+                        {orden.agencia_envio === 'GLS' && (
+                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
+                            <ExternalLink className="w-3 h-3" /> Seguir envío en GLS
+                          </a>
+                        )}
+                      </>
                     ) : (
                       <p className="text-muted-foreground text-sm">Pendiente</p>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Código de seguimiento del envío
-                    </p>
                   </div>
                 </div>
                 

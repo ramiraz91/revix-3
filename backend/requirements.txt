@@ -53,6 +53,7 @@ huggingface_hub==1.4.0
 idna==3.11
 importlib_metadata==8.7.1
 iniconfig==2.3.0
+isodate==0.7.2
 isort==7.0.0
 Jinja2==3.1.6
 jiter==0.13.0
@@ -62,6 +63,7 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 librt==0.7.8
 litellm==1.80.0
+lxml==6.0.2
 markdown-it-py==4.0.0
 markdown2==2.5.4
 MarkupSafe==3.0.3
@@ -110,13 +112,16 @@ python-http-client==3.3.7
 python-jose==3.5.0
 python-multipart==0.0.22
 pytokens==0.4.1
+pytz==2026.1.post1
 PyYAML==6.0.3
 qrcode==8.2
 referencing==0.37.0
 regex==2026.1.15
 reportlab==4.4.9
 requests==2.32.5
+requests-file==3.0.1
 requests-oauthlib==2.0.0
+requests-toolbelt==1.0.0
 rich==14.3.2
 rpds-py==0.30.0
 rsa==4.9.1
@@ -150,5 +155,6 @@ webencodings==0.5.1
 websockets==15.0.1
 Werkzeug==3.1.5
 yarl==1.22.0
+zeep==4.3.2
 zipp==3.23.0
 zopfli==0.4.0

@@ -61,6 +61,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import CalidadPantallaBadge from '@/components/CalidadPantallaBadge';
 import AppleManualCard from '@/components/AppleManualCard';
+import GLSLogistica from '@/components/orden/GLSLogistica';
 
 // Import refactored components
 import {
@@ -1226,6 +1227,10 @@ export default function OrdenDetalle() {
             )}
           </TabsTrigger>
           <TabsTrigger value="comunicaciones">Mensajes ({mensajes.length})</TabsTrigger>
+          <TabsTrigger value="logistica" data-testid="tab-logistica">
+            <Truck className="w-4 h-4 mr-1" />
+            Logística
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab: Información */}
@@ -1834,6 +1839,10 @@ export default function OrdenDetalle() {
             enviandoMensaje={enviandoMensaje}
             isAdmin={isAdmin()}
           />
+        </TabsContent>
+
+        <TabsContent value="logistica" className="mt-6">
+          <GLSLogistica orden={orden} onUpdate={fetchOrden} />
         </TabsContent>
       </Tabs>
 

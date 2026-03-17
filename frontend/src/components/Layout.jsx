@@ -314,6 +314,7 @@ export default function Layout() {
                 <NavItem path="/contabilidad" icon={Receipt} label="Facturas y Albaranes" />
                 <NavItem path="/comisiones" icon={DollarSign} label="Comisiones" />
                 <NavItem path="/etiquetas-envio" icon={Truck} label="Etiquetas Envío" />
+                <NavItem path="/gls-config" icon={Truck} label="GLS Config" />
               </SidebarGroup>
 
               {/* Integraciones */}

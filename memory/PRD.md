@@ -58,6 +58,7 @@ CRM/ERP para gestion integral de un taller de reparaciones de dispositivos elect
 - [x] Fix emails no se envian: HTML doble-anidado, FRONTEND_URL incorrecto, SMTP no cargaba desde DB (v1.4.1)
 - [x] UI Configuracion SMTP completa con modo demo/pruebas y respeto de flags enabled/demo_mode (v1.4.1)
 - [x] Descarga separada ZIP fotos Antes/Despues con endpoint y botones independientes (v1.4.1)
+- [x] Integracion GLS Spain completa: SOAP service, 9 endpoints, config UI, logistica en ordenes (v1.5.0)
 
 ## Pendientes (P0)
 - [ ] Verificar notificacion automatica por email al crear orden en produccion

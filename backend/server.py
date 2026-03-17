@@ -58,6 +58,7 @@ from routes.peticiones_routes import router as peticiones_router
 from routes.faqs_routes import router as faqs_router
 from routes.apple_manuals_routes import router as apple_manuals_router
 from routes.compras_routes import router as compras_router
+from routes.gls_routes import router as gls_router
 from routes.finanzas_routes import router as finanzas_router
 
 # ==================== APP SETUP ====================
@@ -112,6 +113,7 @@ api_router.include_router(peticiones_router)
 api_router.include_router(faqs_router)
 api_router.include_router(compras_router)
 api_router.include_router(finanzas_router)
+api_router.include_router(gls_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
 # ==================== STATIC FILES ====================

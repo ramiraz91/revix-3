@@ -1,73 +1,77 @@
-# Revix CRM/ERP - Product Requirements Document
+# PRD - Revix CRM/ERP
 
-## Descripcion
-CRM/ERP para gestion integral de un taller de reparaciones de dispositivos electronicos.
+## Descripción del Producto
+CRM/ERP para servicio técnico de reparación de dispositivos móviles (Revix.es). Backend FastAPI, Frontend React, MongoDB Atlas.
 
-## Stack Tecnologico
+## Stack Técnico
 - **Backend**: FastAPI, Python, Motor (MongoDB async)
-- **Frontend**: React, Axios, Tailwind CSS, Shadcn UI
-- **Base de Datos**: MongoDB (Atlas en produccion, DB: "revix_production")
-- **Almacenamiento**: Cloudinary (imagenes)
-- **Integraciones**: Insurama/Sumbroker (polling 2h), SMTP, Gemini AI
+- **Frontend**: React, Tailwind CSS, Shadcn UI
+- **BD**: MongoDB Atlas
+- **Integraciones**: SOAP (GLS), SMTP, Gemini, Cloudinary
 
-## Version Actual: v1.4.0
+## Arquitectura de Archivos
+```
+/app/backend/
+  ├── routes/gls_routes.py         # Rutas GLS completas
+  ├── services/
+  │   ├── gls_soap_client.py       # Cliente SOAP GLS
+  │   ├── gls_state_mapper.py      # Mapeador de estados GLS
+  │   ├── gls_sync_scheduler.py    # Polling en background
+  │   ├── email_service.py         # Servicio SMTP
+  │   └── cloudinary_service.py    # Almacenamiento imágenes
+  ├── server.py                    # App principal FastAPI
+  └── config.py                    # Configuración
 
-## Flujo Nuevas Ordenes
-1. Polling cada 2h (o manual con boton "Consultar Insurama") -> detecta presupuestos aceptados
-2. Pre-orden llega a "Nuevas Ordenes" como `pendiente_tramitar`
-3. Tramitador abre detalle completo (como orden de trabajo), edita datos si necesario
-4. Introduce codigo de recogida -> crea orden de trabajo en `pendiente_recibir`
-5. Sigue flujo normal
+/app/frontend/src/
+  ├── pages/
+  │   ├── GLSConfig.jsx            # Configuración GLS
+  │   ├── EtiquetasEnvio.jsx       # Etiquetas (GLS + manuales)
+  │   └── Logistica.jsx            # Control logística general
+  └── components/orden/
+      └── GLSLogistica.jsx         # GLS en detalle de orden
+```
 
-## Reglas de Negocio
-- **Albaranes**: Auto-generados al pasar a VALIDACION o ENVIADO
-- **Facturas**: Solo manuales por decision del usuario
-- **Compras**: Con factura del proveedor (PDF)
-- **Liquidaciones**: Auto-cruce de codigos al importar Excel
-- **Garantias**: Orden dependiente del mismo dispositivo
-- **Nuevas Ordenes**: Pre-ordenes editables como una orden completa
-- **Re-presupuesto**: Cambio de estado a re_presupuestar, notificacion al cliente, redireccion a materiales
+## Usuarios del Sistema
+- master@techrepair.local / master123
+- admin@techrepair.local / Admin2026!
+- tecnico@techrepair.local / Tecnico2026!
 
-## Completado
-- [x] Cloudinary, endpoint emergencia, SMTP, recuperar contrasena (v1.1.0)
-- [x] Versionado, guia despliegue, ordenes irreparables (v1.1.0)
-- [x] Auditoria funcional, Dashboard Financiero, auto-albaran (v1.2.0)
-- [x] Liquidaciones auto-cruce, garantias mejoradas (v1.2.1)
-- [x] Nuevas Ordenes con polling 2h y badge (v1.3.0)
-- [x] Boton "Consultar Insurama" para polling manual (v1.3.0)
-- [x] Vista detalle completa de pre-ordenes con edicion de todos los campos (v1.3.0)
-- [x] KPIs financieros y operativos globales en Dashboard Finanzas (v1.3.1)
-- [x] Eliminacion de modulos Utopya, MobileSentrix, Pre-Registros (v1.4.0)
-- [x] Reorganizacion menu: Logistica -> Envios y Recogidas (v1.4.0)
-- [x] Configuracion SMTP centralizada con UI (v1.4.0)
-- [x] Portal seguimiento: responsive, sin logo, recuperacion credenciales (v1.4.0)
-- [x] Endpoint POST /ordenes/{id}/enviar-whatsapp - Boton "Notificar" (v1.4.0)
-- [x] Flujo Re-presupuesto completo: endpoints, UI dialog, banner, auto-redirect a materiales (v1.4.0)
-- [x] Edicion inline de materiales en TablaMaterialesEditable con estado local (v1.4.0)
-- [x] Indicador de consentimiento legal visible en vista de orden (v1.4.0)
-- [x] Fix bug TablaMaterialesEditable: materiales -> localMateriales (v1.4.0)
-- [x] Preparacion para redeploy: verificacion completa de dependencias, build, env vars (v1.4.0)
-- [x] Deduplicacion Nuevas Ordenes: si codigo ya existe en ordenes, se descarta sin notificar (v1.4.1)
-- [x] Deduplicacion Notificaciones Insurama: no se repite notificacion si ya existe para el mismo siniestro+tipo (v1.4.1)
-- [x] Fix fotos admin visibles en seccion Antes para tecnicos en OrdenDetalle (v1.4.1)
-- [x] Fix descarga ZIP de fotos: fetch+blob en vez de window.open (v1.4.1)
-- [x] Fix dashboard inteligencia Insurama: $$REMOVE, _id serialization, $convert precio (v1.4.1)
-- [x] Fix Analiticas/Finanzas: conversiones float robustas en todos los calculos financieros (v1.4.1)
-- [x] Eliminada factura de prueba FV-2026-00001 de produccion (v1.4.1)
-- [x] Fix codigos envio MRW en portal seguimiento: mapeo codigo_recogida_salida a codigo_seguimiento_salida (v1.4.1)
-- [x] Fix emails no se envian: HTML doble-anidado, FRONTEND_URL incorrecto, SMTP no cargaba desde DB (v1.4.1)
-- [x] UI Configuracion SMTP completa con modo demo/pruebas y respeto de flags enabled/demo_mode (v1.4.1)
-- [x] Descarga separada ZIP fotos Antes/Despues con endpoint y botones independientes (v1.4.1)
-- [x] Integracion GLS Spain completa: SOAP service, 9 endpoints, config UI, logistica en ordenes (v1.5.0)
-- [x] Email automatico al crear recogida GLS: instrucciones + etiqueta PDF adjunta (v1.5.0)
+## Estado de Funcionalidades
 
-## Pendientes (P0)
-- [ ] Verificar notificacion automatica por email al crear orden en produccion
+### Completado
+- Sistema de autenticación y roles (master/admin/tecnico)
+- Órdenes de trabajo completas con flujo de estados
+- Clientes y gestión CRM
+- Inventario con SKUs
+- Dashboard y analíticas
+- Notificaciones en tiempo real
+- Integración Insurama (poller, deduplicación)
+- Sistema de email SMTP (configurable, modo demo)
+- Descarga de fotos ZIP (antes/después)
+- Integración GLS completa:
+  - Configuración UI (UID, remitente, servicios, polling)
+  - Creación de envíos y recogidas via SOAP
+  - Generación y descarga de etiquetas (PDF/PNG/ZPL)
+  - Tracking y consulta de estados
+  - Sincronización batch manual y automática (scheduler)
+  - Panel admin con listado y búsqueda de envíos
+  - Búsqueda de etiquetas por fecha/referencia
+  - Email automático con etiqueta en recogidas
+  - Mapeo de estados GLS → estados internos
+  - Anulación de envíos
+  - Reintento de envíos fallidos
+  - Logs de integración
 
-## Pendientes (P1)
-- [ ] Integracion completa con GLS
-- [ ] Refinar modulo de incidencias
+### Pendiente por Credenciales
+- Activación de GLS en producción (requiere uid_cliente del usuario)
 
-## Pendientes (P2)
-- [ ] Acortar SKU inventario
-- [ ] Modulo playwright_stealth - verificar en produccion
+## Backlog (P1/P2)
+- P1: Validación con credenciales reales de GLS
+- P2: Integración Google Business Profile con Gemini Flash
+- P2: Refinamiento flujo de incidencias
+- P2: Acortar SKU generado en inventario
+
+## Credenciales Externas
+- **SMTP**: notificaciones@revix.es / RDdQn_GMmR6;%FJ
+- **GLS**: Pendiente del usuario
+- **Cloudinary**: Configurado en .env

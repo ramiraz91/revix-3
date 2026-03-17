@@ -1,0 +1,160 @@
+{
+  "summary": "GLS Integration testing completed. All backend endpoints work correctly (11/11 tests passed). Frontend pages load successfully at /crm/gls-config and /crm/etiquetas-envio. GLS sync scheduler starts properly with server. GLS is currently INACTIVE (no production credentials configured) - this is expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gls_integration.py",
+    "/app/test_reports/pytest/pytest_results_gls.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_gls_integration.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all pages load correctly, all components verified)"
+  },
+  "test_credentials": {
+    "master_user": "master@techrepair.local / master123"
+  },
+  "seed_data_creation": "None - tested with empty shipment/label data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GLS integration fully tested. GLS is currently INACTIVE (no uid_cliente configured). To test shipment creation, activate GLS and provide real GLS Spain API credentials. All endpoints return expected structures. Frontend has 3 tabs on Etiquetas page: GLS, Manuales, Transportistas.",
+  "verified_features": [
+    {
+      "feature": "GET /api/gls/config",
+      "tests": [
+        "Returns 200 with complete config structure",
+        "Contains activo, uid_cliente, remitente, servicios_disponibles, horarios_disponibles, estados_mapa",
+        "Remitente has nombre, direccion, poblacion, cp, telefono, nif"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/gls/config",
+      "tests": [
+        "Saves configuration successfully",
+        "Returns {success: true, message: 'Configuración GLS guardada'}",
+        "Config persisted and retrievable via GET"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/gls/servicios",
+      "tests": [
+        "Returns servicios, horarios, and estados maps",
+        "Contains expected service codes: 1, 10, 14, 74, 96",
+        "Contains expected states: grabado, entregado, incidencia, etc."
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/gls/envios",
+      "tests": [
+        "Returns {envios: [], total: 0, page: 1, pages: 0}",
+        "Supports pagination (page, limit)",
+        "Supports filters (estado, tipo, busqueda, fecha)"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/gls/etiquetas",
+      "tests": [
+        "Returns {etiquetas: [], total: 0}",
+        "Supports referencia filter",
+        "Supports fecha filter"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/gls/sync",
+      "tests": [
+        "Returns 400 when GLS not active",
+        "Error detail: 'Integración GLS no activada'",
+        "Requires master authentication"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GLS Sync Scheduler",
+      "tests": [
+        "Starts on server startup (line 2422-2428 in server.py)",
+        "Stops on server shutdown (line 2430-2433)",
+        "Logs confirm: 'GLS sync scheduler started'"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "/crm/gls-config Page",
+      "tests": [
+        "Page loads correctly",
+        "Shows INACTIVO badge (GLS not activated)",
+        "Has activation toggle",
+        "Has UID Cliente input",
+        "Has remitente fields (nombre, NIF, direccion, etc.)",
+        "Has service/horario/format/portes selectors",
+        "Has polling toggle and interval input",
+        "Has save button"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "/crm/etiquetas-envio Page",
+      "tests": [
+        "Page loads correctly",
+        "Has 3 tabs: Etiquetas GLS, Etiquetas Manuales, Transportistas",
+        "GLS tab has search by reference input",
+        "GLS tab has date picker",
+        "GLS tab has search button",
+        "Shows 'No se encontraron etiquetas GLS' when empty"
+      ],
+      "status": "PASSED"
+    }
+  ],
+  "data_testids_verified": [
+    "gls-status-badge",
+    "gls-toggle",
+    "gls-uid",
+    "gls-rem-nombre",
+    "gls-rem-nif", 
+    "gls-rem-dir",
+    "gls-rem-pob",
+    "gls-rem-cp",
+    "gls-rem-tel",
+    "gls-servicio",
+    "gls-horario",
+    "gls-formato",
+    "gls-portes",
+    "gls-polling-interval",
+    "gls-polling-toggle",
+    "gls-save-btn",
+    "tab-gls-labels",
+    "gls-search-ref",
+    "gls-search-date",
+    "gls-search-btn"
+  ],
+  "gls_integration_notes": {
+    "status": "INACTIVE (no production credentials)",
+    "real_api_calls": "Not tested (GLS SOAP API requires valid uid_cliente)",
+    "all_local_endpoints": "Working correctly",
+    "config_stored_in": "configuracion collection with tipo='gls_config'"
+  },
+  "files_verified": {
+    "backend_routes": "/app/backend/routes/gls_routes.py",
+    "soap_client": "/app/backend/services/gls_soap_client.py",
+    "state_mapper": "/app/backend/services/gls_state_mapper.py", 
+    "sync_scheduler": "/app/backend/services/gls_sync_scheduler.py",
+    "frontend_config": "/app/frontend/src/pages/GLSConfig.jsx",
+    "frontend_etiquetas": "/app/frontend/src/pages/EtiquetasEnvio.jsx",
+    "frontend_logistica_component": "/app/frontend/src/components/orden/GLSLogistica.jsx"
+  }
+}

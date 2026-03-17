@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Separator } from '../components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Truck, Package, Send, MapPin, RefreshCw, FileDown, X, ExternalLink, ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import API from '@/lib/api';
@@ -100,12 +100,11 @@ export default function GLSLogistica({ orden, onUpdate }) {
     setLoadingTracking(false);
   };
 
-  const handleDescargarEtiqueta = async (ref, tipo = 'envio') => {
+  const handleDescargarEtiqueta = async (envioId, tipo = 'envio') => {
     const token = localStorage.getItem('token');
-    const endpoint = tipo === 'recogida' ? 'etiqueta-recogida' : 'etiqueta';
     const formato = glsConfig?.formato_etiqueta || 'PDF';
     try {
-      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/gls/${endpoint}/${ref}?tipo=${formato}`, {
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/gls/etiqueta/${envioId}?formato=${formato}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Error descargando etiqueta');
@@ -234,10 +233,10 @@ export default function GLSLogistica({ orden, onUpdate }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={ESTADO_COLORS[envio.estado_gls] || 'bg-slate-100'} data-testid={`gls-estado-${idx}`}>{envio.estado_gls || 'grabado'}</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => handleDescargarEtiqueta(envio.referencia || orden.id, envio.tipo)} title="Descargar etiqueta" data-testid={`gls-label-${idx}`}>
+                    <Button variant="ghost" size="sm" onClick={() => handleDescargarEtiqueta(envio.id, envio.tipo)} title="Descargar etiqueta" data-testid={`gls-label-${idx}`}>
                       <FileDown className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleConsultarTracking(envio.referencia || orden.id)} title="Consultar tracking" data-testid={`gls-track-${idx}`}>
+                    <Button variant="ghost" size="sm" onClick={() => handleConsultarTracking(envio.id)} title="Consultar tracking" data-testid={`gls-track-${idx}`}>
                       {loadingTracking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                     </Button>
                   </div>

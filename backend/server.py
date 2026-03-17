@@ -2396,6 +2396,14 @@ async def create_default_users():
         # Índice para alertas SLA
         await db.alertas_sla.create_index("orden_id")
         await db.alertas_sla.create_index([("created_at", -1)])
+
+        # Índices para GLS
+        await db.gls_envios.create_index("entidad_origen_id")
+        await db.gls_envios.create_index("gls_codbarras")
+        await db.gls_envios.create_index("estado_interno")
+        await db.gls_envios.create_index([("created_at", -1)])
+        await db.gls_tracking_events.create_index("envio_id")
+        await db.gls_logs.create_index("envio_id")
         
         logger.info("Database indexes created successfully")
     except Exception as e:
@@ -2411,8 +2419,18 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start email agent: {e}")
 
+    # Start GLS sync scheduler
+    try:
+        from services.gls_sync_scheduler import start_gls_sync
+        start_gls_sync()
+        logger.info("GLS sync scheduler started")
+    except Exception as e:
+        logger.warning(f"Could not start GLS sync scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    from services.gls_sync_scheduler import stop_gls_sync
+    stop_gls_sync()
     cfg.client.close()
 
 

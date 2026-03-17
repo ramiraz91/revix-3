@@ -169,6 +169,7 @@ function AppRoutes() {
       <Route path="/liquidaciones" element={<LegacyCRMRedirect />} />
       <Route path="/email-config" element={<LegacyCRMRedirect />} />
       <Route path="/etiquetas-envio" element={<LegacyCRMRedirect />} />
+      <Route path="/gls-config" element={<LegacyCRMRedirect />} />
       <Route path="/insurama" element={<LegacyCRMRedirect />} />
       <Route path="/agente-aria" element={<LegacyCRMRedirect />} />
       <Route path="/buscar-siniestro" element={<LegacyCRMRedirect />} />

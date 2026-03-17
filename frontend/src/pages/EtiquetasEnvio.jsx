@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { 
   Truck, Settings, Save, Package, MapPin, Phone, Mail, Printer, 
   RefreshCw, AlertCircle, CheckCircle, ExternalLink, Plus, Trash2, Eye,
-  Building2, Key, Globe
+  Building2, Key, Globe, Search, FileDown, Calendar, ArrowDown, ArrowUp
 } from 'lucide-react';
 import { transportistasAPI, etiquetasEnvioAPI, ordenesAPI } from '@/lib/api';
+import API from '@/lib/api';
 import { toast } from 'sonner';
 
 const TRANSPORTISTAS_INFO = {
@@ -43,8 +44,15 @@ export default function EtiquetasEnvio() {
     contenido: 'Dispositivo móvil'
   });
 
+  // GLS labels state
+  const [glsEtiquetas, setGlsEtiquetas] = useState([]);
+  const [glsLoading, setGlsLoading] = useState(false);
+  const [glsBusqueda, setGlsBusqueda] = useState('');
+  const [glsFecha, setGlsFecha] = useState(new Date().toISOString().split('T')[0]);
+
   useEffect(() => {
     fetchData();
+    fetchGlsEtiquetas();
   }, []);
 
   const fetchData = async () => {
@@ -127,6 +135,48 @@ export default function EtiquetasEnvio() {
     }
   };
 
+  const fetchGlsEtiquetas = async (busqueda = '', fecha = '') => {
+    setGlsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (busqueda) params.append('referencia', busqueda);
+      else if (fecha) params.append('fecha', fecha);
+      const res = await API.get(`/gls/etiquetas?${params.toString()}`);
+      setGlsEtiquetas(res.data?.etiquetas || []);
+    } catch (e) { /* GLS not configured */ }
+    setGlsLoading(false);
+  };
+
+  const handleBuscarGls = () => {
+    if (glsBusqueda.trim()) {
+      fetchGlsEtiquetas(glsBusqueda.trim(), '');
+    } else {
+      fetchGlsEtiquetas('', glsFecha);
+    }
+  };
+
+  const handleDescargarEtiquetaGls = async (envioId, tipo = 'envio') => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/gls/etiqueta/${envioId}?formato=PDF`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Error descargando');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `etiqueta_${tipo}_${ref}.pdf`;
+      document.body.appendChild(a); a.click();
+      window.URL.revokeObjectURL(url); document.body.removeChild(a);
+      toast.success('Etiqueta descargada');
+    } catch (e) {
+      toast.error(e.message || 'Error al descargar etiqueta');
+    }
+  };
+
   const getEstadoBadge = (estado) => {
     const estilos = {
       pendiente: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -190,10 +240,14 @@ export default function EtiquetasEnvio() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="etiquetas" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="gls" className="flex items-center gap-2" data-testid="tab-gls-labels">
             <Package className="w-4 h-4" />
-            Etiquetas
+            Etiquetas GLS
+          </TabsTrigger>
+          <TabsTrigger value="etiquetas" className="flex items-center gap-2">
+            <Printer className="w-4 h-4" />
+            Etiquetas Manuales
           </TabsTrigger>
           <TabsTrigger value="transportistas" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
@@ -369,6 +423,97 @@ export default function EtiquetasEnvio() {
                   del transportista. Normalmente necesitarás un contrato de servicios activo para acceder a su API.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* Tab: GLS Labels */}
+        <TabsContent value="gls">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-orange-500" /> Etiquetas GLS
+              </CardTitle>
+              <CardDescription>Busca etiquetas GLS generadas por fecha o referencia</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 mb-4">
+                <div className="flex-1">
+                  <Label className="text-xs mb-1 block">Buscar por referencia / código barras</Label>
+                  <Input
+                    placeholder="Código barras, orden ID o referencia..."
+                    value={glsBusqueda}
+                    onChange={(e) => setGlsBusqueda(e.target.value)}
+                    data-testid="gls-search-ref"
+                  />
+                </div>
+                <div className="w-48">
+                  <Label className="text-xs mb-1 block">O por fecha</Label>
+                  <Input
+                    type="date"
+                    value={glsFecha}
+                    onChange={(e) => setGlsFecha(e.target.value)}
+                    data-testid="gls-search-date"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleBuscarGls} disabled={glsLoading} data-testid="gls-search-btn">
+                    {glsLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+              </div>
+
+              {glsEtiquetas.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg">No se encontraron etiquetas GLS</p>
+                  <p className="text-sm">Prueba con otra fecha o referencia</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {glsEtiquetas.map((etq) => (
+                    <div key={etq.envio_id} className="p-4 bg-slate-50 rounded-lg border hover:border-orange-200 transition-colors" data-testid={`gls-label-item-${etq.envio_id}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {etq.tipo === 'recogida' ? <ArrowDown className="w-4 h-4 text-amber-600" /> : <ArrowUp className="w-4 h-4 text-green-600" />}
+                            <span className="font-medium">{etq.tipo === 'recogida' ? 'Recogida' : 'Envío'}</span>
+                            <Badge variant="outline" className="font-mono text-xs">{etq.codbarras}</Badge>
+                            <Badge className={etq.estado === 'entregado' ? 'bg-green-100 text-green-800' : etq.estado === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}>
+                              {etq.estado}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-blue-600 font-medium">Orden: {etq.numero_orden || etq.orden_id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {etq.cliente_nombre && `Cliente: ${etq.cliente_nombre} · `}
+                            {new Date(etq.created_at).toLocaleString('es-ES')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDescargarEtiquetaGls(etq.envio_id, etq.tipo)}
+                            data-testid={`gls-download-${etq.envio_id}`}
+                          >
+                            <FileDown className="w-4 h-4 mr-1" />
+                            {etq.label_generada ? 'Reimprimir' : 'Descargar'}
+                          </Button>
+                          <a
+                            href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${etq.codbarras}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Tracking
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground text-right">Total: {glsEtiquetas.length} etiqueta(s)</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

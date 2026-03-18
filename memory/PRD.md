@@ -51,6 +51,7 @@ CRM/ERP para servicio técnico de reparación de dispositivos móviles (Revix.es
 - Integración GLS completa (config, envíos, etiquetas, tracking, sync, admin)
 - Scanner simplificado: auto-detección primera vez=recibir, resto=buscar (sin dropdown)
 - Soporte IMEI dual: discriminación de IMEIs separados por //, selección en validación
+- Master puede forzar transición a Validación y Envío desde cualquier estado
   - Configuración UI (UID, remitente, servicios, polling)
   - Creación de envíos y recogidas via SOAP
   - Generación y descarga de etiquetas (PDF/PNG/ZPL)

@@ -1370,12 +1370,16 @@ TRANSICIONES_VALIDAS = {
     "cancelado": [],  # estado final
 }
 
-def validar_transicion(estado_actual: str, nuevo_estado: str, es_admin: bool = False) -> tuple[bool, str]:
+def validar_transicion(estado_actual: str, nuevo_estado: str, es_admin: bool = False, es_master: bool = False) -> tuple[bool, str]:
     """Valida si una transición de estado es permitida.
     
     Returns:
         tuple: (es_valida, mensaje_error)
     """
+    # Master puede forzar transiciones a validacion y enviado desde cualquier estado
+    if es_master and nuevo_estado in ["validacion", "enviado"]:
+        return True, ""
+    
     # Admin puede forzar ciertas transiciones
     if es_admin and nuevo_estado in ["cancelado", "re_presupuestar"]:
         return True, ""
@@ -1397,14 +1401,19 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     
     estado_actual = orden.get('estado', 'pendiente_recibir')
     es_admin = user.get('role') in ['admin', 'master']
+    es_master = user.get('role') == 'master'
     es_tecnico = user.get('role') == 'tecnico'
 
     # ─── Transiciones técnicas: solo técnico puede ejecutarlas ───
+    # EXCEPCIÓN: Master puede forzar validacion y enviado desde cualquier estado
     ESTADOS_SOLO_TECNICO = {'en_taller', 'reparado', 'validacion', 'irreparable'}
     # Resolución de cuarentena (cuarentena → recibida) también es técnica
     es_resolucion_cuarentena = (estado_actual == 'cuarentena' and request.nuevo_estado.value == 'recibida')
     if request.nuevo_estado.value in ESTADOS_SOLO_TECNICO or es_resolucion_cuarentena:
-        if not es_tecnico:
+        # Master puede forzar validacion y enviado sin ser técnico
+        if es_master and request.nuevo_estado.value in {'validacion', 'enviado'}:
+            pass  # Master permitido
+        elif not es_tecnico:
             raise HTTPException(
                 status_code=403,
                 detail=f"La transición a '{request.nuevo_estado.value}' es una acción técnica. "
@@ -1412,7 +1421,7 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
             )
 
     # Validar transición de estado
-    transicion_valida, error_msg = validar_transicion(estado_actual, request.nuevo_estado.value, es_admin)
+    transicion_valida, error_msg = validar_transicion(estado_actual, request.nuevo_estado.value, es_admin, es_master)
     if not transicion_valida:
         raise HTTPException(status_code=400, detail=error_msg)
     
@@ -1783,7 +1792,7 @@ async def iniciar_re_presupuesto(orden_id: str, request: RePresupuestoRequest, u
     es_admin = user.get("role") in ["admin", "master"]
     
     # Validate transition
-    transicion_valida, error_msg = validar_transicion(estado_actual, "re_presupuestar", es_admin)
+    transicion_valida, error_msg = validar_transicion(estado_actual, "re_presupuestar", es_admin, user.get("role") == "master")
     if not transicion_valida:
         raise HTTPException(status_code=400, detail=error_msg)
     

@@ -44,11 +44,14 @@ export function OrdenCambioEstadoModal({
   setCodigoEnvio,
   onCambiarEstado,
   isTecnico = false,
+  isMaster = false,
 }) {
   // Filtrar estados según rol
-  const estadosDisponibles = Object.entries(statusConfig).filter(([, cfg]) => {
+  const estadosDisponibles = Object.entries(statusConfig).filter(([key, cfg]) => {
     if (isTecnico) return cfg.tecnico === true;
-    // admin / master ven estados admin (y no técnicos)
+    // Master puede ver TODOS los estados (admin + validacion y enviado)
+    if (isMaster) return true;
+    // admin normal solo ve estados admin
     return cfg.admin === true;
   });
 
@@ -59,9 +62,14 @@ export function OrdenCambioEstadoModal({
           <DialogTitle>Cambiar Estado de la Orden</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {!isTecnico && (
+          {!isTecnico && !isMaster && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5" data-testid="estado-admin-only-notice">
               Solo se muestran transiciones administrativas. Las técnicas (En Taller, Reparado, QC) requieren rol técnico.
+            </p>
+          )}
+          {isMaster && (
+            <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-1.5" data-testid="estado-master-notice">
+              Modo Master: puedes forzar cualquier transición de estado, incluyendo Validación y Envío directamente.
             </p>
           )}
           <div>

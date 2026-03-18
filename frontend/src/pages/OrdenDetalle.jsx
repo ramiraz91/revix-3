@@ -1861,6 +1861,7 @@ export default function OrdenDetalle() {
         setCodigoEnvio={setCodigoEnvio}
         onCambiarEstado={handleCambiarEstado}
         isTecnico={isTecnico()}
+        isMaster={isMaster()}
       />
 
       {/* Desbloquear Modal */}

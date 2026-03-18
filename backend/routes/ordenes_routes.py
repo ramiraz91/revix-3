@@ -611,6 +611,28 @@ def validar_imei(imei: str) -> tuple[bool, str]:
     return True, ""
 
 
+def parse_imeis(imei_field: str) -> list[str]:
+    """Parsea un campo IMEI que puede contener uno o dos IMEIs separados por //
+    Ejemplo: '123456789123456 // 152345678912345' → ['123456789123456', '152345678912345']
+    """
+    if not imei_field:
+        return []
+    return [s.strip() for s in imei_field.split('//') if s.strip()]
+
+
+def imei_matches(imei_escaneado: str, imei_field: str) -> bool:
+    """Verifica si un IMEI escaneado coincide con alguno de los IMEIs del campo (soporta IMEIs duales separados por //)."""
+    if not imei_escaneado or not imei_field:
+        return True  # Si no hay IMEI, no verificar
+    imeis = parse_imeis(imei_field)
+    escaneado_clean = ''.join(filter(str.isdigit, imei_escaneado))
+    for imei in imeis:
+        imei_clean = ''.join(filter(str.isdigit, imei))
+        if escaneado_clean == imei_clean:
+            return True
+    return False
+
+
 def _parse_datetime_safe(value):
     if isinstance(value, datetime):
         return value
@@ -1283,9 +1305,11 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
     
     # Si se bloqueó por IMEI incorrecto, crear notificación para admin
     if data.get('bloqueada') and data.get('motivo_bloqueo') == 'IMEI no coincide':
+        imeis_registrados = parse_imeis(existing.get('dispositivo', {}).get('imei', ''))
+        imeis_str = ' / '.join(imeis_registrados) if imeis_registrados else 'N/A'
         notif = Notificacion(
             tipo="alerta_imei",
-            mensaje=f"⚠️ ALERTA: IMEI no coincide en orden {existing['numero_orden']}. Escaneado: {data.get('imei_escaneado_incorrecto', 'N/A')} | Esperado: {existing.get('dispositivo', {}).get('imei', 'N/A')}",
+            mensaje=f"⚠️ ALERTA: IMEI no coincide en orden {existing['numero_orden']}. Escaneado: {data.get('imei_escaneado_incorrecto', 'N/A')} | Registrado(s): {imeis_str}",
             orden_id=orden_id
         )
         notif_doc = notif.model_dump()

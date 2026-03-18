@@ -33,13 +33,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Tabs,
   TabsContent,
   TabsList,
@@ -94,8 +87,6 @@ export default function Dashboard() {
   
   // Scanner states
   const [scannerValue, setScannerValue] = useState('');
-  // Por defecto: técnico usa "buscar" (solo abre la orden), admin usa "recepcion"
-  const [tipoEscaneo, setTipoEscaneo] = useState(isTecnico() ? 'buscar' : 'recepcion');
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -131,13 +122,13 @@ export default function Dashboard() {
   }, []);
 
   // Scanner functions
+  // Regla: primera vez (pendiente_recibir) → marcar recibido; el resto → buscar y abrir
   const handleScannerSubmit = async (e) => {
     e.preventDefault();
     if (!scannerValue.trim()) return;
     
     setProcessing(true);
     try {
-      // Search for order by ID or numero_orden (usando endpoint paginado)
       const ordenes = await ordenesAPI.listarPaginado({ search: scannerValue.trim(), page_size: 1 });
       
       if (!ordenes.data.data || ordenes.data.data.length === 0) {
@@ -147,33 +138,28 @@ export default function Dashboard() {
       
       const orden = ordenes.data.data[0];
       
-      // Si el tipo es "buscar", solo navegamos sin cambiar estado
-      if (tipoEscaneo === 'buscar') {
+      // Auto-detect: si está pendiente_recibir y el usuario es admin → marcar recibido
+      if (orden.estado === 'pendiente_recibir' && !isTecnico()) {
+        try {
+          const response = await ordenesAPI.escanear(orden.id, {
+            tipo_escaneo: 'recepcion',
+            usuario: 'admin'
+          });
+          toast.success(`Orden ${orden.numero_orden} marcada como RECIBIDA`);
+        } catch (scanError) {
+          const detail = scanError.response?.data?.detail;
+          toast.error(typeof detail === 'string' ? detail : 'Error al marcar como recibida');
+        }
+      } else {
         toast.success(`Orden ${orden.numero_orden} encontrada`);
-        navigate(`/ordenes/${orden.id}`);
-        return;
       }
       
-      // Process scan - use tipo_escaneo as expected by backend
-      const response = await ordenesAPI.escanear(orden.id, {
-        tipo_escaneo: tipoEscaneo,
-        usuario: 'admin'
-      });
-      
-      toast.success(response.data.message);
-      
-      // Navigate to order
-      navigate(`/ordenes/${orden.id}`);
+      navigate(`/crm/ordenes/${orden.id}`);
     } catch (error) {
-      // Handle error message properly - it might be an object or string
       let msg = 'Error al procesar el escaneo';
       if (error.response?.data?.detail) {
         const detail = error.response.data.detail;
-        if (typeof detail === 'string') {
-          msg = detail;
-        } else if (Array.isArray(detail)) {
-          msg = detail.map(d => d.msg || d).join(', ');
-        }
+        msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : msg;
       }
       toast.error(msg);
     } finally {
@@ -281,19 +267,10 @@ export default function Dashboard() {
               value={scannerValue}
               onChange={(e) => setScannerValue(e.target.value)}
               className="h-9 font-mono text-sm"
+              data-testid="scanner-input"
             />
-            <Select value={tipoEscaneo} onValueChange={setTipoEscaneo}>
-              <SelectTrigger className="w-48 h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="buscar">🔍 Solo Buscar/Abrir</SelectItem>
-                {!isTecnico() && <SelectItem value="recepcion">📦 Recepción (Admin)</SelectItem>}
-                <SelectItem value="tecnico">🔧 Iniciar Reparación</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={processing} size="sm" className="h-9 px-4">
-              {processing ? 'Procesando...' : tipoEscaneo === 'buscar' ? 'Buscar' : 'Escanear'}
+            <Button type="submit" disabled={processing} size="sm" className="h-9 px-4" data-testid="scanner-submit">
+              {processing ? 'Procesando...' : 'Escanear'}
             </Button>
           </form>
         </CardContent>

@@ -8,6 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -305,8 +312,14 @@ export default function NuevaOrden() {
       return;
     }
     
-    if (!formData.agencia_envio || !formData.codigo_recogida_entrada) {
-      toast.error('Completa los datos de envío');
+    if (!formData.agencia_envio) {
+      toast.error('Selecciona un transportista');
+      return;
+    }
+    
+    // Solo requerir código de recogida si NO es GLS (GLS se genera desde la orden)
+    if (formData.agencia_envio !== 'GLS' && !formData.codigo_recogida_entrada) {
+      toast.error('Introduce el código de recogida');
       return;
     }
 
@@ -323,8 +336,12 @@ export default function NuevaOrden() {
       };
       
       const res = await ordenesAPI.crear(ordenData);
-      toast.success('Orden creada correctamente');
-      navigate(`/ordenes/${res.data.id}`);
+      if (formData.agencia_envio === 'GLS') {
+        toast.success('Orden creada. Genera la recogida GLS desde el detalle de la orden.');
+      } else {
+        toast.success('Orden creada correctamente');
+      }
+      navigate(`/crm/ordenes/${res.data.id}`);
     } catch (error) {
       toast.error('Error al crear la orden');
       console.error(error);
@@ -596,23 +613,41 @@ export default function NuevaOrden() {
                   <p className="text-xs text-muted-foreground mt-1">Número interno de autorización del servicio</p>
                 </div>
                 <div>
-                  <Label>Agencia de Envío *</Label>
-                  <Input 
-                    value={formData.agencia_envio}
-                    onChange={(e) => handleInputChange('agencia_envio', e.target.value)}
-                    placeholder="SEUR, MRW, GLS..."
-                    data-testid="input-agencia"
-                  />
+                  <Label>Transportista / Agencia *</Label>
+                  <Select value={formData.agencia_envio} onValueChange={(v) => handleInputChange('agencia_envio', v)}>
+                    <SelectTrigger data-testid="select-agencia">
+                      <SelectValue placeholder="Selecciona transportista" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GLS">GLS (Recogida automática)</SelectItem>
+                      <SelectItem value="mrw">MRW</SelectItem>
+                      <SelectItem value="seur">SEUR</SelectItem>
+                      <SelectItem value="otro">Otro / Manual</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label>Código de Recogida (Entrada) *</Label>
-                  <Input 
-                    value={formData.codigo_recogida_entrada}
-                    onChange={(e) => handleInputChange('codigo_recogida_entrada', e.target.value)}
-                    placeholder="1234567890"
-                    className="font-mono"
-                    data-testid="input-codigo-entrada"
-                  />
+                  {formData.agencia_envio === 'GLS' ? (
+                    <>
+                      <Label>Recogida GLS</Label>
+                      <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-blue-50 border-blue-200 text-sm text-blue-700" data-testid="gls-pickup-notice">
+                        <Truck className="w-4 h-4" />
+                        Se generará desde la orden con GLS
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">La recogida se tramitará desde el detalle de la orden</p>
+                    </>
+                  ) : (
+                    <>
+                      <Label>Código de Recogida (Entrada)</Label>
+                      <Input 
+                        value={formData.codigo_recogida_entrada}
+                        onChange={(e) => handleInputChange('codigo_recogida_entrada', e.target.value)}
+                        placeholder="Código de tracking de entrada"
+                        className="font-mono"
+                        data-testid="input-codigo-entrada"
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </CardContent>

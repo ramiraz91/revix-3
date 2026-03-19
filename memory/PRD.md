@@ -1,82 +1,68 @@
 # PRD - Revix CRM/ERP
 
-## Descripción del Producto
-CRM/ERP para servicio técnico de reparación de dispositivos móviles (Revix.es). Backend FastAPI, Frontend React, MongoDB Atlas.
+## Descripción
+CRM/ERP para servicio técnico de reparación de dispositivos móviles (Revix.es).
 
-## Stack Técnico
-- **Backend**: FastAPI, Python, Motor (MongoDB async)
+## Stack
+- **Backend**: FastAPI, Python, Motor (MongoDB async), httpx (SOAP)
 - **Frontend**: React, Tailwind CSS, Shadcn UI
 - **BD**: MongoDB Atlas
-- **Integraciones**: SOAP (GLS), SMTP, Gemini, Cloudinary
+- **Integraciones**: GLS (SOAP), SMTP, Gemini, Cloudinary
 
-## Arquitectura de Archivos
+## Arquitectura GLS (Reescritura completa)
 ```
-/app/backend/
-  ├── routes/gls_routes.py         # Rutas GLS completas
-  ├── services/
-  │   ├── gls_soap_client.py       # Cliente SOAP GLS
-  │   ├── gls_state_mapper.py      # Mapeador de estados GLS
-  │   ├── gls_sync_scheduler.py    # Polling en background
-  │   ├── email_service.py         # Servicio SMTP
-  │   └── cloudinary_service.py    # Almacenamiento imágenes
-  ├── server.py                    # App principal FastAPI
-  └── config.py                    # Configuración
+/app/backend/modules/gls/
+├── __init__.py
+├── models.py            # Pydantic models, entity types, label formats
+├── state_mapper.py      # 22 estados envíos, 12 recogidas, 57+ incidencias, mapper central
+├── soap_client.py       # SOAP 1.2 directo (GrabaServicios, EtiquetaEnvioV2, GetExp, GetExpCli)
+├── shipment_service.py  # Lógica de negocio: crear, etiquetar, tracking, sync, cancelar
+├── sync_service.py      # Background polling scheduler
+└── routes.py            # FastAPI endpoints (config, CRUD envíos, etiquetas, tracking, sync, maestros, logs)
 
 /app/frontend/src/
-  ├── pages/
-  │   ├── GLSConfig.jsx            # Configuración GLS
-  │   ├── EtiquetasEnvio.jsx       # Etiquetas (GLS + manuales)
-  │   └── Logistica.jsx            # Control logística general
-  └── components/orden/
-      └── GLSLogistica.jsx         # GLS en detalle de orden
+├── pages/GLSConfigPage.jsx  # Configuración completa GLS
+├── pages/GLSAdmin.jsx       # Panel admin: listado, búsqueda, detalle, acciones
+├── pages/EtiquetasEnvio.jsx # Búsqueda y reimpresión de etiquetas
+└── components/orden/GLSLogistica.jsx  # Crear envíos/recogidas desde orden
 ```
 
-## Usuarios del Sistema
-- master@techrepair.local / master123
-- admin@techrepair.local / Admin2026!
-- tecnico@techrepair.local / Tecnico2026!
+## BD GLS (Collections)
+- `gls_shipments` - Envíos/recogidas con 30+ campos (tracking, POD, incidencias, raw SOAP)
+- `gls_tracking_events` - Historial cronológico de eventos por envío
+- `gls_logs` - Logs de cada operación SOAP
 
-## Estado de Funcionalidades
-
-### Completado
-- Sistema de autenticación y roles (master/admin/tecnico)
-- Órdenes de trabajo completas con flujo de estados
-- Clientes y gestión CRM
-- Inventario con SKUs
-- Dashboard y analíticas
-- Notificaciones en tiempo real
+## Funcionalidades Completadas
+- Auth y roles (master/admin/tecnico)
+- Órdenes de trabajo con flujo de estados
+- Clientes, Inventario, Dashboard, Analíticas
 - Integración Insurama (poller, deduplicación)
-- Sistema de email SMTP (configurable, modo demo)
-- Descarga de fotos ZIP (antes/después)
-- Integración GLS completa (config, envíos, etiquetas, tracking, sync, admin)
-- Scanner simplificado: auto-detección primera vez=recibir, resto=buscar (sin dropdown)
-- Soporte IMEI dual: discriminación de IMEIs separados por //, selección en validación
-- Master puede forzar transición a Validación y Envío desde cualquier estado
-- Nueva Orden: selector de transportista (GLS/MRW/SEUR/Manual), recogida GLS se genera desde la orden
-- Datos de Envío en orden: muestra códigos GLS automáticos, envíos vinculados con estado y tracking
-  - Configuración UI (UID, remitente, servicios, polling)
-  - Creación de envíos y recogidas via SOAP
-  - Generación y descarga de etiquetas (PDF/PNG/ZPL)
-  - Tracking y consulta de estados
-  - Sincronización batch manual y automática (scheduler)
-  - Panel admin con listado y búsqueda de envíos
-  - Búsqueda de etiquetas por fecha/referencia
-  - Email automático con etiqueta en recogidas
-  - Mapeo de estados GLS → estados internos
+- Email SMTP configurable + modo demo
+- Scanner auto-detección (primera vez=recibir, resto=buscar)
+- IMEI dual con discriminación (separados por //)
+- Master puede forzar Validación/Envío desde cualquier estado
+- Selector de transportista en Nueva Orden (GLS/MRW/SEUR/Manual)
+- **GLS completa (reescritura):**
+  - Config UI (UID, remitente, servicios, horarios, polling, etiquetas)
+  - Crear envíos/recogidas via SOAP directo
+  - Etiquetas PDF/PNG/JPG/EPL/DPL (descarga, reimpresión)
+  - Tracking completo con eventos, incidencias, POD
+  - Sync batch manual + automático (scheduler)
+  - Panel admin con listado, búsqueda, filtros, detalle modal
+  - Mapeo central de 22 estados GLS → 14 estados internos
   - Anulación de envíos
-  - Reintento de envíos fallidos
-  - Logs de integración
+  - Logs de integración por envío
+  - Búsqueda de etiquetas por fecha/referencia/código
 
-### Pendiente por Credenciales
-- Activación de GLS en producción (requiere uid_cliente del usuario)
+## Pendiente
+- Credenciales GLS de producción (UI lista para configurar)
 
-## Backlog (P1/P2)
-- P1: Validación con credenciales reales de GLS
-- P2: Integración Google Business Profile con Gemini Flash
-- P2: Refinamiento flujo de incidencias
-- P2: Acortar SKU generado en inventario
+## Backlog
+- P1: Validar GLS con credenciales reales
+- P2: Google Business Profile + Gemini Flash
+- P2: Flujo de incidencias
+- P2: Acortar SKU inventario
 
-## Credenciales Externas
-- **SMTP**: notificaciones@revix.es / RDdQn_GMmR6;%FJ
-- **GLS**: Pendiente del usuario
-- **Cloudinary**: Configurado en .env
+## Credenciales Test
+- master@techrepair.local / master123
+- SMTP: notificaciones@revix.es / RDdQn_GMmR6;%FJ

@@ -54,6 +54,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { ordenesAPI, clientesAPI, repuestosAPI, ordenesCompraAPI, seguimientoAPI, getUploadUrl } from '@/lib/api';
+import api from '@/lib/api';
 import { EtiquetaOrden } from '@/components/EtiquetaOrden';
 import OrdenPDF from '@/components/OrdenPDF';
 import TablaMaterialesEditable from '@/components/TablaMaterialesEditable';
@@ -730,18 +731,36 @@ export default function OrdenDetalle() {
   const handleGenerarRecogida = async (datosEnvio) => {
     setGenerandoLogistica(true);
     try {
-      // Por ahora guardamos los datos y mostramos mensaje de que la integración no está configurada
-      // Cuando se configure la API de logística, aquí se llamará al endpoint
-      await ordenesAPI.actualizarEnvio(id, {
-        datos_recogida: datosEnvio,
-        // codigo_recogida_entrada se rellenará automáticamente cuando haya integración
-      });
-      
-      toast.info('Datos de recogida guardados. Configure la integración de logística para generar automáticamente el código de recogida.');
+      const payload = {
+        dest_nombre: datosEnvio.nombre,
+        dest_direccion: datosEnvio.direccion,
+        dest_poblacion: datosEnvio.ciudad,
+        dest_cp: datosEnvio.codigo_postal,
+        dest_provincia: datosEnvio.provincia || '',
+        dest_telefono: datosEnvio.telefono,
+        dest_email: datosEnvio.email || '',
+        dest_observaciones: datosEnvio.observaciones || '',
+        referencia: (orden?.numero_orden || '').slice(0, 20),
+      };
+      await api.post(`/ordenes/${id}/logistics/pickup`, payload);
+      toast.success('Recogida GLS creada correctamente');
       setShowGenerarRecogida(false);
       fetchOrden();
     } catch (error) {
-      toast.error('Error al guardar datos de recogida');
+      const detail = error.response?.data?.detail || 'Error al crear recogida';
+      // If GLS is not configured, fall back to saving data only
+      if (detail.includes('no activada') || detail.includes('no configurado')) {
+        try {
+          await ordenesAPI.actualizarEnvio(id, { datos_recogida: datosEnvio });
+          toast.info('Datos de recogida guardados. Configure GLS para generar automaticamente.');
+          setShowGenerarRecogida(false);
+          fetchOrden();
+        } catch {
+          toast.error('Error al guardar datos de recogida');
+        }
+      } else {
+        toast.error(detail);
+      }
     } finally {
       setGenerandoLogistica(false);
     }
@@ -750,17 +769,35 @@ export default function OrdenDetalle() {
   const handleGenerarEnvio = async (datosEnvio) => {
     setGenerandoLogistica(true);
     try {
-      // Por ahora guardamos los datos y mostramos mensaje de que la integración no está configurada
-      await ordenesAPI.actualizarEnvio(id, {
-        datos_envio: datosEnvio,
-        // codigo_recogida_salida se rellenará automáticamente cuando haya integración
-      });
-      
-      toast.info('Datos de envío guardados. Configure la integración de logística para generar automáticamente el código de envío.');
+      const payload = {
+        dest_nombre: datosEnvio.nombre,
+        dest_direccion: datosEnvio.direccion,
+        dest_poblacion: datosEnvio.ciudad,
+        dest_cp: datosEnvio.codigo_postal,
+        dest_provincia: datosEnvio.provincia || '',
+        dest_telefono: datosEnvio.telefono,
+        dest_email: datosEnvio.email || '',
+        dest_observaciones: datosEnvio.observaciones || '',
+        referencia: (orden?.numero_orden || '').slice(0, 20),
+      };
+      await api.post(`/ordenes/${id}/logistics/delivery`, payload);
+      toast.success('Envio GLS creado correctamente');
       setShowGenerarEnvio(false);
       fetchOrden();
     } catch (error) {
-      toast.error('Error al guardar datos de envío');
+      const detail = error.response?.data?.detail || 'Error al crear envio';
+      if (detail.includes('no activada') || detail.includes('no configurado')) {
+        try {
+          await ordenesAPI.actualizarEnvio(id, { datos_envio: datosEnvio });
+          toast.info('Datos de envio guardados. Configure GLS para generar automaticamente.');
+          setShowGenerarEnvio(false);
+          fetchOrden();
+        } catch {
+          toast.error('Error al guardar datos de envio');
+        }
+      } else {
+        toast.error(detail);
+      }
     } finally {
       setGenerandoLogistica(false);
     }
@@ -1842,7 +1879,7 @@ export default function OrdenDetalle() {
         </TabsContent>
 
         <TabsContent value="logistica" className="mt-6">
-          <GLSLogistica orden={orden} onUpdate={fetchOrden} />
+          <GLSLogistica orden={orden} onUpdate={fetchOrden} userRole={user?.role} />
         </TabsContent>
       </Tabs>
 

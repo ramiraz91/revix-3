@@ -3173,3 +3173,340 @@ async def registrar_liquidacion(
     
     return {"message": "Liquidación registrada", "liquidacion": liquidacion}
 
+
+
+# ==================== LOGÍSTICA - INTEGRACIÓN PROFUNDA GLS ====================
+
+async def _registrar_evento_logistica(orden_id: str, tipo_evento: str, detalle: str, usuario: str):
+    """Registra un evento de logística en el historial de la OT."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0, "historial_estados": 1})
+    if not orden:
+        return
+    historial = orden.get("historial_estados", [])
+    historial.append({
+        "estado": "logistica",
+        "fecha": datetime.now(timezone.utc).isoformat(),
+        "usuario": usuario,
+        "tipo": "logistica",
+        "subtipo": tipo_evento,
+        "detalle": detalle,
+    })
+    await db.ordenes.update_one(
+        {"id": orden_id},
+        {"$set": {"historial_estados": historial, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+
+
+async def _enviar_email_logistica(orden_id: str, tipo: str, codbarras: str):
+    """Envía email al cliente cuando se genera recogida o envío."""
+    try:
+        orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+        if not orden:
+            return
+        cliente = await db.clientes.find_one({"id": orden.get("cliente_id")}, {"_id": 0})
+        if not cliente or not cliente.get("email"):
+            return
+
+        from services.email_service import send_email, FRONTEND_URL
+
+        numero = orden.get("numero_autorizacion") or orden.get("numero_orden", "")
+        tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras}"
+
+        if tipo == "recogida":
+            subject = f"Revix - Recogida programada para su orden {numero}"
+            titulo = "Recogida Programada"
+            contenido = f'''
+            <p>Le informamos que hemos programado la <strong>recogida</strong> de su dispositivo para la orden <strong>{numero}</strong>.</p>
+            <table style="margin:15px 0;border-collapse:collapse;">
+              <tr><td style="padding:8px 15px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;">Nº Seguimiento</td>
+                  <td style="padding:8px 15px;border:1px solid #e2e8f0;font-family:monospace;">{codbarras}</td></tr>
+              <tr><td style="padding:8px 15px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;">Transportista</td>
+                  <td style="padding:8px 15px;border:1px solid #e2e8f0;">GLS</td></tr>
+            </table>
+            <p>Puede seguir el estado de la recogida en el siguiente enlace:</p>
+            <p><a href="{tracking_url}" style="color:#2563eb;">{tracking_url}</a></p>
+            <p>El transportista se pondrá en contacto con usted para coordinar la recogida.</p>'''
+        else:
+            subject = f"Revix - Su dispositivo ha sido enviado - Orden {numero}"
+            titulo = "Dispositivo Enviado"
+            contenido = f'''
+            <p>Le informamos que su dispositivo reparado de la orden <strong>{numero}</strong> ha sido <strong>enviado</strong>.</p>
+            <table style="margin:15px 0;border-collapse:collapse;">
+              <tr><td style="padding:8px 15px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;">Nº Seguimiento</td>
+                  <td style="padding:8px 15px;border:1px solid #e2e8f0;font-family:monospace;">{codbarras}</td></tr>
+              <tr><td style="padding:8px 15px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;">Transportista</td>
+                  <td style="padding:8px 15px;border:1px solid #e2e8f0;">GLS</td></tr>
+            </table>
+            <p>Puede seguir el estado de su envío en el siguiente enlace:</p>
+            <p><a href="{tracking_url}" style="color:#2563eb;">{tracking_url}</a></p>
+            <p>Recibirá su dispositivo en los próximos días.</p>'''
+
+        send_email(
+            to=cliente["email"],
+            subject=subject,
+            titulo=titulo,
+            contenido=contenido,
+            link_url=tracking_url,
+            link_text="Seguir mi envío en GLS"
+        )
+    except Exception as e:
+        logger.error(f"Error enviando email logística: {e}")
+
+
+class LogisticsCreateRequest(BaseModel):
+    dest_nombre: str
+    dest_direccion: str
+    dest_poblacion: str = ""
+    dest_cp: str
+    dest_provincia: str = ""
+    dest_telefono: str = ""
+    dest_email: str = ""
+    dest_observaciones: str = ""
+    bultos: int = 1
+    peso: float = 1.0
+    referencia: str = ""
+
+
+PICKUP_VALID_STATES = {"pendiente_recibir", "recibida", "cuarentena", "en_taller"}
+DELIVERY_VALID_STATES = {"reparado", "validacion", "enviado"}
+
+
+@router.get("/ordenes/{orden_id}/logistics")
+async def get_orden_logistics(orden_id: str, user: dict = Depends(require_auth)):
+    """Obtiene toda la información logística de una orden: recogidas y envíos."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0, "id": 1})
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+
+    # Get all shipments for this order
+    cursor = db.gls_shipments.find(
+        {"entidad_id": orden_id},
+        {"_id": 0, "raw_request": 0, "raw_response": 0}
+    ).sort("created_at", -1)
+    all_shipments = await cursor.to_list(50)
+
+    recogidas = [s for s in all_shipments if s.get("tipo") == "recogida"]
+    envios = [s for s in all_shipments if s.get("tipo") in ("envio", "recogida_cruzada")]
+
+    # Get latest active shipment of each type
+    recogida_activa = next((s for s in recogidas if not s.get("es_final") or s.get("estado_interno") == "entregado"), recogidas[0] if recogidas else None)
+    envio_activo = next((s for s in envios if not s.get("es_final") or s.get("estado_interno") == "entregado"), envios[0] if envios else None)
+
+    # Get tracking events for active shipments
+    recogida_eventos = []
+    envio_eventos = []
+    if recogida_activa:
+        recogida_eventos = await db.gls_tracking_events.find(
+            {"shipment_id": recogida_activa["id"]}, {"_id": 0}
+        ).sort("fecha_evento", -1).to_list(50)
+    if envio_activo:
+        envio_eventos = await db.gls_tracking_events.find(
+            {"shipment_id": envio_activo["id"]}, {"_id": 0}
+        ).sort("fecha_evento", -1).to_list(50)
+
+    # Check GLS config status
+    config = await db.configuracion.find_one({"tipo": "gls_config"}, {"_id": 0})
+    gls_activo = config.get("datos", {}).get("activo", False) if config else False
+
+    return {
+        "gls_activo": gls_activo,
+        "recogida": {
+            "shipment": recogida_activa,
+            "eventos": recogida_eventos,
+            "total": len(recogidas),
+        },
+        "envio": {
+            "shipment": envio_activo,
+            "eventos": envio_eventos,
+            "total": len(envios),
+        },
+        "all_shipments": all_shipments,
+    }
+
+
+@router.post("/ordenes/{orden_id}/logistics/pickup")
+async def crear_recogida_logistica(orden_id: str, data: LogisticsCreateRequest, user: dict = Depends(require_auth)):
+    """Genera una recogida GLS para la orden. Validaciones de estado y datos."""
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden generar recogidas")
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+
+    # Validate order state
+    estado = orden.get("estado", "")
+    if estado not in PICKUP_VALID_STATES and user.get("role") != "master":
+        raise HTTPException(400, f"No se puede crear recogida en estado '{estado}'. Estados válidos: {', '.join(PICKUP_VALID_STATES)}")
+
+    # Validate address data
+    if not data.dest_nombre or not data.dest_direccion or not data.dest_cp:
+        raise HTTPException(400, "Datos de dirección incompletos: nombre, dirección y CP son obligatorios")
+
+    if not data.dest_telefono:
+        raise HTTPException(400, "El teléfono es obligatorio para el transportista")
+
+    from modules.gls import shipment_service
+
+    # Build shipment data
+    shipment_data = {
+        "orden_id": orden_id,
+        "entidad_tipo": "orden",
+        "tipo": "recogida",
+        "cliente_id": orden.get("cliente_id", ""),
+        "dest_nombre": data.dest_nombre,
+        "dest_direccion": data.dest_direccion,
+        "dest_poblacion": data.dest_poblacion,
+        "dest_cp": data.dest_cp,
+        "dest_provincia": data.dest_provincia,
+        "dest_telefono": data.dest_telefono,
+        "dest_email": data.dest_email,
+        "dest_observaciones": data.dest_observaciones,
+        "bultos": data.bultos,
+        "peso": data.peso,
+        "referencia": data.referencia or orden.get("numero_orden", "")[:20],
+    }
+
+    result = await shipment_service.create_shipment(db, shipment_data, user.get("email", ""))
+
+    if not result["success"]:
+        raise HTTPException(400, result.get("error", "Error al crear recogida GLS"))
+
+    shipment = result.get("shipment", {})
+    codbarras = shipment.get("gls_codbarras", "")
+
+    # Register event in order timeline
+    await _registrar_evento_logistica(
+        orden_id, "recogida_creada",
+        f"Recogida GLS creada - Código: {codbarras}",
+        user.get("email", "Sistema")
+    )
+
+    # Send email notification (async, don't block)
+    asyncio.create_task(_enviar_email_logistica(orden_id, "recogida", codbarras))
+
+    return {"success": True, "shipment": shipment}
+
+
+@router.post("/ordenes/{orden_id}/logistics/delivery")
+async def crear_envio_logistica(orden_id: str, data: LogisticsCreateRequest, user: dict = Depends(require_auth)):
+    """Genera un envío GLS para la orden. Validaciones de estado y datos."""
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden generar envíos")
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+
+    # Validate order state
+    estado = orden.get("estado", "")
+    if estado not in DELIVERY_VALID_STATES and user.get("role") != "master":
+        raise HTTPException(400, f"No se puede crear envío en estado '{estado}'. Estados válidos: {', '.join(DELIVERY_VALID_STATES)}")
+
+    # Validate address data
+    if not data.dest_nombre or not data.dest_direccion or not data.dest_cp:
+        raise HTTPException(400, "Datos de dirección incompletos: nombre, dirección y CP son obligatorios")
+
+    if not data.dest_telefono:
+        raise HTTPException(400, "El teléfono es obligatorio para el transportista")
+
+    from modules.gls import shipment_service
+
+    # Build shipment data
+    shipment_data = {
+        "orden_id": orden_id,
+        "entidad_tipo": "orden",
+        "tipo": "envio",
+        "cliente_id": orden.get("cliente_id", ""),
+        "dest_nombre": data.dest_nombre,
+        "dest_direccion": data.dest_direccion,
+        "dest_poblacion": data.dest_poblacion,
+        "dest_cp": data.dest_cp,
+        "dest_provincia": data.dest_provincia,
+        "dest_telefono": data.dest_telefono,
+        "dest_email": data.dest_email,
+        "dest_observaciones": data.dest_observaciones,
+        "bultos": data.bultos,
+        "peso": data.peso,
+        "referencia": data.referencia or orden.get("numero_orden", "")[:20],
+    }
+
+    result = await shipment_service.create_shipment(db, shipment_data, user.get("email", ""))
+
+    if not result["success"]:
+        raise HTTPException(400, result.get("error", "Error al crear envío GLS"))
+
+    shipment = result.get("shipment", {})
+    codbarras = shipment.get("gls_codbarras", "")
+
+    # Register event in order timeline
+    await _registrar_evento_logistica(
+        orden_id, "envio_creado",
+        f"Envío GLS creado - Código: {codbarras}",
+        user.get("email", "Sistema")
+    )
+
+    # Send email notification (async, don't block)
+    asyncio.create_task(_enviar_email_logistica(orden_id, "envio", codbarras))
+
+    return {"success": True, "shipment": shipment}
+
+
+@router.post("/ordenes/{orden_id}/logistics/{shipment_id}/sync")
+async def sync_envio_logistica(orden_id: str, shipment_id: str, user: dict = Depends(require_auth)):
+    """Sincroniza el tracking de un envío específico."""
+    # Verify shipment belongs to this order
+    shipment = await db.gls_shipments.find_one(
+        {"id": shipment_id, "entidad_id": orden_id},
+        {"_id": 0, "id": 1, "tipo": 1, "estado_interno": 1}
+    )
+    if not shipment:
+        raise HTTPException(404, "Envío no encontrado para esta orden")
+
+    from modules.gls import shipment_service
+    old_state = shipment.get("estado_interno", "")
+
+    result = await shipment_service.get_tracking(db, shipment_id)
+
+    if result.get("success"):
+        # Check if state changed
+        updated = await db.gls_shipments.find_one({"id": shipment_id}, {"_id": 0, "estado_interno": 1, "gls_codbarras": 1})
+        new_state = updated.get("estado_interno", "")
+        if new_state != old_state:
+            tipo_label = "Recogida" if shipment.get("tipo") == "recogida" else "Envío"
+            await _registrar_evento_logistica(
+                orden_id, "estado_actualizado",
+                f"{tipo_label} GLS actualizado: {old_state} → {new_state} (Código: {updated.get('gls_codbarras', '')})",
+                "Sistema (sync)"
+            )
+
+    return {"success": result.get("success", False), "tracking": result}
+
+
+@router.get("/ordenes/{orden_id}/logistics/{shipment_id}/label")
+async def descargar_etiqueta_logistica(orden_id: str, shipment_id: str, user: dict = Depends(require_auth)):
+    """Descarga la etiqueta de un envío específico de esta orden."""
+    import base64
+    from fastapi.responses import Response as FastAPIResponse
+
+    shipment = await db.gls_shipments.find_one(
+        {"id": shipment_id, "entidad_id": orden_id},
+        {"_id": 0, "id": 1}
+    )
+    if not shipment:
+        raise HTTPException(404, "Envío no encontrado para esta orden")
+
+    from modules.gls import shipment_service
+    result = await shipment_service.get_label(db, shipment_id)
+
+    if not result.get("success") or not result.get("labels"):
+        raise HTTPException(404, result.get("error", "Etiqueta no disponible"))
+
+    label_b64 = result["labels"][0]
+    label_bytes = base64.b64decode(label_b64)
+
+    return FastAPIResponse(
+        content=label_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="etiqueta_gls_{shipment_id[:8]}.pdf"'}
+    )

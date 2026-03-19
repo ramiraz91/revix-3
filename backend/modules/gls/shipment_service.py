@@ -132,9 +132,9 @@ async def create_shipment(db, data: dict, user_email: str) -> dict:
         "updated_at": now,
     }
 
-    # Persist shipment
-    await db.gls_shipments.insert_one({**shipment, "_id": None})
-    await db.gls_shipments.update_one({"id": shipment_id}, {"$unset": {"_id": ""}})
+    # Persist shipment (exclude _id to let MongoDB generate it)
+    shipment_doc = {k: v for k, v in shipment.items() if k != "_id"}
+    await db.gls_shipments.insert_one(shipment_doc)
 
     # Log operation
     await _log_operation(

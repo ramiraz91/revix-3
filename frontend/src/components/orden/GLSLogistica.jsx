@@ -1,260 +1,486 @@
-import { useState, useEffect } from 'react';
-import { Package, Send, ArrowDown, ArrowUp, FileDown, ExternalLink, RotateCw, Loader2, Plus, Truck, MapPin } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Package, Send, ArrowDown, ArrowUp, FileDown, ExternalLink, RotateCw, Loader2, Truck, AlertTriangle, CheckCircle2, Clock, MapPin, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 
 const STATE_COLORS = {
-  grabado: 'bg-slate-100 text-slate-700',
-  en_transito: 'bg-indigo-100 text-indigo-700',
-  en_reparto: 'bg-purple-100 text-purple-700',
-  entregado: 'bg-green-100 text-green-700',
-  devuelto: 'bg-red-100 text-red-700',
-  anulado: 'bg-gray-100 text-gray-500',
-  error: 'bg-red-200 text-red-800',
+  grabado: 'bg-slate-100 text-slate-700 border-slate-200',
+  en_transito: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  en_reparto: 'bg-purple-100 text-purple-700 border-purple-200',
+  entregado: 'bg-green-100 text-green-700 border-green-200',
+  recogido: 'bg-green-100 text-green-700 border-green-200',
+  devuelto: 'bg-red-100 text-red-700 border-red-200',
+  anulado: 'bg-gray-100 text-gray-500 border-gray-200',
+  error: 'bg-red-200 text-red-800 border-red-300',
+  incidencia: 'bg-amber-100 text-amber-700 border-amber-200',
+  retenido: 'bg-orange-100 text-orange-700 border-orange-200',
 };
 
-export default function GLSLogistica({ orden, onUpdate }) {
-  const [glsConfig, setGlsConfig] = useState(null);
-  const [envios, setEnvios] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCrear, setShowCrear] = useState(false);
-  const [tipoCrear, setTipoCrear] = useState('recogida');
-  const [creando, setCreando] = useState(false);
-  const [servicios, setServicios] = useState({});
-  const [form, setForm] = useState({});
+const STATE_LABELS = {
+  grabado: 'Grabado',
+  en_transito: 'En Tránsito',
+  en_reparto: 'En Reparto',
+  entregado: 'Entregado',
+  recogido: 'Recogido',
+  devuelto: 'Devuelto',
+  anulado: 'Anulado',
+  error: 'Error',
+  incidencia: 'Incidencia',
+  retenido: 'Retenido',
+};
 
-  useEffect(() => {
-    loadData();
-  }, [orden?.id]);
+const PICKUP_VALID_STATES = ['pendiente_recibir', 'recibida', 'cuarentena', 'en_taller'];
+const DELIVERY_VALID_STATES = ['reparado', 'validacion', 'enviado'];
 
-  const loadData = async () => {
+function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, userRole, onRefresh }) {
+  const [syncing, setSyncing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const isRecogida = tipo === 'recogida';
+  const icon = isRecogida ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />;
+  const color = isRecogida ? 'amber' : 'emerald';
+  const label = isRecogida ? 'Recogida' : 'Envio';
+  const validStates = isRecogida ? PICKUP_VALID_STATES : DELIVERY_VALID_STATES;
+  const canCreate = validStates.includes(ordenEstado) || userRole === 'master';
+  const isAdmin = userRole === 'admin' || userRole === 'master';
+
+  const handleSync = async () => {
+    if (!shipment) return;
+    setSyncing(true);
     try {
-      const [cfgRes, maestrosRes, enviosRes] = await Promise.all([
-        api.get('/gls/config').catch(() => ({ data: {} })),
-        api.get('/gls/maestros').catch(() => ({ data: { servicios: {}, horarios: {} } })),
-        api.get(`/gls/envios?orden_id=${orden.id}`),
-      ]);
-      setGlsConfig(cfgRes.data);
-      setServicios(maestrosRes.data.servicios || {});
-      setEnvios(enviosRes.data.data || []);
+      await api.post(`/ordenes/${ordenId}/logistics/${shipment.id}/sync`);
+      toast.success(`${label} actualizado`);
+      onRefresh();
     } catch (err) {
-      console.error(err);
+      toast.error('Error al sincronizar');
     } finally {
-      setLoading(false);
+      setSyncing(false);
     }
   };
 
-  const initForm = (tipo) => {
-    const cliente = orden.cliente || {};
-    const isRecogida = tipo === 'recogida';
-    setTipoCrear(tipo);
-    setForm({
-      dest_nombre: isRecogida ? (cliente.nombre || '') : (cliente.nombre || ''),
-      dest_direccion: isRecogida ? (cliente.direccion || '') : (cliente.direccion || ''),
-      dest_poblacion: isRecogida ? (cliente.ciudad || '') : (cliente.ciudad || ''),
-      dest_cp: isRecogida ? (cliente.codigo_postal || '') : (cliente.codigo_postal || ''),
-      dest_telefono: isRecogida ? (cliente.telefono || '') : (cliente.telefono || ''),
-      dest_email: isRecogida ? (cliente.email || '') : (cliente.email || ''),
-      dest_provincia: '',
-      dest_observaciones: '',
-      bultos: 1,
-      peso: 1,
-      servicio: '',
-      referencia: orden.numero_orden || orden.numero_autorizacion || '',
-    });
-    setShowCrear(true);
-  };
-
-  const handleCrear = async () => {
-    if (!form.dest_nombre || !form.dest_direccion || !form.dest_cp) {
-      toast.error('Completa nombre, dirección y CP del destinatario');
-      return;
-    }
-    setCreando(true);
+  const handleDownloadLabel = async () => {
+    if (!shipment) return;
+    setDownloading(true);
     try {
-      const payload = {
-        orden_id: orden.id,
-        tipo: tipoCrear,
-        entidad_tipo: 'orden',
-        ...form,
-        bultos: parseInt(form.bultos) || 1,
-        peso: parseFloat(form.peso) || 1,
-        etiqueta_inline: true,
-        formato_etiqueta: glsConfig?.formato_etiqueta || 'PDF',
-      };
-      const res = await api.post('/gls/envios', payload);
-      toast.success(`${tipoCrear === 'recogida' ? 'Recogida' : 'Envío'} GLS creado correctamente`);
-      setShowCrear(false);
-      loadData();
-      if (onUpdate) onUpdate();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al crear envío GLS');
-    } finally {
-      setCreando(false);
-    }
-  };
-
-  const handleDescargarEtiqueta = async (id) => {
-    try {
-      const res = await api.get(`/gls/etiqueta/${id}`, { responseType: 'blob' });
+      const res = await api.get(`/ordenes/${ordenId}/logistics/${shipment.id}/label`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `etiqueta_gls.pdf`;
+      a.download = `etiqueta_${tipo}_${shipment.gls_codbarras || shipment.id.slice(0, 8)}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch {
       toast.error('Etiqueta no disponible');
+    } finally {
+      setDownloading(false);
     }
   };
 
-  const handleSyncSingle = async (id) => {
+  const estadoInterno = shipment?.estado_interno || '';
+  const stateColor = STATE_COLORS[estadoInterno] || 'bg-gray-100 text-gray-600';
+  const stateLabel = STATE_LABELS[estadoInterno] || estadoInterno.replace(/_/g, ' ');
+
+  return (
+    <Card className={`border-${color}-200`} data-testid={`logistics-block-${tipo}`}>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-base">
+            <div className={`p-1.5 rounded-md bg-${color}-100`}>
+              {icon}
+            </div>
+            {isRecogida ? 'Recogida' : 'Envio'}
+            {total > 1 && <Badge variant="outline" className="text-xs ml-1">{total} total</Badge>}
+          </div>
+          {shipment && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7"
+                onClick={handleSync} disabled={syncing}
+                title="Sincronizar tracking"
+                data-testid={`btn-sync-${tipo}`}
+              >
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+              </Button>
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7"
+                onClick={handleDownloadLabel} disabled={downloading}
+                title="Descargar etiqueta"
+                data-testid={`btn-label-${tipo}`}
+              >
+                {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+              </Button>
+              {shipment.gls_codbarras && (
+                <a
+                  href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${shipment.gls_codbarras}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent"
+                  title="Ver en GLS"
+                  data-testid={`btn-gls-link-${tipo}`}
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                </a>
+              )}
+            </div>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!shipment ? (
+          <div className="text-center py-6" data-testid={`logistics-empty-${tipo}`}>
+            <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">
+              {isRecogida ? 'No hay recogida generada' : 'No hay envio generado'}
+            </p>
+            {!canCreate && isAdmin && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Estado actual: <strong>{ordenEstado}</strong>.
+                {isRecogida ? ' Disponible en: pendiente_recibir, recibida, cuarentena, en_taller' : ' Disponible en: reparado, validacion, enviado'}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Status and tracking number */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Badge className={`text-xs ${stateColor}`}>
+                  {stateLabel}
+                </Badge>
+                {shipment.incidencia_texto && (
+                  <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    {shipment.incidencia_texto}
+                  </Badge>
+                )}
+              </div>
+              {shipment.es_final && shipment.estado_interno === 'entregado' && (
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              )}
+            </div>
+
+            {/* Tracking code */}
+            <div className="p-3 bg-slate-50 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Codigo de barras</p>
+                  <p className="font-mono font-semibold text-sm">{shipment.gls_codbarras || '-'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Referencia</p>
+                  <p className="font-mono text-sm">{shipment.referencia_interna || '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{shipment.destinatario?.nombre}</span>
+                <span>{shipment.created_at ? new Date(shipment.created_at).toLocaleString('es-ES') : ''}</span>
+              </div>
+              {shipment.entrega_receptor && (
+                <div className="flex items-center gap-1 text-xs text-green-700 bg-green-50 p-1.5 rounded">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Entregado a: {shipment.entrega_receptor}
+                  {shipment.entrega_fecha && ` - ${shipment.entrega_fecha}`}
+                </div>
+              )}
+            </div>
+
+            {/* Tracking events */}
+            {eventos && eventos.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Ultimos eventos
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {eventos.slice(0, 5).map((ev, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs py-1 border-l-2 border-slate-200 pl-2">
+                      <span className="text-muted-foreground whitespace-nowrap">{ev.fecha_evento}</span>
+                      <span>{ev.descripcion_evento || ev.tipo}</span>
+                      {ev.nombre_plaza && <span className="text-muted-foreground">({ev.nombre_plaza})</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+export default function GLSLogistica({ orden, onUpdate, userRole }) {
+  const [logisticsData, setLogisticsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showCrear, setShowCrear] = useState(null); // 'recogida' | 'envio' | null
+
+  const loadData = useCallback(async () => {
+    if (!orden?.id) return;
     try {
-      await api.post(`/gls/sync/${id}`);
-      toast.success('Tracking actualizado');
-      loadData();
+      const res = await api.get(`/ordenes/${orden.id}/logistics`);
+      setLogisticsData(res.data);
     } catch (err) {
-      toast.error('Error al sincronizar');
+      console.error('Error loading logistics:', err);
+    } finally {
+      setLoading(false);
     }
+  }, [orden?.id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRefresh = () => {
+    loadData();
+    if (onUpdate) onUpdate();
   };
 
-  if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
-  if (!glsConfig?.activo) {
+  if (!logisticsData?.gls_activo) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
           <Truck className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Integración GLS no activada</p>
-          <p className="text-xs">Configura GLS desde Ajustes &gt; GLS Config</p>
+          <p className="font-medium">Integracion GLS no activada</p>
+          <p className="text-xs mt-1">Configura GLS desde Ajustes &gt; GLS Config</p>
         </CardContent>
       </Card>
     );
   }
 
+  const estado = orden?.estado || '';
+  const role = userRole || 'tecnico';
+  const isAdmin = role === 'admin' || role === 'master';
+
+  const canCreatePickup = isAdmin && (PICKUP_VALID_STATES.includes(estado) || role === 'master');
+  const canCreateDelivery = isAdmin && (DELIVERY_VALID_STATES.includes(estado) || role === 'master');
+
+  const hasPickup = !!logisticsData?.recogida?.shipment;
+  const hasDelivery = !!logisticsData?.envio?.shipment;
+
   return (
     <div className="space-y-4" data-testid="gls-logistica-panel">
-      {/* Acciones */}
-      <div className="flex gap-2">
-        <Button onClick={() => initForm('recogida')} variant="outline" size="sm" data-testid="btn-crear-recogida">
-          <ArrowDown className="w-4 h-4 mr-1 text-amber-600" /> Crear Recogida
-        </Button>
-        <Button onClick={() => initForm('envio')} variant="outline" size="sm" data-testid="btn-crear-envio">
-          <ArrowUp className="w-4 h-4 mr-1 text-green-600" /> Crear Envío
-        </Button>
-      </div>
-
-      {/* Lista de envíos */}
-      {envios.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-          No hay envíos GLS vinculados a esta orden
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {envios.map((e) => (
-            <div key={e.id} className="p-3 bg-orange-50 rounded-lg border border-orange-100" data-testid={`gls-shipment-${e.id}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {e.tipo === 'recogida' ? <ArrowDown className="w-4 h-4 text-amber-600" /> : <ArrowUp className="w-4 h-4 text-green-600" />}
-                  <span className="font-medium text-sm capitalize">{e.tipo}</span>
-                  <Badge variant="outline" className="font-mono text-xs">{e.gls_codbarras || '-'}</Badge>
-                  <Badge className={`text-xs ${STATE_COLORS[e.estado_interno] || 'bg-gray-100'}`}>
-                    {e.estado_interno?.replace(/_/g, ' ')}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSyncSingle(e.id)} title="Actualizar"><RotateCw className="w-3 h-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDescargarEtiqueta(e.id)} title="Etiqueta"><FileDown className="w-3 h-3" /></Button>
-                  {e.gls_codbarras && (
-                    <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${e.gls_codbarras}`} target="_blank" rel="noopener noreferrer" className="p-1">
-                      <ExternalLink className="w-3 h-3 text-blue-500" />
-                    </a>
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Ref: {e.referencia_interna} · {e.destinatario?.nombre} · {new Date(e.created_at).toLocaleString('es-ES')}
-              </p>
-            </div>
-          ))}
+      {/* Action buttons */}
+      {isAdmin && (
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={() => setShowCrear('recogida')}
+            variant="outline" size="sm"
+            disabled={!canCreatePickup}
+            data-testid="btn-crear-recogida"
+          >
+            <ArrowDown className="w-4 h-4 mr-1 text-amber-600" />
+            {hasPickup ? 'Nueva Recogida' : 'Generar Recogida'}
+          </Button>
+          <Button
+            onClick={() => setShowCrear('envio')}
+            variant="outline" size="sm"
+            disabled={!canCreateDelivery}
+            data-testid="btn-crear-envio"
+          >
+            <ArrowUp className="w-4 h-4 mr-1 text-emerald-600" />
+            {hasDelivery ? 'Nuevo Envio' : 'Generar Envio'}
+          </Button>
         </div>
       )}
 
-      {/* Dialog Crear */}
-      <Dialog open={showCrear} onOpenChange={setShowCrear}>
-        <DialogContent className="max-w-lg" data-testid="gls-crear-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {tipoCrear === 'recogida' ? <ArrowDown className="w-5 h-5 text-amber-600" /> : <ArrowUp className="w-5 h-5 text-green-600" />}
-              Crear {tipoCrear === 'recogida' ? 'Recogida' : 'Envío'} GLS
-            </DialogTitle>
-          </DialogHeader>
+      {/* Two blocks: Recogida and Envio */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ShipmentBlock
+          tipo="recogida"
+          shipment={logisticsData?.recogida?.shipment}
+          eventos={logisticsData?.recogida?.eventos}
+          total={logisticsData?.recogida?.total || 0}
+          ordenId={orden?.id}
+          ordenEstado={estado}
+          userRole={role}
+          onRefresh={handleRefresh}
+        />
+        <ShipmentBlock
+          tipo="envio"
+          shipment={logisticsData?.envio?.shipment}
+          eventos={logisticsData?.envio?.eventos}
+          total={logisticsData?.envio?.total || 0}
+          ordenId={orden?.id}
+          ordenEstado={estado}
+          userRole={role}
+          onRefresh={handleRefresh}
+        />
+      </div>
+
+      {/* Info note */}
+      {!hasPickup && !hasDelivery && (
+        <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <p>
+            Usa los botones de arriba para generar recogida o envio via GLS.
+            La recogida esta disponible en estados iniciales y el envio en estados finales de la reparacion.
+          </p>
+        </div>
+      )}
+
+      {/* Create shipment modal */}
+      {showCrear && (
+        <CrearEnvioGLSModal
+          tipo={showCrear}
+          orden={orden}
+          onClose={() => setShowCrear(null)}
+          onCreated={handleRefresh}
+        />
+      )}
+    </div>
+  );
+}
+
+
+function CrearEnvioGLSModal({ tipo, orden, onClose, onCreated }) {
+  const [form, setForm] = useState({
+    dest_nombre: '',
+    dest_direccion: '',
+    dest_poblacion: '',
+    dest_cp: '',
+    dest_provincia: '',
+    dest_telefono: '',
+    dest_email: '',
+    dest_observaciones: '',
+    bultos: 1,
+    peso: 1,
+    referencia: orden?.numero_orden || '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Pre-fill from order client data
+    const c = orden?.cliente || {};
+    setForm(f => ({
+      ...f,
+      dest_nombre: `${c.nombre || ''} ${c.apellidos || ''}`.trim(),
+      dest_direccion: c.direccion || '',
+      dest_poblacion: c.ciudad || '',
+      dest_cp: c.codigo_postal || '',
+      dest_provincia: c.provincia || '',
+      dest_telefono: c.telefono || '',
+      dest_email: c.email || '',
+      referencia: (orden?.numero_orden || orden?.numero_autorizacion || '').slice(0, 20),
+    }));
+  }, [orden]);
+
+  const handleCrear = async () => {
+    if (!form.dest_nombre || !form.dest_direccion || !form.dest_cp) {
+      toast.error('Nombre, direccion y CP son obligatorios');
+      return;
+    }
+    if (!form.dest_telefono) {
+      toast.error('El telefono es obligatorio para el transportista');
+      return;
+    }
+    setLoading(true);
+    try {
+      const endpoint = tipo === 'recogida'
+        ? `/ordenes/${orden.id}/logistics/pickup`
+        : `/ordenes/${orden.id}/logistics/delivery`;
+      const payload = {
+        ...form,
+        bultos: parseInt(form.bultos) || 1,
+        peso: parseFloat(form.peso) || 1,
+      };
+      await api.post(endpoint, payload);
+      toast.success(`${tipo === 'recogida' ? 'Recogida' : 'Envio'} GLS creado correctamente`);
+      onClose();
+      onCreated();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || `Error al crear ${tipo}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isRecogida = tipo === 'recogida';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} data-testid="gls-crear-modal">
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            {isRecogida ? <ArrowDown className="w-5 h-5 text-amber-600" /> : <ArrowUp className="w-5 h-5 text-emerald-600" />}
+            <h3 className="text-lg font-semibold">
+              {isRecogida ? 'Generar Recogida GLS' : 'Generar Envio GLS'}
+            </h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            {isRecogida
+              ? 'Datos del punto de recogida. El transportista recogerá en esta direccion.'
+              : 'Datos del destinatario. El dispositivo reparado se enviara a esta direccion.'}
+          </p>
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {tipoCrear === 'recogida'
-                ? 'Datos del punto de recogida (cliente):'
-                : 'Datos del destinatario del envío:'}
-            </p>
+            <div>
+              <label className="text-xs font-medium">Nombre *</label>
+              <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_nombre} onChange={e => setForm(f => ({ ...f, dest_nombre: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Direccion *</label>
+              <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_direccion} onChange={e => setForm(f => ({ ...f, dest_direccion: e.target.value }))} />
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <Label className="text-xs">Nombre *</Label>
-                <Input value={form.dest_nombre || ''} onChange={(e) => setForm(f => ({ ...f, dest_nombre: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Dirección *</Label>
-                <Input value={form.dest_direccion || ''} onChange={(e) => setForm(f => ({ ...f, dest_direccion: e.target.value }))} />
+              <div>
+                <label className="text-xs font-medium">Poblacion</label>
+                <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_poblacion} onChange={e => setForm(f => ({ ...f, dest_poblacion: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs">Población</Label>
-                <Input value={form.dest_poblacion || ''} onChange={(e) => setForm(f => ({ ...f, dest_poblacion: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">CP *</Label>
-                <Input value={form.dest_cp || ''} onChange={(e) => setForm(f => ({ ...f, dest_cp: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Teléfono</Label>
-                <Input value={form.dest_telefono || ''} onChange={(e) => setForm(f => ({ ...f, dest_telefono: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Email</Label>
-                <Input value={form.dest_email || ''} onChange={(e) => setForm(f => ({ ...f, dest_email: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Bultos</Label>
-                <Input type="number" min={1} value={form.bultos || 1} onChange={(e) => setForm(f => ({ ...f, bultos: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Peso (kg)</Label>
-                <Input type="number" min={0.1} step={0.1} value={form.peso || 1} onChange={(e) => setForm(f => ({ ...f, peso: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Referencia</Label>
-                <Input value={form.referencia || ''} onChange={(e) => setForm(f => ({ ...f, referencia: e.target.value }))} className="font-mono" />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Observaciones</Label>
-                <Input value={form.dest_observaciones || ''} onChange={(e) => setForm(f => ({ ...f, dest_observaciones: e.target.value }))} />
+                <label className="text-xs font-medium">CP *</label>
+                <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_cp} onChange={e => setForm(f => ({ ...f, dest_cp: e.target.value }))} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowCrear(false)}>Cancelar</Button>
-              <Button onClick={handleCrear} disabled={creando} data-testid="btn-confirmar-gls">
-                {creando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
-                {creando ? 'Creando...' : 'Crear'}
-              </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium">Telefono *</label>
+                <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_telefono} onChange={e => setForm(f => ({ ...f, dest_telefono: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Email</label>
+                <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_email} onChange={e => setForm(f => ({ ...f, dest_email: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium">Bultos</label>
+                <input type="number" min={1} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.bultos} onChange={e => setForm(f => ({ ...f, bultos: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Peso (kg)</label>
+                <input type="number" min={0.1} step={0.1} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.peso} onChange={e => setForm(f => ({ ...f, peso: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Observaciones</label>
+              <input className="w-full mt-1 px-3 py-2 border rounded-md text-sm" value={form.dest_observaciones} onChange={e => setForm(f => ({ ...f, dest_observaciones: e.target.value }))} />
+            </div>
+            {/* Order info */}
+            <div className="p-3 bg-slate-50 rounded-lg text-xs text-muted-foreground">
+              <p><strong>Orden:</strong> {orden?.numero_orden} {orden?.numero_autorizacion && `| Auth: ${orden.numero_autorizacion}`}</p>
+              <p><strong>Dispositivo:</strong> {orden?.dispositivo?.modelo || 'N/A'}</p>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+            <button className="px-4 py-2 text-sm border rounded-md hover:bg-slate-50" onClick={onClose}>Cancelar</button>
+            <button
+              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+              onClick={handleCrear} disabled={loading}
+              data-testid="btn-confirmar-gls"
+            >
+              {loading ? 'Creando...' : `Confirmar ${isRecogida ? 'Recogida' : 'Envio'}`}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

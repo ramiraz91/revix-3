@@ -730,6 +730,31 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
         elif estado == 'enviado':
             fechas['enviado'] = fecha
 
+    # Fetch GLS logistics data for client view
+    logistics_data = {"recogida": None, "envio": None}
+    try:
+        gls_shipments_cursor = db.gls_shipments.find(
+            {"entidad_id": orden.get("id")},
+            {"_id": 0, "raw_request": 0, "raw_response": 0, "tracking_json": 0}
+        ).sort("created_at", -1)
+        gls_shipments = await gls_shipments_cursor.to_list(20)
+        for s in gls_shipments:
+            tipo = s.get("tipo", "")
+            slot = "recogida" if tipo == "recogida" else "envio"
+            if logistics_data[slot] is None:
+                logistics_data[slot] = {
+                    "codbarras": s.get("gls_codbarras", ""),
+                    "estado": s.get("estado_interno", ""),
+                    "estado_texto": s.get("estado_gls_texto", ""),
+                    "es_final": s.get("es_final", False),
+                    "fecha_creacion": s.get("created_at", ""),
+                    "entrega_receptor": s.get("entrega_receptor"),
+                    "entrega_fecha": s.get("entrega_fecha"),
+                    "incidencia_texto": s.get("incidencia_texto"),
+                }
+    except Exception:
+        pass
+
     return {
         "orden": {
             "numero_orden": orden['numero_orden'],
@@ -747,7 +772,8 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             "fechas": fechas,
             "cliente": {
                 "nombre": cliente.get('nombre', ''),
-            }
+            },
+            "logistics": logistics_data,
         },
         "textos_legales": textos,
         "consentimiento_registrado": consentimiento_registrado,

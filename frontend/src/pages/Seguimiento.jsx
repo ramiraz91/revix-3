@@ -422,45 +422,88 @@ export default function Seguimiento() {
               </CardContent>
             </Card>
 
-            {/* Shipping Codes - NEW SECTION */}
+            {/* Shipping Codes - ENHANCED LOGISTICS SECTION */}
             <Card className="border-blue-200 bg-blue-50/50">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Truck className="w-5 h-5 text-blue-600" />
-                  Información de Envío
+                  Informacion de Envio
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Código de Recogida (Entrada) */}
+                  {/* Recogida Block */}
                   <div className="p-3 bg-white rounded-lg border">
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Nº Recogida</p>
-                    {orden.codigo_recogida_entrada ? (
-                      <>
-                        <p className="font-mono font-semibold text-blue-700">{orden.codigo_recogida_entrada}</p>
-                        {orden.agencia_envio === 'GLS' && (
-                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.codigo_recogida_entrada}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                    <p className="text-xs text-muted-foreground uppercase mb-1 font-semibold">Recogida</p>
+                    {(orden.logistics?.recogida || orden.codigo_recogida_entrada) ? (
+                      <div className="space-y-1.5">
+                        <p className="font-mono font-semibold text-blue-700">
+                          {orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}
+                        </p>
+                        {orden.logistics?.recogida?.estado && (
+                          <Badge variant="outline" className="text-xs">
+                            {orden.logistics.recogida.estado_texto || orden.logistics.recogida.estado}
+                          </Badge>
+                        )}
+                        {orden.logistics?.recogida?.entrega_receptor && (
+                          <p className="text-xs text-green-700">
+                            <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                            Recogido - {orden.logistics.recogida.entrega_receptor}
+                          </p>
+                        )}
+                        {orden.logistics?.recogida?.incidencia_texto && (
+                          <p className="text-xs text-amber-700">
+                            <AlertCircle className="w-3 h-3 inline mr-1" />
+                            {orden.logistics.recogida.incidencia_texto}
+                          </p>
+                        )}
+                        {(orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada) && (
+                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
                             <ExternalLink className="w-3 h-3" /> Seguir recogida en GLS
                           </a>
                         )}
-                      </>
+                      </div>
                     ) : (
                       <p className="text-muted-foreground text-sm">Pendiente</p>
                     )}
                   </div>
                   
-                  {/* Código de Envío (Salida) */}
+                  {/* Envio Block */}
                   <div className="p-3 bg-white rounded-lg border">
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Nº Envío</p>
-                    {(orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) ? (
-                      <>
-                        <p className="font-mono font-semibold text-emerald-700">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</p>
-                        {orden.agencia_envio === 'GLS' && (
-                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
-                            <ExternalLink className="w-3 h-3" /> Seguir envío en GLS
+                    <p className="text-xs text-muted-foreground uppercase mb-1 font-semibold">Envio</p>
+                    {(orden.logistics?.envio || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) ? (
+                      <div className="space-y-1.5">
+                        <p className="font-mono font-semibold text-emerald-700">
+                          {orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}
+                        </p>
+                        {orden.logistics?.envio?.estado && (
+                          <Badge variant="outline" className="text-xs">
+                            {orden.logistics.envio.estado_texto || orden.logistics.envio.estado}
+                          </Badge>
+                        )}
+                        {orden.logistics?.envio?.entrega_receptor && (
+                          <p className="text-xs text-green-700">
+                            <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                            Entregado a: {orden.logistics.envio.entrega_receptor}
+                            {orden.logistics.envio.entrega_fecha && ` - ${orden.logistics.envio.entrega_fecha}`}
+                          </p>
+                        )}
+                        {orden.logistics?.envio?.incidencia_texto && (
+                          <p className="text-xs text-amber-700">
+                            <AlertCircle className="w-3 h-3 inline mr-1" />
+                            {orden.logistics.envio.incidencia_texto}
+                          </p>
+                        )}
+                        {(orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
+                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
+                            <ExternalLink className="w-3 h-3" /> Seguir envio en GLS
                           </a>
                         )}
-                      </>
+                      </div>
                     ) : (
                       <p className="text-muted-foreground text-sm">Pendiente</p>
                     )}

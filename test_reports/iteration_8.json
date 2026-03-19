@@ -1,0 +1,127 @@
+{
+  "summary": "Complete GLS logistics integration rewrite tested successfully. All 16 backend tests passed. All frontend pages load correctly: GLS Config (/crm/gls-config), GLS Admin (/crm/logistica), Etiquetas (/crm/etiquetas-envio). GLSLogistica component renders correctly in order detail with 'GLS not activated' state since no UID is configured.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gls_rewrite.py",
+    "/app/test_reports/pytest/pytest_results_gls_rewrite.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_gls_rewrite.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100% (all 4 features verified working)"
+  },
+  "test_credentials": {
+    "master_user": "master@techrepair.local / master123"
+  },
+  "seed_data_creation": "No new seed data created. GLS is not activated (no UID configured), so POST /api/gls/envios correctly returns error 'Integración GLS no activada'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GLS module fully tested. Backend module is at /app/backend/modules/gls/ with routes, shipment_service, soap_client, state_mapper, sync_service, models. Frontend pages at /crm/gls-config, /crm/logistica, /crm/etiquetas-envio. GLSLogistica component integrated in order detail under Logística tab. GLS SOAP is real but not activated (no credentials configured).",
+  "verified_features": [
+    {
+      "feature": "GET /api/gls/config",
+      "tests": ["Returns GLS config with activo, uid_masked, remitente fields"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/gls/config",
+      "tests": ["Saves GLS configuration successfully", "Persists to database"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/gls/maestros",
+      "tests": ["Returns servicios (10 services)", "Returns horarios (10 schedules)", "Returns estados (14 state badges)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/gls/envios",
+      "tests": ["Returns paginated list", "Supports page/limit params", "Filters by orden_id", "Filters by estado", "Supports search"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/gls/envios",
+      "tests": ["Returns error 'Integración GLS no activada' when GLS not configured"],
+      "status": "PASSED (Expected error behavior)"
+    },
+    {
+      "feature": "POST /api/gls/sync",
+      "tests": ["Triggers manual sync", "Returns sync stats"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GLS Config Page (/crm/gls-config)",
+      "tests": [
+        "Page loads with data-testid='gls-config-page'",
+        "Shows 'Integración DESACTIVADA' status",
+        "Credentials section with UID input",
+        "Remitente data section",
+        "Default options (Servicio 96, Horario 18, PDF)",
+        "Sync button works"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GLS Admin Page (/crm/logistica)",
+      "tests": [
+        "Page loads with data-testid='gls-admin-page'",
+        "Search input present",
+        "Estado/Tipo filters present",
+        "Sync all button present",
+        "Empty state shown when no shipments"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Etiquetas Page (/crm/etiquetas-envio)",
+      "tests": [
+        "Page loads with data-testid='etiquetas-page'",
+        "Search by reference/barcode input",
+        "Date filter input",
+        "Reprint by code section",
+        "Search returns toast on empty results"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GLSLogistica Component (in order detail)",
+      "tests": [
+        "Renders under Logística tab in order detail",
+        "Shows 'Integración GLS no activada' message",
+        "Shows guidance to configure from Ajustes > GLS Config"
+      ],
+      "status": "PASSED"
+    }
+  ],
+  "data_testids_verified": [
+    "gls-config-page",
+    "btn-save-gls",
+    "switch-activo",
+    "input-uid",
+    "input-rem-nombre",
+    "input-rem-dir",
+    "select-servicio",
+    "switch-polling",
+    "btn-sync",
+    "gls-admin-page",
+    "gls-admin-search",
+    "btn-sync-all",
+    "etiquetas-page",
+    "etiqueta-search",
+    "etiqueta-fecha",
+    "btn-buscar-etiquetas",
+    "etiqueta-codigo-directo",
+    "btn-reimprimir"
+  ]
+}

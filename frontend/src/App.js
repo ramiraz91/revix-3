@@ -51,12 +51,13 @@ import OrdenesCompra from "@/pages/OrdenesCompra";
 import Incidencias from "@/pages/Incidencias";
 import Analiticas from "@/pages/Analiticas";
 import EmailConfig from "@/pages/EmailConfig";
-import GLSConfig from "@/pages/GLSConfig";
+import GLSConfigPage from "@/pages/GLSConfigPage";
+import GLSAdmin from "@/pages/GLSAdmin";
 import Comisiones from "@/pages/Comisiones";
 import EtiquetasEnvio from "@/pages/EtiquetasEnvio";
 import NotificacionesTecnico from "@/pages/NotificacionesTecnico";
 import Insurama from "@/pages/Insurama";
-import Logistica from "@/pages/Logistica";
+// Logistica page removed - replaced by GLSAdmin
 import Contabilidad from "@/pages/Contabilidad";
 import FinanzasDashboard from "@/pages/FinanzasDashboard";
 import FacturaDetalle from "@/pages/FacturaDetalle";
@@ -286,7 +287,7 @@ function AppRoutes() {
         } />
         <Route path="gls-config" element={
           <ProtectedRoute adminOnly>
-            <GLSConfig />
+            <GLSConfigPage />
           </ProtectedRoute>
         } />
         <Route path="comisiones" element={
@@ -330,8 +331,8 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="logistica" element={
-          <ProtectedRoute>
-            <Logistica />
+          <ProtectedRoute adminOnly>
+            <GLSAdmin />
           </ProtectedRoute>
         } />
         <Route path="contabilidad" element={

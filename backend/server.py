@@ -58,7 +58,7 @@ from routes.peticiones_routes import router as peticiones_router
 from routes.faqs_routes import router as faqs_router
 from routes.apple_manuals_routes import router as apple_manuals_router
 from routes.compras_routes import router as compras_router
-from routes.gls_routes import router as gls_router
+from modules.gls.routes import router as gls_router
 from routes.finanzas_routes import router as finanzas_router
 
 # ==================== APP SETUP ====================
@@ -2421,15 +2421,15 @@ async def create_default_users():
 
     # Start GLS sync scheduler
     try:
-        from services.gls_sync_scheduler import start_gls_sync
-        start_gls_sync()
+        from modules.gls.sync_service import start_gls_sync
+        start_gls_sync(db)
         logger.info("GLS sync scheduler started")
     except Exception as e:
         logger.warning(f"Could not start GLS sync scheduler: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    from services.gls_sync_scheduler import stop_gls_sync
+    from modules.gls.sync_service import stop_gls_sync
     stop_gls_sync()
     cfg.client.close()
 

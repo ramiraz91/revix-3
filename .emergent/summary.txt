@@ -1,136 +1,118 @@
 <analysis>**original_problem_statement:**
-El usuario solicitó continuar el desarrollo de su CRM/ERP para un taller de reparaciones, enfocándose en la corrección de errores, la eliminación de funcionalidades no deseadas y la implementación de un gran conjunto de nuevas características y mejoras de flujo de trabajo.
+El usuario ha proporcionado un conjunto de requisitos extremadamente detallado para una reescritura completa y una integración profunda del módulo de logística de GLS. El objetivo es abandonar las implementaciones anteriores y construir una solución robusta, de nivel de producción, centrada en el ciclo de vida de la Orden de Trabajo (OT).
 
 **PRODUCT REQUIREMENTS:**
-1.  **Eliminación de Módulos**: Eliminar por completo las secciones y la lógica de backend/frontend para ,  y . (DONE)
-2.  **Reorganización del Menú**: Renombrar el módulo  a  y moverlo al menú de navegación principal. (DONE)
-3.  **Flujo de Notificaciones por Email (P0)**:
-    *   Al crear una nueva orden, se debe enviar automáticamente un email al cliente con el enlace de seguimiento. (PENDING)
-    *   El botón Notificar dentro de una orden, que reenvía el mismo email, debe funcionar correctamente. (DONE)
-    *   Crear una sección de configuración SMTP dedicada en la UI. (DONE)
-4.  **Mejoras en el Portal de Seguimiento de Clientes (P1)**:
-    *   **Aceptación de Textos Legales**: El cliente debe aceptar los términos legales solo la primera vez que accede al seguimiento. Esta aceptación debe quedar registrada y ser visible en la orden de trabajo para el técnico. (DONE)
-    *   **Diseño Responsivo**: Corregir la visualización del progreso de la reparación en dispositivos móviles. (DONE)
-    *   **Limpieza de UI**: Eliminar el logo y el nombre mi empresa de la parte superior de la página de seguimiento. (DONE)
-    *   **Recuperación de Credenciales**: Añadir una opción para que el cliente pueda recuperar sus credenciales de acceso al seguimiento. (DONE)
-5.  **Flujo de Re-presupuesto (P0)**:
-    *   Implementar un flujo para gestionar nuevos presupuestos en órdenes existentes, cambiando el estado a  y notificando al cliente para su aprobación. (DONE)
-6.  **Mejoras en la Gestión de Materiales (Orden de Trabajo) (P2)**:
-    *   **Actualizaciones sin Recarga**: Al añadir o modificar materiales, solo el módulo de precios debe actualizarse, no la página completa. (DONE - bug fix applied)
-    *   **Edición Inline**: Permitir modificar en línea los artículos ya añadidos a una orden. (DONE - bug fix applied)
-    *   **Cálculo de Precios en Tiempo Real**: El presupuesto final debe recalcularse instantáneamente con cada modificación. (DONE)
-7.  **Análisis de Facturas de Compra**: Al procesar una factura de compra con Gemini, si se detecta un EAN, debe guardarse en el campo  o  del producto. (DONE)
+La solicitud más reciente del usuario (mensaje #413) anula las anteriores y actúa como un nuevo Documento de Requisitos del Producto (PRD) para la integración de GLS. Los puntos clave son:
+
+1.  **Modelo de Datos Robusto**: Crear una estructura de base de datos dedicada con colecciones/tablas separadas para  (envíos),  (eventos de seguimiento) y  (registros de la API).
+2.  **Separación de Recogida y Envío**: Dentro de una Orden de Trabajo, Generar Recogida y Generar Envío deben ser dos acciones distintas e independientes, cada una creando su propio registro de envío.
+3.  **Integración Profunda con la Orden de Trabajo (OT)**:
+    *   Una nueva sección de Logística dentro del detalle de la OT, con bloques separados para Recogida y Envío.
+    *   Cada bloque debe mostrar el estado, número de seguimiento, enlace, y botones de acción (, , ).
+    *   La disponibilidad de los botones de acción debe estar controlada por el estado de la OT y los permisos del usuario.
+4.  **Trazabilidad Completa**: Cada acción logística (creación, cambio de estado, incidencia) debe registrar un evento legible por humanos en el historial/timeline de la OT.
+5.  **Integración con el Portal del Cliente**: La página de seguimiento pública del cliente debe mostrar la información de estado tanto de la recogida como del envío, de forma separada y clara.
+6.  **Sincronización Automática**: Un proceso en segundo plano debe sondear a GLS para actualizar los estados de los envíos activos, registrar nuevos eventos de seguimiento y manejar incidencias.
+7.  **Notificaciones por Email**: Enviar automáticamente emails a los clientes al generar una recogida y al generar un envío, incluyendo el número de seguimiento y el enlace.
+8.  **Manejo de Errores y Validaciones**: Implementar validaciones estrictas antes de llamar a la API de GLS (ej: dirección completa, estado de la OT válido) y un manejo de errores robusto para los fallos de la API.
+9.  **Análisis Previo Obligatorio**: El usuario ha solicitado explícitamente que se realice un análisis del sistema actual (flujo de la OT, timeline, portal del cliente) antes de comenzar la implementación.
 
 **User's preferred language**: Spanish (El siguiente agente DEBE responder en español).
 
 **what currently exists?**
-La aplicación es un CRM/ERP con backend FastAPI y frontend React sobre una base de datos MongoDB. Se ha completado una gran cantidad de trabajo, incluyendo la limpieza de módulos obsoletos, la reorganización del menú, la creación de una página de configuración SMTP, y la implementación de mejoras significativas en el portal de seguimiento del cliente. Más recientemente, se implementó por completo el flujo de re-presupuesto, se corrigió el botón de notificación manual, se añadió un indicador visual para el consentimiento legal del cliente en los detalles de la orden y se solucionó un error en la tabla de edición de materiales.
+La aplicación es un CRM/ERP con backend en FastAPI, frontend en React y base de datos MongoDB. En la sesión actual, el agente reescribió la integración de GLS desde cero, creando una arquitectura modular en  con servicios, modelos y rutas, junto con nuevas páginas de frontend para la configuración y administración de GLS. Sin embargo, el usuario ha determinado que esta implementación, aunque funcional, no está lo suficientemente integrada en el flujo de la Orden de Trabajo. El agente había comenzado la fase de análisis para abordar esta nueva y detallada solicitud, investigando el código existente relacionado con el historial de la OT y el sistema de correo electrónico.
 
 **Last working item**:
--   **Last item agent was working**: El agente completó un lote de tareas críticas: implementó el flujo de re-presupuesto (backend y frontend), corrigió el botón Notificar (que llamaba a un endpoint incorrecto), mostró el estado del consentimiento legal en la orden y arregló un bug en la edición inline de materiales. Finalmente, validó todo el trabajo utilizando el .
--   **Status**: USER VERIFICATION PENDING
--   **Agent Testing Done**: Y
--   **Which testing method agent to use?**: NA (La fase de desarrollo y pruebas del agente ha concluido. Se espera la validación del usuario).
+-   **Last item agent was working**: El agente estaba en la fase de **análisis previo** solicitada por el usuario para la nueva y detallada integración de GLS. Estaba investigando el código existente para entender cómo se gestiona el historial de la Orden de Trabajo (), la página de seguimiento del cliente y el servicio de notificaciones por email, con el fin de planificar la integración profunda requerida.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: both
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: Notificación automática por email al crear una orden no funciona (P0)
--   **Issue 2**: Módulo  ausente en el entorno de producción del usuario (Error recurrente) (P2)
+-   **Issue 1**: Reimplementar la lógica de integración de GLS para alinearla con los nuevos y exhaustivos requisitos del usuario. (P0)
+-   **Issue 2**: El checklist de control de calidad (QC) que realiza el técnico no se muestra en la impresión final de la orden. (P2)
+-   **Issue 3**: El endpoint  es lento (tarda ~2-3 segundos), lo que podría impactar la experiencia del usuario en el dashboard. (P2)
 
 **Issues Detail**:
--   **Issue 1: Notificación automática por email al crear una orden no funciona**
-    -   **Description**: El requerimiento original del usuario especificaba que se debía enviar un email automáticamente al cliente al crear una nueva orden. El agente anterior arregló la notificación *manual* (botón Notificar), pero no abordó el flujo de creación automática. Es probable que este siga roto.
+-   **Issue 1: Reimplementar la lógica de integración de GLS**
+    -   **Attempted fixes**: El agente anterior realizó el análisis inicial de los puntos de integración clave en el código existente (, , etc.).
     -   **Next debug checklist**:
-        1.  Revisar el endpoint  en .
-        2.  Verificar la lógica que se ejecuta después de guardar la nueva orden en la base de datos.
-        3.  Asegurarse de que se llama a la función de envío de email () con los datos correctos y la configuración SMTP del usuario.
-        4.  Crear una orden de prueba para confirmar si el email se envía.
-    -   **Why fix this issue and what will be achieved with the fix?**: Es un punto de comunicación crítico con el cliente para que reciba su enlace de seguimiento sin intervención manual.
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Backend
+        1.  **Modelo de Datos**: Refactorizar  para crear las tres colecciones solicitadas por el usuario: , , .
+        2.  **Capa de Servicio**: Modificar  para tener funciones distintas y lógicas de negocio separadas para  y , incluyendo las validaciones de estado de la OT.
+        3.  **Historial de la OT**: Implementar una función helper para registrar eventos logísticos legibles en el campo  del documento de la orden.
+        4.  **Frontend (OrdenDetalle.jsx)**: Reestructurar la pestaña de Logística para mostrar dos bloques de información separados (Recogida y Envío), cada uno con sus datos y botones de acción condicionales.
+        5.  **Frontend (Seguimiento Cliente)**: Identificar y modificar la página de seguimiento del cliente para mostrar el estado de la recogida y del envío por separado.
+        6.  **Notificaciones**: Integrar llamadas al  desde la capa de servicio de GLS al crear recogidas y envíos.
+    -   **Why fix this issue and what will be achieved with the fix?**: Es el requisito principal del usuario. Automatizará completamente el flujo logístico, proporcionará trazabilidad total y mejorará la comunicación con el cliente final.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: Y (Es la tercera iteración del requisito, cada vez más detallado).
+    -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on other issue**: None
 
--   **Issue 2: Módulo  ausente en el entorno de producción del usuario**
-    -   **Description**: El usuario reportó que un scraper fallaba en su entorno de producción por . Aunque el scraper fue eliminado, este problema indica una posible discrepancia entre dependencias del entorno de preview y el de producción.
-    -   **Attempted fixes**: La dependencia  se añadió a .
-    -   **Why fix this issue and what will be achieved with the fix?**: Prevenir fallos de despliegue y fricción con el usuario en el futuro.
-    -   **Status**: TESTING PENDING (esperando a que el usuario despliegue a su entorno de producción).
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: NA (problema de entorno de despliegue).
-    -   **Blocked on other issue**: None
+-   **Issue 2: Checklist de QC no se imprime**
+    -   **Attempted fixes**: Ninguno.
+    -   **Next debug checklist**:
+        1.  Identificar el componente React que renderiza la versión imprimible de la orden (probablemente un componente oculto en ).
+        2.  Verificar que los datos del checklist de QC se pasan como props a este componente.
+        3.  Añadir el JSX necesario para renderizar la información del checklist en el formato de impresión.
+    -   **Why fix this issue and what will be achieved with the fix?**: Asegurará que los documentos físicos/PDF generados contengan toda la información relevante de la reparación.
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: frontend
+
+-   **Issue 3: Endpoint de estadísticas del dashboard lento**
+    -   **Attempted fixes**: Ninguno.
+    -   **Next debug checklist**:
+        1.  Revisar la ruta  en el backend.
+        2.  Analizar las consultas a MongoDB que realiza. Es probable que haya agregaciones (, ) ineficientes.
+        3.  Verificar si faltan índices en las colecciones consultadas.
+        4.  Optimizar las consultas o considerar cachear el resultado.
+    -   **Why fix this issue and what will be achieved with the fix?**: Mejorará el tiempo de carga inicial del dashboard, proporcionando una mejor experiencia de usuario.
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: backend
 
 **In progress Task List**:
-(None)
+-   **Task 1: Análisis y Planificación de la Integración GLS v3**
+    -   **Where to resume**: Continuar el análisis de la base de código. El siguiente paso es formular un plan de implementación detallado basado en el análisis y en los requisitos del usuario (mensaje #413), y luego empezar a modificar el modelo de datos como primer paso de la implementación.
+    -   **What will be achieved with this?**: Un plan de acción claro para construir la integración de GLS definitiva que el usuario ha solicitado.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 -   **Future Tasks**:
-    *   **Task 1 (P2)**: Integración completa con GLS (generación de etiquetas, solicitud de recogidas, consulta de tracking).
-    *   **Task 2 (P2)**: Refinar el flujo de incidencias, conectándolo con las órdenes de trabajo y el inventario.
-    *   **Task 3 (P2)**: Acortar el SKU generado en el inventario, refactorizando la lógica en .
+    -   **(P2)** Integrar Gemini Flash con la API de Google Business Profile para mostrar métricas y reseñas.
+    -   **(P2)** Refinar el flujo de gestión de incidencias.
+    -   **(P2)** Acortar los SKUs generados en el módulo de inventario.
 
 **Completed work in this session**
--   **Flujo de Re-presupuesto**: Se implementaron los endpoints de backend (, ) en  y se añadió en  un diálogo modal para introducir el nuevo importe, junto con la lógica para cambiar el estado de la orden y notificar al cliente.
--   **Corrección de Notificación**: Se arregló el botón Notificar creando el endpoint  que reutiliza la lógica de envío de email. El botón antes apuntaba a un endpoint inexistente de WhatsApp.
--   **Visibilidad de Consentimiento Legal**: Se añadió un indicador en la UI de  para mostrar si el cliente ha aceptado los términos legales.
--   **Corrección de Bug en Edición de Materiales**: Se solucionó un error de referencia ( vs ) en , asegurando el funcionamiento de la edición inline.
--   **Validación con Testing Agent**: Se ejecutó el , que validó los nuevos endpoints y el código del frontend, pasando 13/13 pruebas.
+-   **Reescritura Completa de la Integración GLS (v2)**: Se eliminó todo el código GLS anterior y se construyó una nueva arquitectura modular. **Nota: esta implementación ha sido declarada insuficiente por el usuario y debe ser refactorizada significativamente.**
+-   **Simplificación del Escáner del Dashboard**: Se eliminó el selector manual de modo de escaneo, automatizando la lógica para decidir si se busca una orden o se recibe un nuevo dispositivo.
+-   **Manejo de IMEI Dual**: Se actualizó la UI del técnico y el backend para manejar dispositivos con dos IMEIs, permitiendo la selección y validación del correcto.
+-   **Permisos de Rol Master**: Se concedió al rol master la capacidad de cambiar el estado de una OT directamente a Validación o Enviado desde cualquier estado.
+-   **Flujo de Nueva Orden Mejorado**: Se modificó el formulario para permitir seleccionar un transportista (como GLS) y generar la recogida después de crear la orden, en lugar de exigir un código manual al inicio.
+-   **Mejora de la UI de Envío en la OT**: Se actualizó la tarjeta de envío en la OT para mostrar la información de los envíos GLS vinculados.
+-   **Análisis y preparación para el despliegue**: Se ejecutó un análisis de despliegue exitoso y se confirmó que el frontend compila sin errores.
+
+**Earlier issues found/mentioned but not fixed**
+-   El checklist de QC no aparece en la impresión de la orden.
+-   El endpoint del dashboard  es lento.
+
+**Known issue recurrence from previous fork**
+-   La integración de GLS no cumple con las expectativas de profundidad y trazabilidad del usuario. Esta es la tercera vez que el requisito se redefine, indicando que las implementaciones anteriores eran demasiado superficiales. El estado actual es IN PROGRESS para abordar esto de forma definitiva.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend**: FastAPI, Python, Motor (MongoDB asíncrono).
--   **Frontend**: React, Axios, Tailwind CSS, Shadcn UI, .
--   **Base de Datos**: MongoDB Atlas (instancia del cliente).
--   **Servicios Externos**: Gemini, Cloudinary, SMTP Server (configurable).
+-   **Backend**: FastAPI, Pydantic, Motor (MongoDB asíncrono).
+-   **Frontend**: React, Axios, Tailwind CSS, Shadcn UI.
+-   **Integrations**: SOAP (vía ), SMTP.
+-   **Architecture**: Arquitectura modular en el backend.
 
 **key DB schema**
--   **ordenes**: Contiene el campo  (Boolean) y un  que ahora puede ser  o .
-
-**All files of reference**
--   : Contiene la lógica principal de las órdenes, incluyendo los nuevos endpoints.
--   : Componente central para la gestión de una orden, donde se implementaron los flujos de UI.
--   : Componente para la edición de materiales.
--   : Reporte de la última ejecución del agente de pruebas.
-
-**Areas that need refactoring**:
--   La función  en  provoca una recarga completa de los datos de la orden (). Podría refactorizarse para una actualización de estado más granular y eficiente sin necesidad de una llamada a la API para toda la orden.
-
-**key api endpoints**
--   : Reenvía el email de seguimiento al cliente.
--   : Inicia el flujo de re-presupuesto, cambia el estado y notifica al cliente.
--   : Permite al cliente aprobar el nuevo presupuesto.
-
-**Critical Info for New Agent**
--   **Esperar Validación del Usuario**: Se ha completado un gran lote de trabajo y ha sido validado por el . El siguiente paso es esperar a que el usuario confirme que todo funciona como espera antes de continuar.
--   **Próxima Prioridad (P0)**: Una vez recibida la confirmación, la siguiente tarea de máxima prioridad es arreglar la **notificación automática por email** que debe enviarse al crear una nueva orden.
--   **Riesgo de Entorno**: Ten presente la frustración previa del usuario con las discrepancias entre el entorno de preview y su entorno de producción. Sé explícito sobre las dependencias que añadas.
-
-**documents and test reports created in this job**
--   
-
-**Last 10 User Messages and any pending HUMAN messages**
--   **El smtp ya lo arreglo el agente anterior pero procede con el resto**: El usuario confirmó que la configuración SMTP ya estaba resuelta y dio luz verde para continuar con el resto de las tareas solicitadas. (Status: Addressed)
-
-**Project Health Check:**
--   **Broken**: La notificación por email automática al crear una nueva orden probablemente no funciona.
--   **Mocked**: N/A
-
-**3rd Party Integrations**
--   **MongoDB Atlas**: Base de datos principal (instancia del usuario).
--   **Cloudinary**: Almacenamiento de imágenes.
--   **Gemini**: Usado para el análisis OCR de facturas de compra.
--   **SMTP Server**: Integración para el envío de correos, configurable por el usuario.
-
-**Testing status**
--   **Testing agent used after significant changes**: YES
--   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: []
--   **Known regressions**: None identified.
-
-**Credentials to test flow:**
-No se requieren credenciales. El agente anterior determinó que se está usando la base de datos real del cliente, por lo que las pruebas se realizaron sobre una base de datos vacía o con llamadas directas a la API sin autenticación de usuario final.
-
-**What agent forgot to execute**
-El agente se centró en arreglar la notificación *manual* (botón Notificar) pero no verificó ni implementó la notificación *automática* que debe dispararse al crear una nueva orden, la cual era parte del requerimiento original del usuario.</analysis>
+-   **ordenes**: Colección principal de órdenes de trabajo. Se le añadirán referencias a los nuevos documentos de envío.
+-   **logistics_shipments** (a crear): Almacenará los detalles de cada operación logística (recogida o envío).
+-   **logistics_tracking_events** (a crear): Almacenará el historial de eventos de seguimiento para cada envío.</analysis>

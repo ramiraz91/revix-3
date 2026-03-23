@@ -124,7 +124,7 @@ app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manua
 @app.get("/api/emergency/debug-db")
 async def emergency_debug_db(secret: str = ""):
     """Debug: muestra configuracion de BD."""
-    import os
+    import os, subprocess
     key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
     if not secret or secret != key:
         raise HTTPException(403, "Clave incorrecta")
@@ -132,7 +132,29 @@ async def emergency_debug_db(secret: str = ""):
     db_name_env = os.environ.get('DB_NAME', 'NOT SET')
     host = mongo_url.split('@')[-1].split('/')[0] if '@' in mongo_url else mongo_url[:60]
     user = mongo_url.split('://')[1].split(':')[0] if '://' in mongo_url else 'N/A'
-    result = {"mongo_host": host, "mongo_user": user, "db_name_env": db_name_env}
+    env_file_mongo = "NOT IN FILE"
+    env_file_db = "NOT IN FILE"
+    try:
+        for p in ['/app/backend/.env', '.env']:
+            try:
+                with open(p) as f:
+                    for line in f:
+                        if line.startswith('MONGO_URL'):
+                            env_file_mongo = line.strip()[:80]
+                        if line.startswith('DB_NAME'):
+                            env_file_db = line.strip()[:80]
+                break
+            except:
+                pass
+    except:
+        pass
+    result = {
+        "mongo_host": host,
+        "mongo_user": user,
+        "db_name_env": db_name_env,
+        "env_file_mongo": env_file_mongo,
+        "env_file_db": env_file_db,
+    }
     try:
         from config import db as current_db
         result["db_actual"] = current_db.name

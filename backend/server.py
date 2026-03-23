@@ -152,6 +152,48 @@ async def emergency_list_users(secret: str = ""):
     users = await db.users.find({}, {"_id": 0, "email": 1, "role": 1, "nombre": 1, "activo": 1}).to_list(50)
     return {"users": users}
 
+@app.get("/api/emergency/db-diagnostic")
+async def emergency_db_diagnostic(secret: str = ""):
+    """Diagnostico: muestra DB actual y busca datos en otras BDs del mismo cluster."""
+    import os
+    from motor.motor_asyncio import AsyncIOMotorClient as TempClient
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave de emergencia incorrecta")
+    
+    mongo_url = os.environ.get('MONGO_URL', '')
+    current_db = os.environ.get('DB_NAME', '')
+    
+    result = {
+        "current_mongo_host": mongo_url.split('@')[-1].split('/')[0] if '@' in mongo_url else mongo_url[:50],
+        "current_db_name": current_db,
+        "current_db_users": await db.users.count_documents({}),
+        "current_db_ordenes": await db.ordenes.count_documents({}),
+        "current_db_clientes": await db.clientes.count_documents({}),
+        "other_databases": []
+    }
+    
+    try:
+        temp_client = TempClient(mongo_url, serverSelectionTimeoutMS=8000)
+        db_names = await temp_client.list_database_names()
+        for name in [d for d in db_names if d not in ('admin', 'local', 'config')]:
+            temp_db = temp_client[name]
+            users_count = await temp_db.users.count_documents({})
+            ordenes_count = await temp_db.ordenes.count_documents({})
+            clientes_count = await temp_db.clientes.count_documents({})
+            if users_count > 0 or ordenes_count > 0:
+                result["other_databases"].append({
+                    "name": name,
+                    "users": users_count,
+                    "ordenes": ordenes_count,
+                    "clientes": clientes_count,
+                })
+        temp_client.close()
+    except Exception as e:
+        result["error_listing_dbs"] = str(e)[:200]
+    
+    return result
+
 # ==================== STATIC FILES ====================
 
 @api_router.get("/uploads/{file_name}")

@@ -4,6 +4,14 @@ import jwt
 import bcrypt
 from config import security, JWT_SECRET, JWT_ALGORITHM, db
 from models import UserRole
+from typing import Optional
+
+# Usuario master por defecto - LOGIN DESHABILITADO
+DEFAULT_MASTER_USER = {
+    "user_id": "auto-master",
+    "email": "master@revix.es",
+    "role": "master"
+}
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -21,41 +29,37 @@ def create_token(user_id: str, email: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    # Sin token -> devolver usuario master por defecto
     if not credentials:
-        return None
+        return DEFAULT_MASTER_USER
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado")
+        # Token expirado -> devolver usuario master por defecto
+        return DEFAULT_MASTER_USER
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+        # Token inválido -> devolver usuario master por defecto
+        return DEFAULT_MASTER_USER
 
-async def require_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def require_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    # LOGIN DESHABILITADO - Siempre devuelve usuario master
     user = await get_current_user(credentials)
-    if not user:
-        raise HTTPException(status_code=401, detail="Autenticación requerida")
-    return user
+    return user if user else DEFAULT_MASTER_USER
 
-async def require_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    user = await require_auth(credentials)
-    if user.get("role") not in [UserRole.ADMIN.value, UserRole.MASTER.value]:
-        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere rol de administrador")
-    return user
+async def require_admin(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    # LOGIN DESHABILITADO - Siempre permite acceso admin
+    user = await get_current_user(credentials)
+    return user if user else DEFAULT_MASTER_USER
 
-async def require_master(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    user = await require_auth(credentials)
-    if user.get("role") != UserRole.MASTER.value:
-        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere rol master")
-    return user
+async def require_master(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    # LOGIN DESHABILITADO - Siempre permite acceso master
+    user = await get_current_user(credentials)
+    return user if user else DEFAULT_MASTER_USER
 
-async def require_tecnico(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def require_tecnico(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """Solo técnicos pueden ejecutar acciones técnicas de certificación (RI, CPI, QC, diagnóstico)."""
-    user = await require_auth(credentials)
-    if user.get("role") != UserRole.TECNICO.value:
-        raise HTTPException(
-            status_code=403,
-            detail="Acción restringida: solo el técnico puede completar esta sección (RI, CPI, Diagnóstico, QC)"
-        )
-    return user
+    # LOGIN DESHABILITADO - Permitir acceso
+    user = await get_current_user(credentials)
+    return user if user else DEFAULT_MASTER_USER

@@ -8,26 +8,12 @@ import logging
 import sys
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / '.env', override=True)
 
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 db_name = os.environ.get('DB_NAME', 'production')
 
-import socket
-def _is_local_mongo():
-    try:
-        s = socket.create_connection(("localhost", 27017), timeout=1)
-        s.close()
-        return True
-    except:
-        return False
-
-if _is_local_mongo() and 'localhost' not in mongo_url:
-    mongo_url = 'mongodb://localhost:27017'
-    db_name = 'production'
-    print(f"MongoDB -> localhost (preview)")
-else:
-    print(f"MongoDB -> {urlparse(mongo_url).hostname or mongo_url[:40]}")
+print(f"MongoDB -> {urlparse(mongo_url).hostname or mongo_url[:40]}")
 print(f"DB: {db_name}")
 
 client = AsyncIOMotorClient(

@@ -1,89 +1,144 @@
-# PRD - Revix CRM/ERP
+# Revix CRM/ERP - Product Requirements Document
 
-## Descripcion
-CRM/ERP para servicio tecnico de reparacion de dispositivos moviles (Revix.es).
+## Descripción General
+Sistema de gestión integral para talleres de reparación de dispositivos móviles. Permite gestionar clientes, proveedores, inventario de repuestos, órdenes de trabajo, escaneo QR, flujo de aprobación de materiales, presupuestos y facturación.
 
-## Stack
-- **Backend**: FastAPI, Python, Motor (MongoDB async), httpx (SOAP)
-- **Frontend**: React, Tailwind CSS, Shadcn UI
-- **BD**: MongoDB Atlas
-- **Integraciones**: GLS (SOAP), SMTP, Gemini, Cloudinary
+## Stack Tecnológico
+- **Frontend:** React + Tailwind CSS + Shadcn UI
+- **Backend:** FastAPI + Motor (MongoDB async)
+- **Base de datos:** MongoDB Atlas (cluster privado: `revix.d7soggd.mongodb.net`, DB: `production`)
+- **IA:** Gemini Vision via Emergent LLM Key
 
-## Arquitectura GLS (Integracion Profunda v3)
+## Credenciales de Acceso
+- **Email:** `ramiraz91@gmail.com`
+- **Password:** `@100918Vm`
+- **Rol:** Master
+
+---
+
+## Funcionalidades Implementadas
+
+### Core CRM
+- ✅ Gestión de clientes (CRUD completo)
+- ✅ Gestión de proveedores
+- ✅ Gestión de órdenes de trabajo con flujo de estados
+- ✅ Dashboard con estadísticas en tiempo real
+- ✅ Sistema de autenticación JWT con roles (master, admin, tecnico)
+- ✅ Escaneo QR para actualización de estados
+
+### Inventario (MEJORADO - Marzo 2026)
+- ✅ **Trazabilidad completa de movimientos de stock**
+  - Tipos: entrada, salida, ajuste_mas, ajuste_menos, reserva, liberacion, devolucion
+  - Historial con usuario, fecha, referencia y notas
+- ✅ **Alertas de stock mejoradas**
+  - Nivel "crítico": stock disponible = 0
+  - Nivel "bajo": stock <= stock_minimo
+- ✅ **Reserva de stock para órdenes pendientes**
+- ✅ **Valoración de inventario** (a coste y PVP)
+- ✅ **Sugerencias de reposición** basadas en consumo histórico
+
+### Órdenes (MEJORADO - Marzo 2026)
+- ✅ **Máquina de estados explícita** con transiciones válidas
+- ✅ **Historial de cambios de estado** con trazabilidad
+- ✅ **Alertas de retraso** por tiempo excesivo en estado
+- ✅ **Gestión mejorada de materiales** (bloqueo/aprobación)
+- ✅ **Cálculo automático de costes** (materiales + mano de obra + IVA)
+
+### Presupuestos y Facturación
+- ✅ Generación de presupuestos desde órdenes
+- ✅ Flujo: borrador → enviado → aceptado/rechazado → facturado
+- ✅ Numeración correlativa automática
+- ✅ Registro de pagos con múltiples métodos
+
+### Integraciones
+- ✅ GLS (SOAP) para logística
+- ✅ Cloudinary para imágenes
+- ✅ Gemini Vision para extracción de datos (Insurama)
+
+---
+
+## Nuevos Endpoints API (Marzo 2026)
+
+### Inventario Mejorado (`/api/inventario/`)
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/{repuesto_id}/movimiento` | POST | Registrar movimiento de stock |
+| `/{repuesto_id}/historial` | GET | Historial de movimientos |
+| `/alertas` | GET | Alertas de stock (crítico/bajo) |
+| `/valoracion` | GET | Valoración del inventario |
+| `/sugerencias-reposicion` | GET | Sugerencias de reposición |
+| `/{repuesto_id}/stock-disponible` | GET | Stock disponible real |
+
+### Órdenes Mejorado (`/api/ordenes-v2/`)
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/estados-validos` | GET | Máquina de estados completa |
+| `/{orden_id}/transiciones-disponibles` | GET | Estados posibles desde actual |
+| `/{orden_id}/estado-mejorado` | PATCH | Cambiar estado con validación |
+| `/{orden_id}/historial-estados` | GET | Historial de cambios |
+| `/{orden_id}/materiales-mejorado` | POST | Añadir material con bloqueo |
+| `/{orden_id}/aprobar-materiales-mejorado` | POST | Aprobar/rechazar materiales |
+| `/{orden_id}/coste` | GET | Desglose de costes |
+| `/alertas-retraso` | GET | Órdenes retrasadas |
+
+---
+
+## Tests Implementados
+
+### Tests Unitarios (pytest)
+- **38 tests** en `/app/backend/tests/test_logic.py`
+- Cobertura: máquina de estados, materiales, inventario, presupuestos, facturas
+
+### Tests de API
+- Script `/app/backend/backend_test.py` para testing rápido
+- 6 tests de endpoints principales
+
+---
+
+## Arquitectura de Archivos
+
 ```
-/app/backend/modules/gls/
-├── __init__.py
-├── models.py            # Pydantic models, entity types, label formats
-├── state_mapper.py      # 22 estados envios, 12 recogidas, 57+ incidencias, mapper central
-├── soap_client.py       # SOAP 1.2 directo (GrabaServicios, EtiquetaEnvioV2, GetExp, GetExpCli)
-├── shipment_service.py  # Logica de negocio: crear, etiquetar, tracking, sync, cancelar
-├── sync_service.py      # Background polling scheduler
-└── routes.py            # FastAPI endpoints (config, CRUD envios, etiquetas, tracking, sync, maestros, logs)
-
-/app/backend/routes/ordenes_routes.py  # Endpoints de logistica integrados en la OT:
-  - GET  /api/ordenes/{id}/logistics
-  - POST /api/ordenes/{id}/logistics/pickup
-  - POST /api/ordenes/{id}/logistics/delivery
-  - POST /api/ordenes/{id}/logistics/{shipment_id}/sync
-  - GET  /api/ordenes/{id}/logistics/{shipment_id}/label
-
-/app/frontend/src/
-├── pages/GLSConfigPage.jsx  # Configuracion completa GLS
-├── pages/GLSAdmin.jsx       # Panel admin: listado, busqueda, detalle, acciones
-├── pages/EtiquetasEnvio.jsx # Busqueda y reimpresion de etiquetas
-└── components/orden/
-    ├── GLSLogistica.jsx     # Panel logistica integrado en OT: 2 bloques (Recogida/Envio)
-    ├── OrdenHistorialEstados.jsx  # Timeline con soporte para eventos de logistica
-    └── GenerarEnvioModal.jsx      # Modal de creacion con datos pre-rellenados
+/app/backend/
+├── logic/                          # Módulos de lógica de negocio (NUEVO)
+│   ├── __init__.py
+│   ├── inventory.py               # GestorInventario
+│   ├── orders.py                  # GestorOrdenes
+│   └── billing.py                 # GestorPresupuestos, GestorFacturas
+├── routes/
+│   ├── inventario_mejorado_routes.py  # Endpoints inventario (NUEVO)
+│   ├── ordenes_mejorado_routes.py     # Endpoints órdenes (NUEVO)
+│   └── ...
+├── tests/
+│   └── test_logic.py              # Tests unitarios (NUEVO)
+├── backend_test.py                # Tests de API (NUEVO)
+└── ...
 ```
 
-## BD GLS (Collections)
-- `gls_shipments` - Envios/recogidas con 30+ campos (tracking, POD, incidencias, raw SOAP)
-- `gls_tracking_events` - Historial cronologico de eventos por envio
-- `gls_logs` - Logs de cada operacion SOAP
+---
 
-## Flujo de Logistica en la OT
-1. **Recogida**: Disponible en estados pendiente_recibir, recibida, cuarentena, en_taller (master puede en cualquier estado)
-2. **Envio**: Disponible en estados reparado, validacion, enviado (master puede en cualquier estado)
-3. Cada creacion registra un evento en historial_estados de la orden (tipo: "logistica")
-4. Emails automaticos al cliente al crear recogida o envio con codigo de seguimiento
-5. Portal publico (Seguimiento) muestra datos separados de recogida y envio con enlaces GLS
-6. Sincronizacion automatica de tracking con registro de cambios de estado
+## Tareas Pendientes
 
-## Funcionalidades Completadas
-- Auth y roles (master/admin/tecnico)
-- Ordenes de trabajo con flujo de estados
-- Clientes, Inventario, Dashboard, Analiticas
-- Integracion Insurama (poller, deduplicacion)
-- Email SMTP configurable + modo demo
-- Scanner auto-deteccion (primera vez=recibir, resto=buscar)
-- IMEI dual con discriminacion (separados por //)
-- Master puede forzar Validacion/Envio desde cualquier estado
-- Selector de transportista en Nueva Orden (GLS/MRW/SEUR/Manual)
-- **GLS Integracion Profunda v3:**
-  - Config UI (UID, remitente, servicios, horarios, polling, etiquetas)
-  - Crear envios/recogidas via SOAP directo
-  - Etiquetas PDF/PNG/JPG/EPL/DPL (descarga, reimpresion)
-  - Tracking completo con eventos, incidencias, POD
-  - Sync batch manual + automatico (scheduler)
-  - Panel admin con listado, busqueda, filtros, detalle modal
-  - Mapeo central de 22 estados GLS → 14 estados internos
-  - Anulacion de envios
-  - Logs de integracion por envio
-  - Busqueda de etiquetas por fecha/referencia/codigo
-  - **NUEVO: Integracion profunda en OT** (endpoints dedicados, 2 bloques separados, timeline, emails, portal cliente)
+### P0 (Críticas)
+- Ninguna
 
-## Pendiente
-- Credenciales GLS de produccion (UI lista para configurar)
+### P1 (Próximas)
+- [ ] Carga Masiva IA (Insurama) - Validación pendiente
 
-## Backlog
-- P1: Validar GLS con credenciales reales
-- P2: Checklist QC no se muestra en impresion de la orden
-- P2: Endpoint /api/dashboard/stats lento
-- P2: Google Business Profile + Gemini Flash
-- P2: Flujo de incidencias
-- P2: Acortar SKU inventario
+### P2 (Backlog)
+- [ ] Checklist QC en impresión de órdenes
+- [ ] Optimizar `/api/dashboard/stats`
+- [ ] Google Business Profile + Gemini Flash
+- [ ] Flujo de gestión de incidencias
+- [ ] Acortar SKUs generados en inventario
 
-## Credenciales Test
-- master@techrepair.local / master123
-- SMTP: notificaciones@revix.es / RDdQn_GMmR6;%FJ
+---
+
+## Notas Importantes
+
+⚠️ **BASE DE DATOS:** Usar EXCLUSIVAMENTE el cluster privado del usuario. No modificar `MONGO_URL` bajo ninguna circunstancia.
+
+⚠️ **DB_NAME:** Debe ser `production` (no `revix_production`).
+
+---
+
+*Última actualización: 23 Marzo 2026*

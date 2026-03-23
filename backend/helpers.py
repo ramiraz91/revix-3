@@ -8,6 +8,20 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
 import config as cfg
 
+# Importar el nuevo servicio de email mejorado
+from email_service import (
+    send_email as smtp_send_email,
+    send_email_async,
+    notificar_cambio_estado,
+    notificar_material_pendiente,
+    notificar_presupuesto_enviado,
+    notificar_orden_lista,
+    notificar_factura_emitida,
+    notificar_bienvenida,
+    test_conexion_smtp,
+    CONFIG as SMTP_CONFIG
+)
+
 logger = logging.getLogger(__name__)
 
 # ==================== CODE GENERATION ====================
@@ -75,52 +89,46 @@ async def send_sms(to_phone: str, message: str) -> dict:
         return {"success": False, "error": str(e)}
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
-    """Send email via SMTP directly with raw HTML content (no double-wrapping)."""
-    if cfg.SMTP_CONFIGURED:
-        try:
-            import smtplib
-            import ssl
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = cfg.SMTP_FROM or f"Revix <{cfg.SMTP_USER}>"
-            msg["To"] = to_email
-            msg["Reply-To"] = cfg.SMTP_REPLY_TO or "help@revix.es"
-            msg.attach(MIMEText(html_content, "html", "utf-8"))
-
-            context = ssl.create_default_context()
-            if cfg.SMTP_SECURE and cfg.SMTP_PORT == 465:
-                with smtplib.SMTP_SSL(cfg.SMTP_HOST, cfg.SMTP_PORT, context=context, timeout=15) as server:
-                    server.login(cfg.SMTP_USER, cfg.SMTP_PASS)
-                    server.send_message(msg)
-            else:
-                with smtplib.SMTP(cfg.SMTP_HOST, cfg.SMTP_PORT, timeout=15) as server:
-                    server.starttls(context=context)
-                    server.login(cfg.SMTP_USER, cfg.SMTP_PASS)
-                    server.send_message(msg)
-
-            logger.info(f"Email SMTP enviado a {to_email}: {subject}")
-            return {"success": True, "type": "smtp"}
-        except Exception as e:
-            logger.error(f"Error SMTP a {to_email}: {e}")
-
-    # Fallback: SendGrid
-    if not cfg.sendgrid_client or not cfg.SENDGRID_FROM_EMAIL:
-        logger.warning("Ni SMTP ni SendGrid configurados. Email no enviado a %s", to_email)
-        return {"success": False, "error": "Email no configurado"}
+    """
+    Send email via el nuevo servicio SMTP mejorado.
+    Mantiene compatibilidad con el código existente.
+    """
+    if not SMTP_CONFIG.is_configured:
+        logger.warning("SMTP no configurado — email a %s omitido", to_email)
+        return {"success": False, "error": "SMTP no configurado"}
+    
     try:
-        message = Mail(
-            from_email=Email(cfg.SENDGRID_FROM_EMAIL, "Revix"),
-            to_emails=To(to_email), subject=subject,
-            html_content=Content("text/html", html_content)
+        # Usar el nuevo servicio async
+        success = await send_email_async(
+            to=to_email,
+            subject=subject,
+            titulo=subject,  # Usamos el subject como título
+            contenido=html_content,  # El contenido ya viene formateado
         )
-        response = cfg.sendgrid_client.send(message)
-        logger.info(f"Email SendGrid enviado a {to_email}: {response.status_code}")
-        return {"success": True, "status_code": response.status_code, "type": "sendgrid"}
+        
+        if success:
+            logger.info(f"Email enviado a {to_email}: {subject}")
+            return {"success": True, "type": "smtp_mejorado"}
+        else:
+            return {"success": False, "error": "Fallo en envío SMTP"}
+            
     except Exception as e:
-        logger.error(f"Error SendGrid a {to_email}: {str(e)}")
+        logger.error(f"Error enviando email a {to_email}: {e}")
+        
+        # Fallback: SendGrid si está configurado
+        if cfg.sendgrid_client and cfg.SENDGRID_FROM_EMAIL:
+            try:
+                message = Mail(
+                    from_email=Email(cfg.SENDGRID_FROM_EMAIL, "Revix"),
+                    to_emails=To(to_email), subject=subject,
+                    html_content=Content("text/html", html_content)
+                )
+                response = cfg.sendgrid_client.send(message)
+                logger.info(f"Email SendGrid (fallback) enviado a {to_email}: {response.status_code}")
+                return {"success": True, "status_code": response.status_code, "type": "sendgrid_fallback"}
+            except Exception as sg_error:
+                logger.error(f"Error SendGrid fallback a {to_email}: {sg_error}")
+        
         return {"success": False, "error": str(e)}
 
 
@@ -611,6 +619,7 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
     """
     Envía notificaciones al cliente sobre su orden.
     Respeta los flags enabled y demo_mode de email_config.
+    Usa el nuevo servicio SMTP mejorado.
     """
     results = {"sms": None, "email": None}
 
@@ -627,57 +636,83 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
         return results
 
     token = orden.get('token_seguimiento', '')
-    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
     estado = orden.get('estado', 'pendiente_recibir')
-
-    # Determinar tipo de email y mensajes
-    if notification_type == "created":
-        email_type = 'created'
-        sms_message = f"Revix: Orden {orden['numero_orden']} registrada. Sigue tu reparación: {link}"
-        email_subject = f"Nueva Orden de Reparación - {orden['numero_orden']}"
-    elif notification_type == "fecha_estimada":
-        email_type = 'fecha_estimada'
-        fecha = orden.get('fecha_estimada_entrega', 'Próximamente')
-        sms_message = f"Revix: Tu reparación estará lista aproximadamente el {fecha}. Sigue tu orden: {link}"
-        email_subject = f"Fecha de Entrega Estimada - {orden['numero_orden']}"
-    else:
-        # Status change - verificar si debemos notificar
-        estados_activos = email_cfg.get("estados_activos", {})
-        if estado not in ESTADOS_NOTIFICAR_AUTO:
-            logger.info(f"Estado {estado} no requiere notificación automática")
-            return results
-        # Verificar si este estado concreto está activado en la config
-        if estados_activos and estados_activos.get(estado) is False:
-            logger.info(f"Notificación para estado '{estado}' desactivada por configuración")
-            return results
-        
-        email_type = estado
-        emoji = STATUS_EMOJIS.get(estado, '')
-        status_msg = STATUS_MESSAGES.get(estado, f'Estado: {estado}')
-        sms_message = f"Revix {emoji}: {status_msg} Orden: {orden['numero_orden']}. Ver estado: {link}"
-        email_subject = f"{emoji} {status_msg[:30]}... - {orden['numero_orden']}"
-        
-        if estado == 'enviado' and orden.get('codigo_recogida_salida'):
-            sms_message += f" Seguimiento envío: {orden['codigo_recogida_salida']}"
+    orden_id = orden.get('id', '')
+    numero_orden = orden.get('numero_orden', '')
+    auth_code = orden.get('codigo_recogida_salida') or token
 
     # Determinar destinatario (demo_mode redirige todo a demo_email)
     demo_mode = email_cfg.get("demo_mode", False)
     demo_email = email_cfg.get("demo_email", "")
-    
     destinatario_email = demo_email if (demo_mode and demo_email) else cliente.get('email', '')
 
-    # Enviar notificaciones
+    if not destinatario_email:
+        logger.warning(f"Sin email de destino para orden {numero_orden}")
+        return results
+
+    # Enviar SMS si está habilitado
     sms_enabled = email_cfg.get("sms_enabled", True)
+    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
+    
+    if notification_type == "created":
+        sms_message = f"Revix: Orden {numero_orden} registrada. Sigue tu reparación: {link}"
+    elif notification_type == "fecha_estimada":
+        fecha = orden.get('fecha_estimada_entrega', 'Próximamente')
+        sms_message = f"Revix: Tu reparación estará lista aproximadamente el {fecha}. Sigue tu orden: {link}"
+    else:
+        emoji = STATUS_EMOJIS.get(estado, '')
+        status_msg = STATUS_MESSAGES.get(estado, f'Estado: {estado}')
+        sms_message = f"Revix {emoji}: {status_msg} Orden: {numero_orden}. Ver estado: {link}"
+        if estado == 'enviado' and orden.get('codigo_recogida_salida'):
+            sms_message += f" Seguimiento envío: {orden['codigo_recogida_salida']}"
+
     if sms_enabled and cliente.get('telefono') and not demo_mode:
         results["sms"] = await send_sms(cliente['telefono'], sms_message)
-    
-    if destinatario_email:
-        html_content = generate_modern_email_html(orden, cliente, email_type=email_type)
-        results["email"] = await send_email(destinatario_email, email_subject, html_content)
+
+    # Enviar email usando el nuevo servicio mejorado
+    try:
+        if notification_type == "created":
+            # Orden nueva - usar template moderno
+            html_content = generate_modern_email_html(orden, cliente, email_type='created')
+            email_subject = f"Nueva Orden de Reparación - {numero_orden}"
+            email_result = await send_email(destinatario_email, email_subject, html_content)
+            results["email"] = email_result
+            
+        elif notification_type == "fecha_estimada":
+            html_content = generate_modern_email_html(orden, cliente, email_type='fecha_estimada')
+            email_subject = f"Fecha de Entrega Estimada - {numero_orden}"
+            email_result = await send_email(destinatario_email, email_subject, html_content)
+            results["email"] = email_result
+            
+        else:
+            # Cambio de estado - verificar si debemos notificar
+            estados_activos = email_cfg.get("estados_activos", {})
+            if estado not in ESTADOS_NOTIFICAR_AUTO:
+                logger.info(f"Estado {estado} no requiere notificación automática")
+                return results
+                
+            if estados_activos and estados_activos.get(estado) is False:
+                logger.info(f"Notificación para estado '{estado}' desactivada por configuración")
+                return results
+
+            # Usar la nueva función de notificación de cambio de estado
+            email_success = await notificar_cambio_estado(
+                to=destinatario_email,
+                orden_numero=numero_orden,
+                auth_code=auth_code,
+                nuevo_estado=estado,
+                orden_id=orden_id
+            )
+            results["email"] = {"success": email_success, "type": "smtp_mejorado"}
+
         if demo_mode:
             logger.info(f"MODO DEMO: Email redirigido de {cliente.get('email', 'N/A')} → {demo_email}")
-    
-    logger.info(f"Notificación para orden {orden.get('numero_orden')}: tipo={notification_type}, estado={estado}, demo={demo_mode}")
+
+    except Exception as e:
+        logger.error(f"Error enviando notificación para orden {numero_orden}: {e}")
+        results["email"] = {"success": False, "error": str(e)}
+
+    logger.info(f"Notificación para orden {numero_orden}: tipo={notification_type}, estado={estado}, demo={demo_mode}")
     return results
 
 

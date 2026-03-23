@@ -8,36 +8,13 @@ import logging
 import sys
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / '.env', override=True)
 
-# ==================== MONGODB - CONFIGURACIÓN CON PRIORIDAD CUSTOM ====================
-#
-# Emergent sobreescribe MONGO_URL y DB_NAME en cada deploy.
-# Para usar tu propia BD Atlas, configura en Secrets de Emergent:
-#   CUSTOM_MONGO_URL = tu connection string de Atlas
-#   CUSTOM_DB_NAME = tu nombre de base de datos
-# Estas variables tienen PRIORIDAD sobre MONGO_URL y DB_NAME.
-#
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+db_name = os.environ.get('DB_NAME', 'production')
 
-mongo_url = os.environ.get('CUSTOM_MONGO_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-
-# Detectar si es localhost (entorno de desarrollo/preview)
-is_localhost = 'localhost' in mongo_url or '127.0.0.1' in mongo_url
-is_atlas = 'mongodb.net' in mongo_url or 'mongodb+srv' in mongo_url
-is_custom = bool(os.environ.get('CUSTOM_MONGO_URL'))
-
-if is_custom:
-    parsed = urlparse(mongo_url)
-    host_display = parsed.hostname or "MongoDB Atlas"
-    print(f"CUSTOM MongoDB conectado a: {host_display}")
-elif is_atlas:
-    parsed = urlparse(mongo_url)
-    host_display = parsed.hostname or "MongoDB Atlas"
-    print(f"MongoDB PRODUCCION conectado a: {host_display}")
-elif is_localhost:
-    print("MongoDB LOCAL (preview/desarrollo)")
-else:
-    print(f"MongoDB conectado a: {mongo_url[:50]}...")
+print(f"MongoDB -> {urlparse(mongo_url).hostname or mongo_url[:40]}")
+print(f"DB: {db_name}")
 
 client = AsyncIOMotorClient(
     mongo_url,
@@ -46,9 +23,9 @@ client = AsyncIOMotorClient(
     socketTimeoutMS=30000,
 )
 
-db_name = os.environ.get('CUSTOM_DB_NAME') or os.environ.get('DB_NAME', 'production')
+db_name = _custom_db or os.environ.get('DB_NAME', 'production')
 db = client[db_name]
-print(f"Base de datos: {db_name}{' (CUSTOM)' if os.environ.get('CUSTOM_DB_NAME') else ''}")
+print(f"DB: {db_name}{' (CUSTOM)' if _custom_db else ''}")
 
 # JWT
 JWT_SECRET = os.environ.get('JWT_SECRET', 'techrepair-secret-key-2026')

@@ -1,5 +1,4 @@
 from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
 from fastapi.security import HTTPBearer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -7,22 +6,38 @@ import os
 import logging
 import sys
 
+# ── Cargar variables de entorno ───────────────────────────────────────────────
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-db_name = os.environ.get('DB_NAME', 'production')
+# ── Importar módulo de base de datos mejorado ─────────────────────────────────
+from database import (
+    MONGO_URL, DB_NAME,
+    async_client, async_db,
+    connect_db, disconnect_db, get_db,
+    connect_db_sync, get_db_sync,
+    crear_indices, health_check, test_connection,
+    Collections
+)
+
+# Compatibilidad: mantener 'db' como alias global para código existente
+from motor.motor_asyncio import AsyncIOMotorClient
+
+mongo_url = MONGO_URL
+db_name = DB_NAME
 
 print(f"MongoDB -> {urlparse(mongo_url).hostname or mongo_url[:40]}")
 print(f"DB: {db_name}")
 
+# Cliente y DB (inicialización inmediata para compatibilidad)
 client = AsyncIOMotorClient(
     mongo_url,
     serverSelectionTimeoutMS=10000,
     connectTimeoutMS=10000,
     socketTimeoutMS=30000,
+    maxPoolSize=10,
+    retryWrites=True,
 )
-
 db = client[db_name]
 
 # JWT

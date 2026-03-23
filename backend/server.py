@@ -174,25 +174,39 @@ async def emergency_db_diagnostic(secret: str = ""):
     }
     
     try:
-        temp_client = TempClient(mongo_url, serverSelectionTimeoutMS=8000)
+        temp_client = TempClient(mongo_url, serverSelectionTimeoutMS=15000)
         db_names = await temp_client.list_database_names()
         for name in [d for d in db_names if d not in ('admin', 'local', 'config')]:
             temp_db = temp_client[name]
-            users_count = await temp_db.users.count_documents({})
-            ordenes_count = await temp_db.ordenes.count_documents({})
-            clientes_count = await temp_db.clientes.count_documents({})
-            if users_count > 0 or ordenes_count > 0:
-                result["other_databases"].append({
-                    "name": name,
-                    "users": users_count,
-                    "ordenes": ordenes_count,
-                    "clientes": clientes_count,
-                })
+            cols = await temp_db.list_collection_names()
+            info = {"name": name, "collections": len(cols)}
+            for col in ['users', 'ordenes', 'clientes', 'pre_registros', 'repuestos']:
+                if col in cols:
+                    info[col] = await temp_db[col].count_documents({})
+            if any(info.get(c, 0) > 0 for c in ['users', 'ordenes', 'clientes', 'pre_registros']):
+                result["other_databases"].append(info)
         temp_client.close()
     except Exception as e:
-        result["error_listing_dbs"] = str(e)[:200]
+        result["error_listing_dbs"] = str(e)[:300]
     
     return result
+
+@app.get("/api/emergency/switch-db")
+async def emergency_switch_db(secret: str = "", target_db: str = ""):
+    """Cambia la BD activa en caliente (temporal hasta reinicio)."""
+    import os
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave de emergencia incorrecta")
+    if not target_db:
+        raise HTTPException(400, "target_db es obligatorio")
+    from config import client as mongo_client
+    import config
+    config.db = mongo_client[target_db]
+    new_users = await config.db.users.count_documents({})
+    new_ordenes = await config.db.ordenes.count_documents({})
+    new_clientes = await config.db.clientes.count_documents({})
+    return {"switched_to": target_db, "users": new_users, "ordenes": new_ordenes, "clientes": new_clientes}
 
 # ==================== STATIC FILES ====================
 

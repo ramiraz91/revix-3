@@ -3,37 +3,43 @@ import { authAPI } from '@/lib/api';
 
 const AuthContext = createContext(null);
 
+// Usuario master por defecto - Sin login requerido
+const DEFAULT_MASTER_USER = {
+  id: 'auto-master',
+  email: 'master@revix.es',
+  nombre: 'Admin',
+  apellidos: 'Master',
+  role: 'master',
+  avatar_url: null
+};
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Inicializar directamente con usuario master
+  const [user, setUser] = useState(DEFAULT_MASTER_USER);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-      // Verify token is still valid
-      authAPI.me().catch(() => {
-        logout();
-      });
+    // Asegurar que siempre haya un usuario master activo
+    if (!user) {
+      setUser(DEFAULT_MASTER_USER);
     }
-    setLoading(false);
-  }, []);
+  }, [user]);
 
   const login = async (email, password) => {
+    // Login ya no es necesario, pero mantenemos la función por compatibilidad
     const res = await authAPI.login({ email, password });
-    const { token, user } = res.data;
+    const { token, user: loggedUser } = res.data;
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
-    return user;
+    localStorage.setItem('user', JSON.stringify(loggedUser));
+    setUser(loggedUser);
+    return loggedUser;
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+    // Logout no hace nada - siempre mantiene al usuario master
+    // localStorage.removeItem('token');
+    // localStorage.removeItem('user');
+    // setUser(null);
   };
 
   const isAdmin = () => user?.role === 'admin' || user?.role === 'master';

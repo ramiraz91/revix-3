@@ -253,6 +253,54 @@ async def emergency_switch_db(secret: str = "", target_db: str = ""):
     new_clientes = await config.db.clientes.count_documents({})
     return {"switched_to": target_db, "users": new_users, "ordenes": new_ordenes, "clientes": new_clientes}
 
+
+@app.post("/api/emergency/scan-cluster")
+async def emergency_scan_cluster(data: dict, secret: str = ""):
+    """Escanea un cluster MongoDB específico para encontrar bases de datos con órdenes."""
+    import os
+    from motor.motor_asyncio import AsyncIOMotorClient as TempClient
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave de emergencia incorrecta")
+    
+    target_url = data.get("mongo_url", "")
+    if not target_url:
+        raise HTTPException(400, "mongo_url es obligatorio en el body")
+    
+    result = {
+        "cluster_host": target_url.split('@')[-1].split('/')[0] if '@' in target_url else target_url[:50],
+        "databases_found": [],
+        "database_with_most_ordenes": None,
+        "max_ordenes": 0
+    }
+    
+    try:
+        temp_client = TempClient(target_url, serverSelectionTimeoutMS=20000)
+        db_names = await temp_client.list_database_names()
+        
+        for name in [d for d in db_names if d not in ('admin', 'local', 'config')]:
+            temp_db = temp_client[name]
+            cols = await temp_db.list_collection_names()
+            info = {"name": name, "collections": len(cols), "collection_names": cols[:10]}
+            
+            for col in ['users', 'ordenes', 'clientes', 'pre_registros', 'repuestos']:
+                if col in cols:
+                    info[col] = await temp_db[col].count_documents({})
+            
+            result["databases_found"].append(info)
+            
+            ordenes_count = info.get('ordenes', 0)
+            if ordenes_count > result["max_ordenes"]:
+                result["max_ordenes"] = ordenes_count
+                result["database_with_most_ordenes"] = name
+        
+        temp_client.close()
+        
+    except Exception as e:
+        result["error"] = str(e)[:500]
+    
+    return result
+
 # ==================== STATIC FILES ====================
 
 @api_router.get("/uploads/{file_name}")

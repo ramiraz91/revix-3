@@ -114,11 +114,14 @@ async def register(user: UserCreate, current_user: dict = Depends(require_admin)
 async def login(credentials: UserLogin, request: Request):
     ip = request.client.host if request.client else "unknown"
     email = credentials.email.lower()
+    
+    logger.info(f"Login attempt for email: {email}")
 
     # Rate limit check
     _check_rate_limit(ip, email)
 
     user = await db.users.find_one({"email": email}, {"_id": 0})
+    logger.info(f"User found: {user is not None}")
     if not user:
         _record_failed_attempt(ip, email)
         remaining = _attempts_remaining(ip, email)
@@ -128,7 +131,11 @@ async def login(credentials: UserLogin, request: Request):
         )
     if not user.get('activo', True):
         raise HTTPException(status_code=401, detail="Usuario desactivado. Contacta con el administrador.")
-    if not verify_password(credentials.password, user.get('password_hash', '')):
+    
+    password_ok = verify_password(credentials.password, user.get('password_hash', ''))
+    logger.info(f"Password verification: {password_ok}")
+    
+    if not password_ok:
         _record_failed_attempt(ip, email)
         remaining = _attempts_remaining(ip, email)
         raise HTTPException(

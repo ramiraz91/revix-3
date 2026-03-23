@@ -82,10 +82,30 @@ import PublicGarantiaExtendida from "@/pages/public/PublicGarantiaExtendida";
 import PublicPartners from "@/pages/public/PublicPartners";
 import PublicFAQs from "@/pages/public/PublicFAQs";
 
-// Protected Route component - LOGIN DESHABILITADO
-// Todas las rutas son accesibles sin autenticación
+// Protected Route component
 function ProtectedRoute({ children, adminOnly = false, masterOnly = false }) {
-  // Sin verificación de login - acceso directo
+  const { user, loading, isAdmin, isMaster } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/crm/login" replace />;
+  }
+  
+  if (masterOnly && !isMaster()) {
+    return <Navigate to="/crm/dashboard" replace />;
+  }
+  
+  if (adminOnly && !isAdmin()) {
+    return <Navigate to="/crm/dashboard" replace />;
+  }
+  
   return children;
 }
 
@@ -157,15 +177,14 @@ function AppRoutes() {
       <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
       
       {/* ===== CRM (www.revix.es/crm) ===== */}
-      {/* Login deshabilitado - redirige directo al dashboard */}
-      <Route path="/crm/login" element={<Navigate to="/crm/dashboard" replace />} />
-      <Route path="/crm/forgot-password" element={<Navigate to="/crm/dashboard" replace />} />
-      <Route path="/crm/reset-password" element={<Navigate to="/crm/dashboard" replace />} />
+      <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />
+      <Route path="/crm/forgot-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ForgotPassword />} />
+      <Route path="/crm/reset-password" element={user ? <Navigate to="/crm/dashboard" replace /> : <ResetPassword />} />
       
-      {/* Rutas alternativas sin /crm - redirigen al dashboard */}
-      <Route path="/login" element={<Navigate to="/crm/dashboard" replace />} />
-      <Route path="/forgot-password" element={<Navigate to="/crm/dashboard" replace />} />
-      <Route path="/reset-password" element={<Navigate to="/crm/dashboard" replace />} />
+      {/* Rutas alternativas sin /crm para compatibilidad */}
+      <Route path="/login" element={<Navigate to="/crm/login" replace />} />
+      <Route path="/forgot-password" element={<Navigate to="/crm/forgot-password" replace />} />
+      <Route path="/reset-password" element={<Navigate to="/crm/reset-password" replace />} />
       
       <Route path="/crm" element={
         <ProtectedRoute>

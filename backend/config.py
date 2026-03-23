@@ -10,30 +10,34 @@ import sys
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# ==================== MONGODB - CONFIGURACIÓN INTELIGENTE ====================
-# 
-# IMPORTANTE: Esta configuración funciona así:
-# - En PREVIEW: Usa localhost (MongoDB local del preview)
-# - En PRODUCCIÓN: Emergent sobrescribe MONGO_URL automáticamente
+# ==================== MONGODB - CONFIGURACIÓN CON PRIORIDAD CUSTOM ====================
 #
-# Si necesitas conectar a MongoDB Atlas específico, configura MONGO_URL en .env
-# Ejemplo: MONGO_URL="mongodb+srv://usuario:pass@cluster.mongodb.net/"
+# Emergent sobreescribe MONGO_URL y DB_NAME en cada deploy.
+# Para usar tu propia BD Atlas, configura en Secrets de Emergent:
+#   CUSTOM_MONGO_URL = tu connection string de Atlas
+#   CUSTOM_DB_NAME = tu nombre de base de datos
+# Estas variables tienen PRIORIDAD sobre MONGO_URL y DB_NAME.
 #
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = os.environ.get('CUSTOM_MONGO_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 
 # Detectar si es localhost (entorno de desarrollo/preview)
 is_localhost = 'localhost' in mongo_url or '127.0.0.1' in mongo_url
 is_atlas = 'mongodb.net' in mongo_url or 'mongodb+srv' in mongo_url
+is_custom = bool(os.environ.get('CUSTOM_MONGO_URL'))
 
-if is_atlas:
+if is_custom:
     parsed = urlparse(mongo_url)
     host_display = parsed.hostname or "MongoDB Atlas"
-    print(f"✅ MongoDB PRODUCCIÓN conectado a: {host_display}")
+    print(f"CUSTOM MongoDB conectado a: {host_display}")
+elif is_atlas:
+    parsed = urlparse(mongo_url)
+    host_display = parsed.hostname or "MongoDB Atlas"
+    print(f"MongoDB PRODUCCION conectado a: {host_display}")
 elif is_localhost:
-    print("🔧 MongoDB LOCAL (preview/desarrollo)")
+    print("MongoDB LOCAL (preview/desarrollo)")
 else:
-    print(f"ℹ️  MongoDB conectado a: {mongo_url[:50]}...")
+    print(f"MongoDB conectado a: {mongo_url[:50]}...")
 
 client = AsyncIOMotorClient(
     mongo_url,
@@ -42,9 +46,9 @@ client = AsyncIOMotorClient(
     socketTimeoutMS=30000,
 )
 
-db_name = os.environ.get('DB_NAME', 'production')
+db_name = os.environ.get('CUSTOM_DB_NAME') or os.environ.get('DB_NAME', 'production')
 db = client[db_name]
-print(f"📁 Base de datos: {db_name}")
+print(f"Base de datos: {db_name}{' (CUSTOM)' if os.environ.get('CUSTOM_DB_NAME') else ''}")
 
 # JWT
 JWT_SECRET = os.environ.get('JWT_SECRET', 'techrepair-secret-key-2026')

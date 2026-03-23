@@ -94,6 +94,11 @@ app.add_middleware(PerformanceMiddleware)
 # Main API router
 api_router = APIRouter(prefix="/api")
 
+@api_router.get("/health")
+async def api_health_check():
+    """Health check endpoint via /api/health"""
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+
 # Include extracted route modules
 api_router.include_router(auth_router)
 api_router.include_router(data_router)
@@ -115,6 +120,11 @@ api_router.include_router(compras_router)
 api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
+
+@app.get("/health")
+async def root_health_check():
+    """Health check endpoint for Emergent deployment (no auth, root level)"""
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # ==================== STATIC FILES ====================
 

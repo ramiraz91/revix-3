@@ -121,6 +121,29 @@ api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
+@app.get("/api/emergency/debug-db")
+async def emergency_debug_db(secret: str = ""):
+    """Debug: muestra configuracion de BD sin intentar conectar."""
+    import os
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave incorrecta")
+    mongo_url = os.environ.get('MONGO_URL', 'NO DEFINIDO')
+    db_name = os.environ.get('DB_NAME', 'NO DEFINIDO')
+    host = mongo_url.split('@')[-1].split('/')[0] if '@' in mongo_url else mongo_url[:60]
+    user = mongo_url.split('://')[1].split(':')[0] if '://' in mongo_url else 'N/A'
+    result = {"mongo_host": host, "mongo_user": user, "db_name": db_name, "override_active": "override=True" in open('/app/backend/config.py').read()}
+    try:
+        from config import db as current_db
+        result["db_object_name"] = current_db.name
+        count = await current_db.users.count_documents({})
+        result["users_count"] = count
+        result["db_connected"] = True
+    except Exception as e:
+        result["db_connected"] = False
+        result["db_error"] = str(e)[:300]
+    return result
+
 @app.get("/health")
 async def root_health_check():
     """Health check endpoint for Emergent deployment (no auth, root level)"""

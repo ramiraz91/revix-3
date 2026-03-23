@@ -118,7 +118,6 @@ function AppRoutes() {
       {/* Redirecciones de compatibilidad con URLs antiguas */}
       <Route path="/seguimiento" element={<SeguimientoRedirect />} />
       <Route path="/web/*" element={<WebRedirect />} />
-      <Route path="/login" element={<Navigate to="/crm/login" replace />} />
       
       {/* Redirecciones de rutas CRM antiguas sin prefijo /crm */}
       <Route path="/dashboard" element={<LegacyCRMRedirect />} />
@@ -163,10 +162,10 @@ function AppRoutes() {
       <Route path="/crm/forgot-password" element={<Navigate to="/crm/dashboard" replace />} />
       <Route path="/crm/reset-password" element={<Navigate to="/crm/dashboard" replace />} />
       
-      {/* Rutas alternativas sin /crm para compatibilidad */}
-      <Route path="/login" element={<Navigate to="/crm/login" replace />} />
-      <Route path="/forgot-password" element={<Navigate to="/crm/forgot-password" replace />} />
-      <Route path="/reset-password" element={<Navigate to="/crm/reset-password" replace />} />
+      {/* Rutas alternativas sin /crm - redirigen al dashboard */}
+      <Route path="/login" element={<Navigate to="/crm/dashboard" replace />} />
+      <Route path="/forgot-password" element={<Navigate to="/crm/dashboard" replace />} />
+      <Route path="/reset-password" element={<Navigate to="/crm/dashboard" replace />} />
       
       <Route path="/crm" element={
         <ProtectedRoute>

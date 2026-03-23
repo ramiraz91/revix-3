@@ -82,7 +82,7 @@ SMTP_SECURE = os.environ.get('SMTP_SECURE', 'true').lower() == 'true'
 SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USER)
 
 # URLs
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://work-order-tracking.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL')
 
 # Upload directory
 UPLOAD_DIR = ROOT_DIR / "uploads"

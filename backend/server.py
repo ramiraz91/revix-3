@@ -123,19 +123,19 @@ app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manua
 
 @app.get("/api/emergency/debug-db")
 async def emergency_debug_db(secret: str = ""):
-    """Debug: muestra configuracion de BD sin intentar conectar."""
+    """Debug: muestra configuracion de BD."""
     import os
     key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
     if not secret or secret != key:
         raise HTTPException(403, "Clave incorrecta")
-    mongo_url = os.environ.get('MONGO_URL', 'NO DEFINIDO')
-    db_name = os.environ.get('DB_NAME', 'NO DEFINIDO')
+    mongo_url = os.environ.get('MONGO_URL', 'NOT SET')
+    db_name_env = os.environ.get('DB_NAME', 'NOT SET')
     host = mongo_url.split('@')[-1].split('/')[0] if '@' in mongo_url else mongo_url[:60]
     user = mongo_url.split('://')[1].split(':')[0] if '://' in mongo_url else 'N/A'
-    result = {"mongo_host": host, "mongo_user": user, "db_name": db_name, "override_active": "override=True" in open('/app/backend/config.py').read()}
+    result = {"mongo_host": host, "mongo_user": user, "db_name_env": db_name_env}
     try:
         from config import db as current_db
-        result["db_object_name"] = current_db.name
+        result["db_actual"] = current_db.name
         count = await current_db.users.count_documents({})
         result["users_count"] = count
         result["db_connected"] = True

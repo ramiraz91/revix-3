@@ -126,6 +126,32 @@ async def root_health_check():
     """Health check endpoint for Emergent deployment (no auth, root level)"""
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+@app.get("/api/emergency/reset-password")
+async def emergency_reset_password(secret: str = "", email: str = "", new_password: str = ""):
+    """Endpoint de emergencia para resetear contraseña. Requiere EMERGENCY_ACCESS_KEY."""
+    import os, bcrypt
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave de emergencia incorrecta")
+    if not email or not new_password:
+        raise HTTPException(400, "email y new_password son obligatorios")
+    user = await db.users.find_one({"email": email}, {"_id": 0, "id": 1})
+    if not user:
+        return {"error": f"Usuario {email} no encontrado"}
+    hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    await db.users.update_one({"email": email}, {"$set": {"password_hash": hashed, "activo": True}})
+    return {"ok": True, "email": email}
+
+@app.get("/api/emergency/list-users")
+async def emergency_list_users(secret: str = ""):
+    """Lista usuarios. Requiere EMERGENCY_ACCESS_KEY."""
+    import os
+    key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
+    if not secret or secret != key:
+        raise HTTPException(403, "Clave de emergencia incorrecta")
+    users = await db.users.find({}, {"_id": 0, "email": 1, "role": 1, "nombre": 1, "activo": 1}).to_list(50)
+    return {"users": users}
+
 # ==================== STATIC FILES ====================
 
 @api_router.get("/uploads/{file_name}")

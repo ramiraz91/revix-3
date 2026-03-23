@@ -48,6 +48,7 @@ import {
   InteligenciaDashboard,
   HistorialMercado,
   RecomendacionPrecios,
+  InsuramaIACargaMasiva,
 } from '@/components/insurama';
 
 export default function Insurama() {
@@ -706,7 +707,7 @@ export default function Insurama() {
 
       {/* Tabs principales de navegación */}
       <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-2" data-testid="tab-dashboard">
             <BarChart3 className="w-4 h-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -714,6 +715,10 @@ export default function Insurama() {
           <TabsTrigger value="buscar" className="flex items-center gap-2" data-testid="tab-buscar">
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Buscar</span>
+          </TabsTrigger>
+          <TabsTrigger value="ia-carga" className="flex items-center gap-2 text-purple-600" data-testid="tab-ia-carga">
+            <Lightbulb className="w-4 h-4" />
+            <span className="hidden sm:inline">Carga IA</span>
           </TabsTrigger>
           <TabsTrigger value="historial" className="flex items-center gap-2" data-testid="tab-historial">
             <History className="w-4 h-4" />
@@ -728,6 +733,11 @@ export default function Insurama() {
         {/* Tab: Dashboard de Inteligencia */}
         <TabsContent value="dashboard">
           <InteligenciaDashboard />
+        </TabsContent>
+
+        {/* Tab: Carga Masiva con IA */}
+        <TabsContent value="ia-carga">
+          <InsuramaIACargaMasiva />
         </TabsContent>
 
         {/* Tab: Buscar Siniestros (Múltiple) */}

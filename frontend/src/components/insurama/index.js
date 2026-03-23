@@ -6,6 +6,7 @@ export { InsuramaClienteTab } from './InsuramaClienteTab';
 export { InsuramaObservacionesTab } from './InsuramaObservacionesTab';
 export { InsuramaFotosTab } from './InsuramaFotosTab';
 export { InsuramaPresupuestosTable } from './InsuramaPresupuestosTable';
+export { default as InsuramaIACargaMasiva } from './InsuramaIACargaMasiva';
 
 // Inteligencia de Precios
 export { default as InteligenciaDashboard } from './InteligenciaDashboard';

@@ -46,6 +46,7 @@ from routes.ordenes_routes import router as ordenes_router
 from routes.admin_routes import router as admin_router
 from routes.websocket_routes import router as ws_router
 from routes.insurama_routes import router as insurama_router
+from routes.insurama_ia_routes import router as insurama_ia_router
 from routes.logistica_routes import router as logistica_router
 from routes.contabilidad_routes import router as contabilidad_router
 from routes.kits_routes import router as kits_router
@@ -106,6 +107,7 @@ api_router.include_router(agent_router)
 api_router.include_router(ordenes_router)
 api_router.include_router(admin_router)
 api_router.include_router(insurama_router)
+api_router.include_router(insurama_ia_router)
 api_router.include_router(logistica_router)
 api_router.include_router(contabilidad_router)
 api_router.include_router(kits_router)

@@ -1,6 +1,10 @@
 """
 database.py — Configuración de conexión MongoDB
-Funciona en Emergent (desarrollo) y en producción (Atlas)
+⚠️  BASE DE DATOS DE PRODUCCIÓN - NO MODIFICAR ⚠️
+
+IMPORTANTE: Este archivo está configurado para usar EXCLUSIVAMENTE
+la base de datos privada del cliente en MongoDB Atlas.
+NO cambiar MONGO_URL ni DB_NAME bajo ninguna circunstancia.
 """
 
 import os
@@ -16,20 +20,35 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# ── String de conexión ────────────────────────────────────────────────────────
-# Prioridad:
-# 1. MONGO_URL     → variable interna de Emergent
-# 2. MONGODB_URL   → variable alternativa de .env
-# 3. Fallback      → Atlas hardcodeado (por si las variables no cargan)
+# ══════════════════════════════════════════════════════════════════════════════
+# ⚠️  CONFIGURACIÓN FIJA DE BASE DE DATOS - NO MODIFICAR ⚠️
+# ══════════════════════════════════════════════════════════════════════════════
+# 
+# Base de datos: MongoDB Atlas (Cluster privado del cliente)
+# Host: revix.d7soggd.mongodb.net
+# Database: production
+#
+# NUNCA usar otra base de datos. NUNCA cambiar estos valores.
+# ══════════════════════════════════════════════════════════════════════════════
 
-MONGO_URL = (
-    os.getenv("MONGO_URL")
-    or os.getenv("MONGODB_URL")
-    or "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
-)
+# URL FIJA - Solo se puede sobrescribir con variable de entorno
+_FIXED_MONGO_URL = "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
+_FIXED_DB_NAME = "production"
 
-# Base de datos: mantener "production" donde están los datos del usuario
-DB_NAME = os.getenv("DB_NAME", "production")
+# Usar variable de entorno SI existe, sino usar la fija
+MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL") or _FIXED_MONGO_URL
+DB_NAME = os.getenv("DB_NAME") or _FIXED_DB_NAME
+
+# Validación: Asegurar que siempre apunte al cluster correcto
+if "revix.d7soggd.mongodb.net" not in MONGO_URL:
+    logger.critical("⛔ ERROR CRÍTICO: MONGO_URL no apunta al cluster correcto (revix.d7soggd.mongodb.net)")
+    logger.critical(f"⛔ URL detectada: {MONGO_URL[:50]}...")
+    logger.critical("⛔ Usando URL fija de seguridad")
+    MONGO_URL = _FIXED_MONGO_URL
+
+if DB_NAME != "production":
+    logger.warning(f"⚠️  DB_NAME no es 'production', es '{DB_NAME}'. Corrigiendo...")
+    DB_NAME = "production"
 
 # ── Clientes ──────────────────────────────────────────────────────────────────
 

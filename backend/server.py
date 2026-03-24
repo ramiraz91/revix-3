@@ -2551,13 +2551,13 @@ async def create_default_users():
                     cfg.SMTP_SECURE = datos.get("secure", True)
                     cfg.SMTP_CONFIGURED = True
                     # Actualizar también el módulo email_service
-                    import services.email_service as es
-                    es.SMTP_HOST = cfg.SMTP_HOST
-                    es.SMTP_PORT = cfg.SMTP_PORT
-                    es.SMTP_USER = cfg.SMTP_USER
-                    es.SMTP_PASS = cfg.SMTP_PASS
-                    es.SMTP_FROM = cfg.SMTP_FROM
-                    es.SMTP_REPLY_TO = cfg.SMTP_REPLY_TO
+                    import email_service as es
+                    es.CONFIG.host = cfg.SMTP_HOST
+                    es.CONFIG.port = cfg.SMTP_PORT
+                    es.CONFIG.user = cfg.SMTP_USER
+                    es.CONFIG.password = cfg.SMTP_PASS
+                    es.CONFIG.from_addr = cfg.SMTP_FROM
+                    es.CONFIG.reply_to = cfg.SMTP_REPLY_TO
                     logger.info("SMTP cargado desde DB: %s:%s", cfg.SMTP_HOST, cfg.SMTP_PORT)
                 else:
                     logger.warning("SMTP no configurado (config DB incompleta)")
@@ -2572,7 +2572,7 @@ async def create_default_users():
         if empresa_config and empresa_config.get("datos", {}).get("url_web"):
             url_web = empresa_config["datos"]["url_web"].rstrip("/")
             cfg.FRONTEND_URL = url_web
-            import services.email_service as es
+            import email_service as es
             es.FRONTEND_URL = url_web
             logger.info("FRONTEND_URL cargado desde config empresa: %s", url_web)
     except Exception as e:

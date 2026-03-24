@@ -161,6 +161,45 @@ async def debug_connection_public():
         result["db_error"] = str(e)[:200]
     return result
 
+@app.post("/api/debug-login")
+async def debug_login_test(data: dict):
+    """Debug: prueba el login y muestra diagnóstico detallado."""
+    import bcrypt
+    from config import db as current_db
+    
+    email = data.get("email", "").lower().strip()
+    password = data.get("password", "")
+    
+    result = {
+        "email_received": email,
+        "password_length": len(password),
+    }
+    
+    # Buscar usuario
+    user = await current_db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not user:
+        result["user_found"] = False
+        result["error"] = "Usuario no encontrado"
+        return result
+    
+    result["user_found"] = True
+    result["user_role"] = user.get("role")
+    result["user_activo"] = user.get("activo")
+    result["has_password_hash"] = bool(user.get("password_hash"))
+    result["hash_prefix"] = user.get("password_hash", "")[:20] + "..." if user.get("password_hash") else "N/A"
+    
+    # Verificar contraseña
+    try:
+        stored_hash = user.get("password_hash", "")
+        password_ok = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+        result["password_valid"] = password_ok
+    except Exception as e:
+        result["password_valid"] = False
+        result["bcrypt_error"] = str(e)[:100]
+    
+    return result
+
 @app.get("/api/emergency/debug-db")
 async def emergency_debug_db(secret: str = ""):
     """Debug: muestra configuracion de BD."""

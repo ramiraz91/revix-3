@@ -127,6 +127,40 @@ api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
+@app.get("/api/debug-connection")
+async def debug_connection_public():
+    """Debug público: muestra info básica de conexión a BD (sin datos sensibles)."""
+    import os
+    result = {
+        "db_name_configured": os.environ.get('DB_NAME', 'NOT SET'),
+        "mongo_host": "hidden",
+    }
+    try:
+        mongo_url = os.environ.get('MONGO_URL', '')
+        if '@' in mongo_url:
+            result["mongo_host"] = mongo_url.split('@')[-1].split('/')[0].split('?')[0]
+        if '/production' in mongo_url:
+            result["has_production_in_url"] = True
+        else:
+            result["has_production_in_url"] = False
+    except:
+        pass
+    try:
+        from config import db as current_db
+        result["db_actual_name"] = current_db.name
+        count = await current_db.users.count_documents({})
+        result["users_count"] = count
+        result["db_connected"] = True
+        # Listar emails de usuarios (sin datos sensibles)
+        users = []
+        async for u in current_db.users.find({}, {"_id": 0, "email": 1, "role": 1}):
+            users.append(f"{u.get('email')} ({u.get('role')})")
+        result["users"] = users
+    except Exception as e:
+        result["db_connected"] = False
+        result["db_error"] = str(e)[:200]
+    return result
+
 @app.get("/api/emergency/debug-db")
 async def emergency_debug_db(secret: str = ""):
     """Debug: muestra configuracion de BD."""

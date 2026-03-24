@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 MONGO_URL = (
     os.getenv("MONGO_URL")
     or os.getenv("MONGODB_URL")
-    or "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/?retryWrites=true&w=majority&appName=Revix"
+    or "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
 )
 
 # Base de datos: mantener "production" donde están los datos del usuario

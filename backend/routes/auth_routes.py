@@ -132,7 +132,11 @@ async def login(credentials: UserLogin, request: Request):
     if not user.get('activo', True):
         raise HTTPException(status_code=401, detail="Usuario desactivado. Contacta con el administrador.")
     
-    password_ok = verify_password(credentials.password, user.get('password_hash', ''))
+    # Debug: log hash info
+    stored_hash = user.get('password_hash', '')
+    logger.info(f"Password hash exists: {bool(stored_hash)}, hash prefix: {stored_hash[:20] if stored_hash else 'N/A'}")
+    
+    password_ok = verify_password(credentials.password, stored_hash)
     logger.info(f"Password verification: {password_ok}")
     
     if not password_ok:

@@ -70,15 +70,10 @@ TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 SENDGRID_API_KEY    = os.environ.get('SENDGRID_API_KEY')
 SENDGRID_FROM_EMAIL = os.environ.get('SENDGRID_FROM_EMAIL', 'help@revix.es')
 
-# ── SMTP ──────────────────────────────────────────────────────────────────────
-SMTP_HOST       = os.environ.get('SMTP_HOST', '')
-SMTP_PORT       = int(os.environ.get('SMTP_PORT', '465'))
-SMTP_USER       = os.environ.get('SMTP_USER', '')
-SMTP_PASS       = os.environ.get('SMTP_PASS', '')
-SMTP_FROM       = os.environ.get('SMTP_FROM', '')
-SMTP_REPLY_TO   = os.environ.get('SMTP_REPLY_TO', '')
-SMTP_SECURE     = os.environ.get('SMTP_SECURE', 'true').lower() == 'true'
-SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USER and SMTP_PASS)
+# ── Resend (Email) ─────────────────────────────────────────────────────────────
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'notificaciones@revix.es')
+RESEND_CONFIGURED = bool(RESEND_API_KEY)
 
 # ── URLs ──────────────────────────────────────────────────────────────────────
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://revix.es')

@@ -558,96 +558,28 @@ async def marcar_leidas_por_orden(orden_id: str):
     return {"marcadas": result.modified_count}
 
 @api_router.post("/email/test")
-async def test_smtp_email(data: dict, user: dict = Depends(require_master)):
-    """Send a test email to verify SMTP configuration."""
+async def test_resend_email(data: dict, user: dict = Depends(require_master)):
+    """Send a test email to verify Resend configuration."""
     to = data.get('to', user.get('email', 'master@revix.es'))
-    from services.email_service import send_email as smtp_send
-    ok = smtp_send(
+    from services.email_service import send_email as resend_send
+    ok = resend_send(
         to=to,
-        subject="Revix - Test de configuración SMTP",
+        subject="Revix - Test de configuracion Resend",
         titulo="Prueba de Email",
-        contenido="<p>Si recibes este correo, la configuración SMTP está funcionando correctamente.</p>"
+        contenido="<p>Si recibes este correo, la configuracion de Resend esta funcionando correctamente.</p>"
     )
-    return {"success": ok, "to": to, "smtp_host": cfg.SMTP_HOST}
+    return {"success": ok, "to": to, "provider": "resend", "sender": cfg.SENDER_EMAIL}
 
-@api_router.get("/smtp-config")
-async def get_smtp_config(user: dict = Depends(require_master)):
-    """Get current SMTP configuration."""
+@api_router.get("/resend-config")
+async def get_resend_config(user: dict = Depends(require_master)):
+    """Get current email (Resend) configuration."""
     return {
-        "host": cfg.SMTP_HOST or "",
-        "port": cfg.SMTP_PORT or 465,
-        "secure": getattr(cfg, 'SMTP_SECURE', True),
-        "user": cfg.SMTP_USER or "",
-        "password": "********" if getattr(cfg, 'SMTP_PASS', '') else "",
-        "from_name": cfg.SMTP_FROM if hasattr(cfg, 'SMTP_FROM') else "",
-        "reply_to": getattr(cfg, 'SMTP_REPLY_TO', ''),
-        "configured": cfg.SMTP_CONFIGURED,
+        "provider": "resend",
+        "sender_email": cfg.SENDER_EMAIL or "",
+        "api_key_configured": bool(cfg.RESEND_API_KEY),
+        "api_key_prefix": cfg.RESEND_API_KEY[:10] + "..." if cfg.RESEND_API_KEY else "",
+        "configured": cfg.RESEND_CONFIGURED,
     }
-
-@api_router.post("/smtp-config")
-async def save_smtp_config(data: dict, user: dict = Depends(require_master)):
-    """Save SMTP configuration and test connection."""
-    host = data.get("host", "").strip()
-    port = int(data.get("port", 465))
-    user_email = data.get("user", "").strip()
-    password = data.get("password", "").strip()
-    from_name = data.get("from_name", "").strip()
-    reply_to = data.get("reply_to", "").strip()
-    secure = data.get("secure", True)
-    
-    if not host or not user_email:
-        raise HTTPException(status_code=400, detail="Host y usuario son obligatorios")
-    
-    # If password is masked, keep the current one
-    if password == "********":
-        password = getattr(cfg, 'SMTP_PASS', '')
-    
-    # Test connection first
-    import smtplib, ssl
-    try:
-        context = ssl.create_default_context()
-        if secure and port == 465:
-            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
-                server.login(user_email, password)
-        else:
-            with smtplib.SMTP(host, port, timeout=10) as server:
-                server.starttls(context=context)
-                server.login(user_email, password)
-        connection_ok = True
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error de conexión SMTP: {str(e)}")
-    
-    # Update runtime config
-    cfg.SMTP_HOST = host
-    cfg.SMTP_PORT = port
-    cfg.SMTP_USER = user_email
-    cfg.SMTP_PASS = password
-    cfg.SMTP_FROM = from_name or f"Revix <{user_email}>"
-    cfg.SMTP_REPLY_TO = reply_to or user_email
-    cfg.SMTP_CONFIGURED = True
-    
-    # Also update the email_service module
-    import services.email_service as es
-    es.SMTP_HOST = host
-    es.SMTP_PORT = port
-    es.SMTP_USER = user_email
-    es.SMTP_PASS = password
-    es.SMTP_FROM = from_name or f"Revix <{user_email}>"
-    es.SMTP_REPLY_TO = reply_to or user_email
-    
-    # Save to DB for persistence
-    await db.configuracion.update_one(
-        {"tipo": "smtp_config"},
-        {"$set": {
-            "tipo": "smtp_config",
-            "datos": {"host": host, "port": port, "user": user_email, "password": password, "from_name": from_name, "reply_to": reply_to, "secure": secure},
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "updated_by": user.get("email")
-        }},
-        upsert=True
-    )
-    
-    return {"success": True, "message": "Configuración SMTP guardada y verificada correctamente"}
 
 @api_router.get("/repuestos/buscar-sku/{sku}")
 async def buscar_repuesto_por_sku(sku: str):
@@ -2712,39 +2644,11 @@ async def create_default_users():
         except Exception as e:
             logger.warning(f"SendGrid no disponible: {e}")
 
-    # Log SMTP status
-    if cfg.SMTP_CONFIGURED:
-        logger.info("SMTP configurado: %s:%s", cfg.SMTP_HOST, cfg.SMTP_PORT)
+    # Log Resend status
+    if cfg.RESEND_CONFIGURED:
+        logger.info("Resend configurado: %s", cfg.SENDER_EMAIL)
     else:
-        # Intentar cargar SMTP config desde la base de datos
-        try:
-            smtp_db_config = await db.configuracion.find_one({"tipo": "smtp_config"}, {"_id": 0})
-            if smtp_db_config and smtp_db_config.get("datos"):
-                datos = smtp_db_config["datos"]
-                if datos.get("host") and datos.get("user"):
-                    cfg.SMTP_HOST = datos["host"]
-                    cfg.SMTP_PORT = int(datos.get("port", 465))
-                    cfg.SMTP_USER = datos["user"]
-                    cfg.SMTP_PASS = datos.get("password", "")
-                    cfg.SMTP_FROM = datos.get("from_name", "") or f"Revix <{datos['user']}>"
-                    cfg.SMTP_REPLY_TO = datos.get("reply_to", "") or datos["user"]
-                    cfg.SMTP_SECURE = datos.get("secure", True)
-                    cfg.SMTP_CONFIGURED = True
-                    # Actualizar también el módulo email_service
-                    import email_service as es
-                    es.CONFIG.host = cfg.SMTP_HOST
-                    es.CONFIG.port = cfg.SMTP_PORT
-                    es.CONFIG.user = cfg.SMTP_USER
-                    es.CONFIG.password = cfg.SMTP_PASS
-                    es.CONFIG.from_addr = cfg.SMTP_FROM
-                    es.CONFIG.reply_to = cfg.SMTP_REPLY_TO
-                    logger.info("SMTP cargado desde DB: %s:%s", cfg.SMTP_HOST, cfg.SMTP_PORT)
-                else:
-                    logger.warning("SMTP no configurado (config DB incompleta)")
-            else:
-                logger.warning("SMTP no configurado (ni env vars ni DB)")
-        except Exception as e:
-            logger.error(f"Error cargando SMTP desde DB: {e}")
+        logger.warning("Resend no configurado - falta RESEND_API_KEY")
 
     # Cargar FRONTEND_URL desde DB si existe
     try:

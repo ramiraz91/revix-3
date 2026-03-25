@@ -59,6 +59,13 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
   - Solución: Manejo seguro de listas vacías antes de acceder a `[0]`
   - Resultado: Dashboard carga en ~0.25s (antes 5s+)
 
+### Changed
+- **Integración Resend** - Reemplazado SMTP por Resend API
+  - Eliminadas variables SMTP del `.env` y `config.py`
+  - Actualizado `email_service.py` para usar Resend SDK
+  - Email de prueba enviado exitosamente
+  - Endpoint `/api/resend-config` para verificar configuración
+
 ### Previously Completed (sesión anterior)
 - Módulos de lógica de negocio con Pytest tests
 - Refactor de `database.py` con bloqueo de seguridad

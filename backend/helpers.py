@@ -8,7 +8,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
 import config as cfg
 
-# Importar el nuevo servicio de email mejorado
+# Importar el nuevo servicio de email con Resend
 from email_service import (
     send_email as smtp_send_email,
     send_email_async,
@@ -19,7 +19,7 @@ from email_service import (
     notificar_factura_emitida,
     notificar_bienvenida,
     test_conexion_smtp,
-    CONFIG as SMTP_CONFIG
+    is_configured as resend_is_configured
 )
 
 logger = logging.getLogger(__name__)
@@ -90,12 +90,12 @@ async def send_sms(to_phone: str, message: str) -> dict:
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """
-    Send email via el nuevo servicio SMTP mejorado.
-    Mantiene compatibilidad con el código existente.
+    Send email via Resend.
+    Mantiene compatibilidad con el codigo existente.
     """
-    if not SMTP_CONFIG.is_configured:
-        logger.warning("SMTP no configurado — email a %s omitido", to_email)
-        return {"success": False, "error": "SMTP no configurado"}
+    if not resend_is_configured():
+        logger.warning("Resend no configurado — email a %s omitido", to_email)
+        return {"success": False, "error": "Resend no configurado"}
     
     try:
         # Usar el nuevo servicio async
@@ -108,9 +108,9 @@ async def send_email(to_email: str, subject: str, html_content: str) -> dict:
         
         if success:
             logger.info(f"Email enviado a {to_email}: {subject}")
-            return {"success": True, "type": "smtp_mejorado"}
+            return {"success": True, "type": "resend"}
         else:
-            return {"success": False, "error": "Fallo en envío SMTP"}
+            return {"success": False, "error": "Fallo en envio Resend"}
             
     except Exception as e:
         logger.error(f"Error enviando email a {to_email}: {e}")

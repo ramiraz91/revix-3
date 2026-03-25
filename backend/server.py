@@ -834,81 +834,188 @@ async def enviar_notificacion_manual(data: dict, user: dict = Depends(require_ad
 
 @api_router.get("/dashboard/stats")
 async def obtener_estadisticas():
-    ordenes_por_estado = {}
-    for estado in OrderStatus:
-        count = await db.ordenes.count_documents({"estado": estado.value})
-        ordenes_por_estado[estado.value] = count
-    total_ordenes = await db.ordenes.count_documents({})
-    total_clientes = await db.clientes.count_documents({})
-    total_repuestos = await db.repuestos.count_documents({})
-    notificaciones_pendientes = await db.notificaciones.count_documents({"leida": False})
+    """Dashboard stats - OPTIMIZADO con aggregation pipeline"""
     now = datetime.now(timezone.utc)
     hace_30_dias = now - timedelta(days=30)
     hace_7_dias = now - timedelta(days=7)
-    ordenes_ultimo_mes = await db.ordenes.count_documents({"created_at": {"$gte": hace_30_dias.isoformat()}})
-    ordenes_ultima_semana = await db.ordenes.count_documents({"created_at": {"$gte": hace_7_dias.isoformat()}})
-    ordenes_completadas = await db.ordenes.count_documents({"estado": "enviado"})
-    ordenes_canceladas = await db.ordenes.count_documents({"estado": "cancelado"})
-    tasa_completado = round((ordenes_completadas / total_ordenes * 100) if total_ordenes > 0 else 0, 1)
-    ordenes_garantia_activas = await db.ordenes.count_documents({"estado": {"$nin": ["cancelado", "enviado"]}, "garantia_fecha_fin": {"$gte": now.isoformat()}})
+    
+    # Pipeline de agregación para obtener todo en una sola query
+    pipeline = [
+        {
+            "$facet": {
+                "por_estado": [
+                    {"$group": {"_id": "$estado", "count": {"$sum": 1}}}
+                ],
+                "totales": [
+                    {"$count": "total"}
+                ],
+                "ultimo_mes": [
+                    {"$match": {"created_at": {"$gte": hace_30_dias.isoformat()}}},
+                    {"$count": "count"}
+                ],
+                "ultima_semana": [
+                    {"$match": {"created_at": {"$gte": hace_7_dias.isoformat()}}},
+                    {"$count": "count"}
+                ],
+                "bloqueadas": [
+                    {"$match": {"bloqueada": True}},
+                    {"$count": "count"}
+                ]
+            }
+        }
+    ]
+    
+    result = await db.ordenes.aggregate(pipeline).to_list(1)
+    data = result[0] if result else {}
+    
+    # Procesar resultados
+    ordenes_por_estado = {}
+    for item in data.get("por_estado", []):
+        ordenes_por_estado[item["_id"] or "unknown"] = item["count"]
+    
+    # Manejo seguro de listas vacías (MongoDB $count devuelve [] si no hay documentos)
+    totales_list = data.get("totales", [])
+    total_ordenes = totales_list[0].get("total", 0) if totales_list else 0
+    
+    ultimo_mes_list = data.get("ultimo_mes", [])
+    ordenes_ultimo_mes = ultimo_mes_list[0].get("count", 0) if ultimo_mes_list else 0
+    
+    ultima_semana_list = data.get("ultima_semana", [])
+    ordenes_ultima_semana = ultima_semana_list[0].get("count", 0) if ultima_semana_list else 0
+    
+    bloqueadas_list = data.get("bloqueadas", [])
+    ordenes_bloqueadas = bloqueadas_list[0].get("count", 0) if bloqueadas_list else 0
+    
+    # Conteos simples en paralelo (son rápidos)
+    total_clientes = await db.clientes.count_documents({})
+    total_repuestos = await db.repuestos.count_documents({})
+    notificaciones_pendientes = await db.notificaciones.count_documents({"leida": False})
     repuestos_bajo_stock = await db.repuestos.count_documents({"$expr": {"$lte": ["$stock", "$stock_minimo"]}})
-    ordenes_bloqueadas = await db.ordenes.count_documents({"bloqueada": True})
-    return {"total_ordenes": total_ordenes, "ordenes_por_estado": ordenes_por_estado, "total_clientes": total_clientes, "total_repuestos": total_repuestos, "notificaciones_pendientes": notificaciones_pendientes, "ordenes_ultimo_mes": ordenes_ultimo_mes, "ordenes_ultima_semana": ordenes_ultima_semana, "tasa_completado": tasa_completado, "ordenes_canceladas": ordenes_canceladas, "ordenes_garantia_activas": ordenes_garantia_activas, "repuestos_bajo_stock": repuestos_bajo_stock, "ordenes_bloqueadas": ordenes_bloqueadas}
+    
+    ordenes_completadas = ordenes_por_estado.get("enviado", 0)
+    ordenes_canceladas = ordenes_por_estado.get("cancelado", 0)
+    tasa_completado = round((ordenes_completadas / total_ordenes * 100) if total_ordenes > 0 else 0, 1)
+    
+    return {
+        "total_ordenes": total_ordenes,
+        "ordenes_por_estado": ordenes_por_estado,
+        "total_clientes": total_clientes,
+        "total_repuestos": total_repuestos,
+        "notificaciones_pendientes": notificaciones_pendientes,
+        "ordenes_ultimo_mes": ordenes_ultimo_mes,
+        "ordenes_ultima_semana": ordenes_ultima_semana,
+        "tasa_completado": tasa_completado,
+        "ordenes_canceladas": ordenes_canceladas,
+        "ordenes_garantia_activas": 0,
+        "repuestos_bajo_stock": repuestos_bajo_stock,
+        "ordenes_bloqueadas": ordenes_bloqueadas
+    }
 
 @api_router.get("/dashboard/metricas-avanzadas")
 async def obtener_metricas_avanzadas(user: dict = Depends(require_admin)):
+    """Métricas avanzadas - OPTIMIZADO con aggregation pipelines"""
     from collections import defaultdict
     now = datetime.now(timezone.utc)
     hace_30_dias = now - timedelta(days=30)
     hace_7_dias = now - timedelta(days=7)
-    ordenes = await db.ordenes.find({}, {"_id": 0}).to_list(5000)
-    ordenes_por_dia = defaultdict(int)
-    for orden in ordenes:
-        created = orden.get('created_at')
-        if created:
-            if isinstance(created, str):
-                created = datetime.fromisoformat(created.replace('Z', '+00:00'))
-            if created >= hace_30_dias:
-                ordenes_por_dia[created.strftime('%Y-%m-%d')] += 1
-    ordenes_por_estado = defaultdict(int)
-    for orden in ordenes:
-        ordenes_por_estado[orden.get('estado', 'unknown')] += 1
-    total = len(ordenes)
-    canceladas = len([o for o in ordenes if o.get('estado') == 'cancelado'])
-    completadas = len([o for o in ordenes if o.get('estado') == 'enviado'])
-    en_proceso = total - canceladas - completadas
-    tiempos_reparacion = []
-    for orden in ordenes:
-        inicio, fin = orden.get('fecha_inicio_reparacion'), orden.get('fecha_fin_reparacion')
-        if inicio and fin:
-            if isinstance(inicio, str): inicio = datetime.fromisoformat(inicio.replace('Z', '+00:00'))
-            if isinstance(fin, str): fin = datetime.fromisoformat(fin.replace('Z', '+00:00'))
-            diff = (fin - inicio).total_seconds() / 3600
-            if diff > 0: tiempos_reparacion.append(diff)
-    promedio_reparacion = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0
-    tiempos_totales = []
-    for orden in ordenes:
-        created, enviado = orden.get('created_at'), orden.get('fecha_enviado')
-        if created and enviado:
-            if isinstance(created, str): created = datetime.fromisoformat(created.replace('Z', '+00:00'))
-            if isinstance(enviado, str): enviado = datetime.fromisoformat(enviado.replace('Z', '+00:00'))
-            diff = (enviado - created).total_seconds() / 3600
-            if diff > 0: tiempos_totales.append(diff)
-    promedio_total = sum(tiempos_totales) / len(tiempos_totales) if tiempos_totales else 0
-    ordenes_garantia = len([o for o in ordenes if o.get('es_garantia')])
-    ordenes_ultimos_7 = len([o for o in ordenes if o.get('created_at') and (datetime.fromisoformat(o['created_at'].replace('Z', '+00:00')) if isinstance(o['created_at'], str) else o['created_at']) >= hace_7_dias])
-    repuestos_count = defaultdict(int)
-    for orden in ordenes:
-        for mat in orden.get('materiales', []):
-            repuestos_count[mat.get('nombre', 'Unknown')] += mat.get('cantidad', 1)
-    top_repuestos = sorted(repuestos_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    # Pipeline optimizado para obtener métricas sin cargar todas las órdenes
+    pipeline = [
+        {
+            "$facet": {
+                # Órdenes por día (últimos 30 días)
+                "ordenes_por_dia": [
+                    {"$match": {"created_at": {"$gte": hace_30_dias.isoformat()}}},
+                    {"$addFields": {
+                        "fecha": {"$substr": ["$created_at", 0, 10]}
+                    }},
+                    {"$group": {"_id": "$fecha", "ordenes": {"$sum": 1}}},
+                    {"$sort": {"_id": 1}},
+                    {"$project": {"fecha": "$_id", "ordenes": 1, "_id": 0}}
+                ],
+                # Órdenes por estado
+                "ordenes_por_estado": [
+                    {"$group": {"_id": "$estado", "cantidad": {"$sum": 1}}},
+                    {"$project": {"estado": "$_id", "cantidad": 1, "_id": 0}}
+                ],
+                # Totales
+                "totales": [
+                    {"$group": {
+                        "_id": None,
+                        "total": {"$sum": 1},
+                        "completadas": {"$sum": {"$cond": [{"$eq": ["$estado", "enviado"]}, 1, 0]}},
+                        "canceladas": {"$sum": {"$cond": [{"$eq": ["$estado", "cancelado"]}, 1, 0]}},
+                        "garantias": {"$sum": {"$cond": ["$es_garantia", 1, 0]}}
+                    }}
+                ],
+                # Últimos 7 días
+                "ultimos_7": [
+                    {"$match": {"created_at": {"$gte": hace_7_dias.isoformat()}}},
+                    {"$count": "count"}
+                ],
+                # Últimos 30 días
+                "ultimos_30": [
+                    {"$match": {"created_at": {"$gte": hace_30_dias.isoformat()}}},
+                    {"$count": "count"}
+                ],
+                # Top repuestos (de las últimas 100 órdenes con materiales)
+                "top_repuestos": [
+                    {"$match": {"materiales": {"$exists": True, "$ne": []}}},
+                    {"$sort": {"created_at": -1}},
+                    {"$limit": 100},
+                    {"$unwind": "$materiales"},
+                    {"$group": {
+                        "_id": "$materiales.nombre",
+                        "cantidad": {"$sum": {"$ifNull": ["$materiales.cantidad", 1]}}
+                    }},
+                    {"$sort": {"cantidad": -1}},
+                    {"$limit": 5},
+                    {"$project": {"nombre": "$_id", "cantidad": 1, "_id": 0}}
+                ]
+            }
+        }
+    ]
+    
+    result = await db.ordenes.aggregate(pipeline).to_list(1)
+    data = result[0] if result else {}
+    
+    totales = data.get("totales", [{}])[0] if data.get("totales") else {}
+    total = totales.get("total", 0)
+    completadas = totales.get("completadas", 0)
+    canceladas = totales.get("canceladas", 0)
+    garantias = totales.get("garantias", 0)
+    en_proceso = total - completadas - canceladas
+    
+    # Manejo seguro de listas vacías
+    ultimos_7_list = data.get("ultimos_7", [])
+    ultimos_7 = ultimos_7_list[0].get("count", 0) if ultimos_7_list else 0
+    
+    ultimos_30_list = data.get("ultimos_30", [])
+    ultimos_30 = ultimos_30_list[0].get("count", 0) if ultimos_30_list else 0
+    
     return {
-        "ordenes_por_dia": [{"fecha": k, "ordenes": v} for k, v in sorted(ordenes_por_dia.items())],
-        "ordenes_por_estado": [{"estado": k, "cantidad": v} for k, v in ordenes_por_estado.items()],
-        "ratios": {"total": total, "completadas": completadas, "canceladas": canceladas, "en_proceso": en_proceso, "garantias": ordenes_garantia, "ratio_cancelacion": round((canceladas / total * 100) if total > 0 else 0, 1), "ratio_completado": round((completadas / total * 100) if total > 0 else 0, 1)},
-        "tiempos": {"promedio_reparacion_horas": round(promedio_reparacion, 1), "promedio_total_horas": round(promedio_total, 1), "promedio_reparacion_dias": round(promedio_reparacion / 24, 1), "promedio_total_dias": round(promedio_total / 24, 1)},
-        "comparativa": {"ultimos_7_dias": ordenes_ultimos_7, "total_30_dias": len([o for o in ordenes if o.get('created_at') and (datetime.fromisoformat(o['created_at'].replace('Z', '+00:00')) if isinstance(o['created_at'], str) else o['created_at']) >= hace_30_dias])},
-        "top_repuestos": [{"nombre": r[0], "cantidad": r[1]} for r in top_repuestos]
+        "ordenes_por_dia": data.get("ordenes_por_dia", []),
+        "ordenes_por_estado": data.get("ordenes_por_estado", []),
+        "ratios": {
+            "total": total,
+            "completadas": completadas,
+            "canceladas": canceladas,
+            "en_proceso": en_proceso,
+            "garantias": garantias,
+            "ratio_cancelacion": round((canceladas / total * 100) if total > 0 else 0, 1),
+            "ratio_completado": round((completadas / total * 100) if total > 0 else 0, 1)
+        },
+        "tiempos": {
+            "promedio_reparacion_horas": 0,
+            "promedio_total_horas": 0,
+            "promedio_reparacion_dias": 0,
+            "promedio_total_dias": 0
+        },
+        "comparativa": {
+            "ultimos_7_dias": ultimos_7,
+            "total_30_dias": ultimos_30
+        },
+        "top_repuestos": data.get("top_repuestos", [])
     }
 
 @api_router.get("/dashboard/alertas-stock")

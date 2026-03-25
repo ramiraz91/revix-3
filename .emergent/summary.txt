@@ -1,138 +1,149 @@
 <analysis>**original_problem_statement**: 
-El usuario solicitó originalmente una integración de logística GLS y, tras un fallo crítico, la recuperación de la conexión a su base de datos. Ambos problemas han sido resueltos.
-NUEVO PRODUCT REQUIREMENT: Crear una opción de Carga masiva en Configuración Insurama. Permite subir una imagen (captura de pantalla) para que la IA extraiga los códigos de servicio (que empiezan por 25BE o 26BE) con estado aceptado. Automáticamente, debe generar un listado para importarlos y crear para cada orden una partida genérica en materiales con la cantidad aceptada.
+El usuario reportó la imposibilidad de acceder al CRM (errores de login y base de datos). Solicitó la implementación de mejoras en la lógica de negocio (inventario, facturación, órdenes) y una reestructuración de la conexión a la base de datos y SMTP mediante archivos proporcionados. Finalmente, reportó errores al importar órdenes desde Insurama y una lentitud extrema al cargar el dashboard ( y métricas avanzadas).
+**PRODUCT REQUIREMENTS**: La aplicación **DEBE** conectarse única y exclusivamente al clúster de MongoDB privado del usuario (, base de datos: ). Se ha implementado un candado por código para evitar que se cambie.
 
-**User's preferred language**: Spanish (EL SIGUIENTE AGENTE DEBE RESPONDER EN ESPAÑOL)
+**User's preferred language**: Spanish (INSTRUCT NEXT AGENT: You MUST respond in Spanish)
 
 **what currently exists?** 
-Un CRM/ERP full-stack (React + FastAPI + MongoDB). Se realizó una auditoría profunda de bases de datos y el sistema ha sido reconectado permanentemente al clúster privado del usuario (). Se ha añadido la pestaña Carga IA en el frontend () y las rutas backend correspondientes para la extracción de códigos vía IA utilizando la Emergent LLM Key.
+Un CRM/ERP full-stack (React + FastAPI + MongoDB). Se refactorizó la conexión a la base de datos () y el servicio de correos (). Se implementaron módulos de lógica de negocio probados con Pytest (). El agente estableció bloqueos en el código para asegurar la conexión a la DB correcta.
 
 **Last working item**: 
-- Last item agent was working: El usuario solicitó eliminar las credenciales de acceso de prueba del CRM. El agente pidió confirmación sobre cuáles eliminar exactamente (e.g., , ).
-- Status: USER VERIFICATION PENDING
+- Last item agent was working: Optimización de los endpoints  en  y  en . El agente detectó que se estaban cargando todas las órdenes en memoria y ejecutó un  para usar *Aggregation Pipelines* de MongoDB.
+- Status: TESTING PENDING (La sesión se cortó justo después del reemplazo de código, falta reiniciar el servidor y probar).
 - Agent Testing Done: N
-- Which testing method agent to use?: backend manual testing by python script to delete and verify users.
+- Which testing method agent to use?: backend manual testing by curl/python -c to verify the JSON structure and speed of the optimized endpoints.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-Issue 1: (P0) Eliminar usuarios/credenciales de prueba del CRM.
-- Attempted fixes: Se actualizó el password de  a , pero falta eliminar las cuentas dummy a petición del usuario (quita las credenciales de acceso al crm).
-- Next debug checklist: Ejecutar un script Python en el backend que elimine los usuarios como  o  de la colección .
-- Why fix this issue and what will be achieved with the fix?: Medida de seguridad solicitada directamente por el dueño de la app.
+Issue 1: (P0) Verificar optimización de endpoints del Dashboard ( y ).
+- Attempted fixes: Se insertaron *Aggregation Pipelines* en el código para evitar bucles for en memoria.
+- Next debug checklist: Reiniciar supervisor backend. Probar los endpoints mediante  o accediendo al frontend para confirmar que devuelven los datos correctos y más rápido. Archivos:  y .
+- Why fix this issue and what will be achieved with the fix?: El dashboard tardaba demasiado en cargar (más de 5 segundos) bloqueando la experiencia del usuario.
+- Status: TESTING PENDING
+- Is recurring issue? Y
+- Should Test frontend/backend/both after fix?: both
+
+Issue 2: (P1) Error al importar presupuesto de Insurama al CRM.
+- Attempted fixes: El agente visualizó  pero no aplicó cambios.
+- Next debug checklist: Revisar  en . El usuario indicó: las guarda pero aparece un mensaje de error. Posiblemente falla la descarga de fotos () o la sincronización posterior a la inserción.
+- Why fix this issue and what will be achieved with the fix?: Permite a los técnicos pasar un presupuesto aceptado a una orden de trabajo real sin errores.
 - Status: NOT STARTED
 - Is recurring issue? N
-- Should Test frontend/backend/both after fix?: backend
+- Should Test frontend/backend/both after fix?: both
 
-Issue 2: (P2) El checklist de control de calidad (QC) que realiza el técnico no se muestra en la impresión final de la orden.
-- Attempted fixes: None.
-- Next debug checklist: Revisar el componente de impresión en .
-- Why fix this issue and what will be achieved with the fix?: Asegura que los documentos físicos tengan la info QC completa.
+Issue 3: (P2) Error Error al cargar detalle en módulo Insurama.
+- Attempted fixes: Se verificó que el backend devuelve 404 correctamente si no existe el código.
+- Next debug checklist: Revisar  en . Asegurar que el frontend () maneja este 404 correctamente en lugar de mostrar un toast.error genérico, o verificar si la API de Sumbroker está bloqueando la petición del detalle.
 - Status: NOT STARTED
 - Is recurring issue? N
 - Should Test frontend/backend/both after fix?: frontend
 
-Issue 3: (P2) El endpoint  es lento.
-- Attempted fixes: None.
-- Next debug checklist: Revisar  y optimizar aggregations en MongoDB.
-- Why fix this issue and what will be achieved with the fix?: Mejorar el performance del dashboard inicial.
-- Status: NOT STARTED
-- Is recurring issue? N
-- Should Test frontend/backend/both after fix?: backend
-
 **In progress Task List**: 
 Task 1: Validar funcionalidad de Carga Masiva IA (Insurama)
-- Where to resume: Revisar la implementación de . El prompt de la IA debe extraer estrictamente códigos 25BE o 26BE con estado aceptado, y el backend debe inyectar de manera automática una partida genérica en la pestaña materiales de las órdenes correspondientes.
-- What will be achieved with this?: Cumplir el nuevo Feature Request de automatización de Insurama.
-- Status: TESTING PENDING (Frontend implementado, lógica backend necesita verificación y pruebas con imagen real/testing_agent).
+- Where to resume: Revisar la implementación de  (Heredado de un fork anterior).
+- What will be achieved with this?: Automatización del proceso manual de carga de repuestos.
+- Status: TESTING PENDING
 - Should Test frontend/backend/both after fix?: both
-- Blocked on something: None.
+- Blocked on something: Ninguno.
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- Ninguna inmediata aparte de terminar la tarea en progreso de Insurama IA.
+- P1: Corregir 520 server errors en el despliegue de producción del usuario (Depende de que el usuario configure bien las System Keys en el panel, el agente debe seguir asistiendo si es necesario).
 Future Tasks:
+- P2: El checklist de control de calidad (QC) no se muestra en la impresión final de la orden ().
 - P2: Google Business Profile + Gemini Flash integration.
 - P2: Flujo de gestión de incidencias.
 - P2: Acortar SKUs generados en inventario.
 
 **Completed work in this session**
-- Auditoría profunda (read-only) de las bases de datos de todos los deploys para ubicar la información del usuario (DONE)
-- Restauración permanente de la base de datos de producción apuntando al cluster privado del usuario:  en  (DONE)
-- Modificación de contraseña y rol para el usuario real  (DONE)
-- Creación de componente frontend  y su respectiva integración en  (DONE)
-- Creación del router backend  para extracción mediante IA (DONE)
+- Módulos de lógica de negocio (Inventario, Órdenes, Facturación) con tests unitarios en Pytest (DONE)
+- Refactor de  para conexión robusta y bloqueo de seguridad a la base de datos  (DONE)
+- Refactor de  asíncrono con reintentos para SMTP (DONE)
+- Corrección de credenciales y regeneración de hashes para usuarios Master (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 Issue 1: Checklist QC missing in order printout.
 - Debug checklist: Inspect hidden print component in .
-- Why to solve this issue and what will be achieved with this?: User requires physical documents to match digital QC.
+- Why to solve this issue and what will be achieved with this?: Los documentos físicos deben coincidir con la info QC digital.
 - Should Test frontend/backend/both after fix: frontend
 - Is recurring issue? N
 
 **Known issue recurrence from previous fork**
-- Issue recurrence in previous fork: Confusión constante de variables de entorno  sobre clusters de MongoDB.
-- Recurrence count: 5+
-- Status: RESOLVED
-- Note: Se acordó con el usuario utilizar ÚNICA Y EXCLUSIVAMENTE su cluster privado. **BAJO NINGÚN MOTIVO CAMBIAR EL **.
+- Issue recurrence in previous fork: Confusión constante de la conexión a la base de datos entre entornos (Deploy vs Preview).
+- Recurrence count: 6+
+- Status: RESOLVED (Se han introducido validaciones estrictas en  que fuerzan el uso del cluster correcto independientemente de las variables  mal configuradas).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-Frontend: React, Tailwind CSS, Shadcn UI
-Backend: FastAPI, Motor (MongoDB async)
-IA: Gemini Vision (vía Emergent LLM Key de emergentintegrations)
+Frontend: React, Tailwind CSS
+Backend: FastAPI, Motor (MongoDB async), Pytest
+Base de datos: MongoDB Atlas ()
 
 **key DB schema**
-- users: {email, password_hash, role, activo}
-- pre_registros: {siniestro, estado, ...} (Contiene los códigos 26BE* pendientes)
-- ordenes: {materiales: [{codigo, nombre, cantidad, validado_tecnico}], ...}
+- : {email, password_hash, role, activo}
+- : {estados, timestamps, metricas}
+- : {tipo, datos}
 
 **changes in tech stack**
-Se añadió la integración de LLM Vision utilizando la clave genérica de Emergent.
+Se introdujo formalmente Pytest () para validación de lógica de negocio.
 
 **All files of reference**
--  (Configurado para cluster personal)
--  (Actualizado con nueva pestaña)
--  (Frontend de subida de imágenes)
--  (Lógica de extracción y creación de materiales automáticos)
--  (Rutas añadidas)
+-  (Se modificó la ruta ).
+-  (Se modificó ).
+-  (Fuerza la conexión a Atlas).
+-  (Para debuggear los errores de importación reportados por el usuario).
 
-**Areas that need refactoring**: N/A
+**Areas that need refactoring**: 
+-  sigue conteniendo rutas (ej: ) que deberían moverse a routers específicos ().
 
 **key api endpoints**
 - 
+- 
+- 
 
 **Critical Info for New Agent**
-- **BASE DE DATOS BLOQUEADA**: El usuario ha ordenado explícitamente: . NO MODIFICAR el  de MongoDB bajo ninguna circunstancia. Debe quedarse apuntando a .
-- El agente previo hizo una pregunta de verificación para borrar los usuarios de test. El usuario fue claro con . No pierdas contexto pidiendo reconfirmaciones innecesarias, entra directo y elimina los usuarios de test (, etc.) dejando solo a .
+- **SITUACIÓN DEL SERVIDOR**: Justo al final de la sesión anterior, se modificó código en  y . **Debes reiniciar el backend (backend: stopped
+backend: started) y revisar logs inmediatamente** para asegurar que no hay errores de sintaxis o de MongoDB Aggregation pipelines.
+- **BASE DE DATOS BLOQUEADA**: El archivo  ahora contiene validaciones para forzar el uso de  y la base de datos . **Bajo ningún concepto modifiques la URL para apuntar a bases locales o de prueba.**
+- El usuario a veces prueba la aplicación en su **URL de despliegue en producción** (), no en el Preview. Diferencia siempre si el error que reporta ocurre en el código actual (Preview) o si se debe a que no ha presionado Deploy en la interfaz de Emergent.
 
 **documents and test reports created in this job**
-N/A
+- 
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-- (User): usa la base de datos privada, de ahora en adelante y sin modificar para produccion usa mi propia base de datos (COMPLETED)
-- (User): y credenciales de acceso ? (COMPLETED)
-- (User): dame el codigo para crear el usuario nuevo en la base de datos (COMPLETED)
-- (User): ramiraz91@gmail.com // @100918Vm (COMPLETED)
-- (User): quita las credenciales de acceso al crm (PENDING) - El agente preguntó qué credenciales específicamente y no recibió respuesta. El siguiente agente debe borrarlas de forma directa.
+- (User): al cargar el dasboard estos 2 servicios: stas y metricas avanzadas. tardan mucho y ralentizan demasiado (IN PROGRESS - Agente modificó código pero no testeó).
+- (User): tenemos errores con la conexion a la base de datos cuando carga nos da error en consola el error 520 (Diagnosticado: problema de variables en su deploy).
+- (User): vale lo importante como lo solucionamos?
+- (User): porque esta aido el servidor ?
+- (User): y el apunte de react esta apuntando correctamente?
+- (User): dame las credenciales de master
+- (User): revisa la conexion con la base de dato a produccion a ver que a cambiado
+- (User): y la conexion a cloudinari sigue siendo efectva verdad ?
+- (User): cvonsegui entrar en produccion, de ahora en adelante, como hacemos para que jamas se cambie la base de datos o se conecte a otra ? (COMPLETED).
+- (User): ahora tenemos error al importar ordenes, las gurda pero aparece un mensaje de error (PENDING).
 
 **Project Health Check:**
-- Functional, connected to correct private database.
+- Broken (Código recién modificado pendiente de testeo; reportados fallos en importación Insurama).
 
 **3rd Party Integrations**
-- OpenAI/Gemini Vision via Emergent LLM Key (uses Emergent LLM Key)
-- GLS (Custom SOAP)
-- Cloudinary (Images)
+- OpenAI/Gemini Vision (uses Emergent LLM Key)
+- Cloudinary (requires User API Key - ya configurado)
+- GLS (requires User API Key)
+- PrivateEmail SMTP (requires User API Key - ya configurado)
 
 **Testing status**
-- Testing agent used after significant changes: NO (Implementación de Insurama Carga IA está en proceso).
+- Testing agent used after significant changes: NO
 - Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None
-- Known regressions: Ninguna, la BD ya está restaurada a la original.
+- Test files created: 
+- Known regressions: El dashboard optimization está a medias.
 
 **Credentials to test flow:**
 -  / 
+-  / 
 
 **What agent forgot to execute**
-El agente previo se detuvo a pedir confirmación sobre si eliminar o no los usuarios de prueba específicos, en lugar de obedecer la orden directa del usuario (quita las credenciales de acceso al crm). El nuevo agente debe iniciar su trabajo ejecutando un comando de base de datos para borrar cualquier usuario que no sea el principal y luego continuar validando la nueva herramienta de Carga de IA.</analysis>
+El agente aplicó un  masivo para refactorizar  y  pero la sesión se interrumpió. El agente olvidó reiniciar el servidor y comprobar si los nuevos pipelines de MongoDB devuelven la estructura JSON que espera el Frontend. El próximo agente debe probar esto inmediatamente.</analysis>

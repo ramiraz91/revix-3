@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("BASE_URL", "https://auto-materials-load.preview.emergentagent.com")
+BASE_URL = os.getenv("BASE_URL", "https://backend-perf-test.preview.emergentagent.com")
 ADMIN_USER = os.getenv("ADMIN_USERNAME", "ramiraz91@gmail.com")
 ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "@100918Vm")
 

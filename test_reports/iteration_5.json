@@ -102,9 +102,9 @@
     "material-search-input"
   ],
   "frontend_pages_verified": {
-    "login": "https://auto-materials-load.preview.emergentagent.com/login - Working",
-    "dashboard": "https://auto-materials-load.preview.emergentagent.com/crm/dashboard - Working",
-    "ordenes": "https://auto-materials-load.preview.emergentagent.com/crm/ordenes - Working (shows 0 orders)"
+    "login": "https://backend-perf-test.preview.emergentagent.com/login - Working",
+    "dashboard": "https://backend-perf-test.preview.emergentagent.com/crm/dashboard - Working",
+    "ordenes": "https://backend-perf-test.preview.emergentagent.com/crm/ordenes - Working (shows 0 orders)"
   },
   "limitations": [
     "Cannot test full re-presupuesto UI flow (no orders in database)",

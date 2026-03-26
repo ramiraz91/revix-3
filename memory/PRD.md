@@ -52,6 +52,15 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 # CHANGELOG
 
+## 2026-03-26
+### Fixed
+- **Auditoría cambios de estado**: Ahora usa email del usuario autenticado + rol en historial_estados
+- **Avería en Seguimiento**: Corregido para leer campo `daños` además de `averia`
+- **Response Seguimiento**: Añadido `fotos` y `descripcion_problema` al endpoint
+
+### Changed
+- **Integración Resend** (ayer): Reemplazado SMTP por Resend API
+
 ## 2026-03-25
 ### Fixed
 - **P0: Dashboard optimization** - Corregido `IndexError` en `/dashboard/stats` y `/metricas-avanzadas`

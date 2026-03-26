@@ -612,7 +612,9 @@ export default function Seguimiento() {
                   )}
                   <div className="sm:col-span-2">
                     <p className="text-xs text-muted-foreground uppercase">Avería reportada</p>
-                    <p className="mt-1 p-3 bg-slate-50 rounded-lg text-sm">{orden.dispositivo.averia}</p>
+                    <p className="mt-1 p-3 bg-slate-50 rounded-lg text-sm whitespace-pre-wrap">
+                      {orden.dispositivo.averia || orden.dispositivo.daños || orden.dispositivo.danos || orden.descripcion_problema || 'No especificada'}
+                    </p>
                   </div>
                 </div>
               </CardContent>

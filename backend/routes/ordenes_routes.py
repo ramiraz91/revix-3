@@ -1479,7 +1479,14 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         if materiales_sin_validar:
             nota_forzado = f" (FORZADO sin validar {len(materiales_sin_validar)} materiales)"
     
-    historial.append({"estado": request.nuevo_estado.value, "fecha": now.isoformat(), "usuario": request.usuario + nota_forzado})
+    # Usar email del usuario autenticado para garantizar trazabilidad
+    usuario_cambio = user.get('email', request.usuario or 'sistema')
+    historial.append({
+        "estado": request.nuevo_estado.value, 
+        "fecha": now.isoformat(), 
+        "usuario": usuario_cambio + nota_forzado,
+        "rol": user.get('role', 'unknown')
+    })
     update_data = {"estado": request.nuevo_estado.value, "historial_estados": historial, "updated_at": now.isoformat()}
     if request.nuevo_estado == OrderStatus.RECIBIDA:
         update_data["fecha_recibida_centro"] = now.isoformat()

@@ -1072,6 +1072,8 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             "diagnostico_tecnico": orden.get('diagnostico_tecnico'),
             "numero_autorizacion": orden.get('numero_autorizacion'),
             "evidencias": orden.get('evidencias', []),
+            "fotos": orden.get('fotos', []),
+            "descripcion_problema": orden.get('descripcion_problema', ''),
             "fechas": fechas,
             "cliente": {
                 "nombre": cliente.get('nombre', ''),

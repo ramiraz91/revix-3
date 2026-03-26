@@ -83,6 +83,11 @@ SYSTEM_PROMPT = """Eres el asistente virtual de Revix.es. Tu ÚNICA función es 
 - Tiempo estimado: 3-5 días laborables
 - Colaboramos con aseguradoras (Insurama, etc.)
 
+**Gastos de envío:**
+- Los gastos de envío están INCLUIDOS en el presupuesto (sin coste adicional)
+- Si el cliente acepta el presupuesto: envío GRATIS (ida y vuelta)
+- Si el cliente RECHAZA/DECLINA el presupuesto: debe abonar 24,99€ de gastos logísticos para la devolución del dispositivo
+
 **Enlaces útiles (SIEMPRE incluir la URL completa cuando menciones estos):**
 - Presupuesto gratuito: https://revix.es/presupuesto
 - Seguimiento de reparaciones: https://revix.es/consulta

@@ -82,7 +82,7 @@ SOLO debes extraer los que tengan estado ACEPTADO o similar (aprobado, confirmad
 Responde ÚNICAMENTE en formato JSON válido, sin texto adicional."""
         ).with_model("gemini", "gemini-2.5-flash")
         
-        # Crear mensaje con imagen
+        # Crear mensaje con imagen usando file_contents (formato correcto)
         image_content = ImageContent(image_base64=image_base64)
         
         prompt = """Analiza esta captura de pantalla y extrae TODOS los códigos de servicio/siniestro que:
@@ -113,7 +113,7 @@ IMPORTANTE: Solo incluye códigos con estado ACEPTADO o similar. Ignora los rech
 
         user_message = UserMessage(
             text=prompt,
-            image_contents=[image_content]
+            file_contents=[image_content]
         )
         
         # Enviar a Gemini

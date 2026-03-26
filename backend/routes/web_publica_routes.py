@@ -1,6 +1,6 @@
 """
 Rutas públicas para la web de Revix.es
-Chatbot IA (Gemini Flash), formulario de contacto y solicitudes de presupuesto
+Chatbot IA con ARIA (consultas públicas), formulario de contacto y solicitudes de presupuesto
 """
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 import uuid
 import logging
+import re
 
 from config import db, EMERGENT_LLM_KEY
 
@@ -48,9 +49,59 @@ class PresupuestoForm(BaseModel):
     telefono: str
 
 
-# ==================== CHATBOT IA ====================
+# ==================== FUNCIONES PÚBLICAS DE ARIA ====================
 
-SYSTEM_PROMPT = """Eres el asistente virtual de Revix.es, un servicio técnico profesional especializado en reparación de dispositivos móviles, tablets, smartwatches y consolas, con sede en Córdoba (España).
+async def buscar_orden_publica(codigo: str) -> dict:
+    """Busca una orden por token de seguimiento o número de autorización (acceso público)"""
+    codigo_clean = codigo.strip().upper()
+    
+    orden = await db.ordenes.find_one(
+        {"$or": [
+            {"token_seguimiento": {"$regex": codigo_clean, "$options": "i"}},
+            {"numero_autorizacion": {"$regex": codigo_clean, "$options": "i"}},
+            {"numero_orden": {"$regex": codigo_clean, "$options": "i"}}
+        ]},
+        {"_id": 0, "numero_orden": 1, "estado": 1, "dispositivo": 1, 
+         "created_at": 1, "token_seguimiento": 1, "numero_autorizacion": 1,
+         "codigo_seguimiento_salida": 1, "historial_estados": 1}
+    )
+    
+    if not orden:
+        return {"error": f"No encontré ninguna orden con el código '{codigo}'", 
+                "sugerencia": "Verifica el código de seguimiento o número de autorización"}
+    
+    # Formatear estado para humanos
+    ESTADOS_HUMANOS = {
+        "pendiente_recibir": "Pendiente de recibir",
+        "recibida": "Dispositivo recibido",
+        "diagnostico": "En diagnóstico",
+        "esperando_ppto": "Presupuesto enviado",
+        "aprobada": "Presupuesto aprobado",
+        "en_taller": "En reparación",
+        "reparado": "Reparación completada",
+        "control_calidad": "Control de calidad",
+        "lista": "Listo para enviar",
+        "enviado": "Enviado",
+        "cancelado": "Cancelado"
+    }
+    
+    estado = orden.get("estado", "desconocido")
+    estado_humano = ESTADOS_HUMANOS.get(estado, estado)
+    
+    return {
+        "orden": {
+            "numero": orden.get("numero_orden"),
+            "estado": estado_humano,
+            "dispositivo": orden.get("dispositivo", {}).get("modelo", "N/A"),
+            "fecha_creacion": orden.get("created_at"),
+            "codigo_envio": orden.get("codigo_seguimiento_salida")
+        }
+    }
+
+
+# ==================== CHATBOT ARIA ====================
+
+SYSTEM_PROMPT = """Eres ARIA, el asistente virtual de Revix.es, un servicio técnico profesional especializado en reparación de dispositivos móviles, tablets, smartwatches y consolas, con sede en Córdoba (España).
 
 INFORMACIÓN CLAVE DE REVIX:
 - Nombre: Revix.es
@@ -83,11 +134,17 @@ DIFERENCIADORES:
 - Servicio integral para compañías aseguradoras
 - Portal online de seguimiento de reparaciones
 
+CONSULTA DE ÓRDENES:
+Si un cliente quiere saber el estado de su reparación, pídele:
+- Su código de seguimiento (formato: XXXXXXXX-XXX)
+- O su número de autorización
+Una vez te lo dé, usa: [FUNCTION: buscar_orden(codigo="CODIGO_QUE_TE_DIO")]
+
 INSTRUCCIONES:
 - Responde siempre en español, de forma amable y profesional
 - Sé conciso (máximo 3-4 frases por respuesta)
 - Para presupuestos, dirige al formulario de /presupuesto
-- Para consultar reparaciones, dirige a /consulta
+- Para consultar reparaciones, puedes ayudarles tú directamente si te dan el código
 - Para contacto, dirige a help@revix.es o el formulario de /contacto
 - No inventes precios concretos, di que el presupuesto es gratuito y sin compromiso
 - Si preguntan por algo que no sabes, sugiere que contacten por email
@@ -95,7 +152,7 @@ INSTRUCCIONES:
 
 @router.post("/chatbot")
 async def chatbot(data: ChatMessage):
-    """Chatbot IA para la web pública con Gemini Flash"""
+    """Chatbot ARIA para la web pública - puede consultar órdenes"""
     if not EMERGENT_LLM_KEY or not LlmChat:
         raise HTTPException(status_code=500, detail="Chatbot no disponible")
 
@@ -108,15 +165,15 @@ async def chatbot(data: ChatMessage):
 
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"web-chatbot-{data.session_id}",
+            session_id=f"aria-web-{data.session_id}",
             system_message=SYSTEM_PROMPT
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("gemini", "gemini-2.5-flash")
 
         # Construir contexto de conversación previa
         if historial:
             context_messages = historial[-10:]
             context = "\n".join([
-                f"{'Usuario' if m['role'] == 'user' else 'Asistente'}: {m['content']}"
+                f"{'Usuario' if m['role'] == 'user' else 'ARIA'}: {m['content']}"
                 for m in context_messages
             ])
             prompt = f"Conversación anterior:\n{context}\n\nUsuario: {data.mensaje}"
@@ -124,6 +181,32 @@ async def chatbot(data: ChatMessage):
             prompt = data.mensaje
 
         response = await chat.send_message(UserMessage(text=prompt))
+        
+        # Procesar funciones si ARIA las llamó
+        function_pattern = r'\[FUNCTION:\s*buscar_orden\(codigo="([^"]+)"\)\]'
+        match = re.search(function_pattern, response)
+        
+        if match:
+            codigo = match.group(1)
+            resultado = await buscar_orden_publica(codigo)
+            
+            # Enviar resultado de vuelta a ARIA para que lo interprete
+            if "error" in resultado:
+                follow_up = f"Resultado de búsqueda: {resultado['error']}. {resultado.get('sugerencia', '')}"
+            else:
+                orden = resultado["orden"]
+                follow_up = f"""Resultado de búsqueda:
+- Orden: {orden['numero']}
+- Estado: {orden['estado']}
+- Dispositivo: {orden['dispositivo']}
+- Fecha: {orden['fecha_creacion']}
+{"- Código de envío: " + orden['codigo_envio'] if orden.get('codigo_envio') else ""}
+
+Interpreta esta información de forma amable para el cliente."""
+            
+            # Segunda llamada para interpretar
+            final_response = await chat.send_message(UserMessage(text=follow_up))
+            response = final_response
 
         # Guardar en historial
         now = datetime.now(timezone.utc).isoformat()
@@ -145,7 +228,7 @@ async def chatbot(data: ChatMessage):
         return {"respuesta": response, "session_id": data.session_id}
 
     except Exception as e:
-        logger.error(f"Error chatbot web: {e}")
+        logger.error(f"Error chatbot ARIA web: {e}")
         raise HTTPException(status_code=500, detail="Error al procesar tu mensaje")
 
 

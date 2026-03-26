@@ -54,12 +54,18 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 ## 2026-03-26
 ### Fixed
+- **Carga Masiva IA**: Corregido parámetro `image_contents` → `file_contents` en UserMessage
+- **ARIA búsqueda**: Añadida búsqueda por `numero_autorizacion` y `token_seguimiento`
 - **Auditoría cambios de estado**: Ahora usa email del usuario autenticado + rol en historial_estados
 - **Avería en Seguimiento**: Corregido para leer campo `daños` además de `averia`
-- **Response Seguimiento**: Añadido `fotos` y `descripcion_problema` al endpoint
+- **Links Seguimiento**: Corregido `getUploadUrl()` para manejar objetos `{src, tipo}`
+
+### Added
+- **Chatbot público ARIA**: El chatbot de la web ahora puede consultar estado de órdenes
+- Los clientes pueden preguntar por su reparación con código de seguimiento
 
 ### Changed
-- **Integración Resend** (ayer): Reemplazado SMTP por Resend API
+- **Integración Resend**: Reemplazado SMTP por Resend API (ayer)
 
 ## 2026-03-25
 ### Fixed

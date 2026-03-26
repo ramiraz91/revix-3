@@ -14,8 +14,22 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
+from bson import ObjectId
 
 from config import db, logger, EMERGENT_LLM_KEY
+
+
+def clean_mongo_doc(doc):
+    """Limpia un documento de MongoDB eliminando ObjectIds y convirtiéndolos a string"""
+    if doc is None:
+        return None
+    if isinstance(doc, dict):
+        return {k: clean_mongo_doc(v) for k, v in doc.items() if k != '_id'}
+    if isinstance(doc, list):
+        return [clean_mongo_doc(item) for item in doc]
+    if isinstance(doc, ObjectId):
+        return str(doc)
+    return doc
 
 # ==================== KNOWLEDGE BASE COMPLETA ====================
 # Contexto exhaustivo del sistema para comprensión total del agente
@@ -208,8 +222,8 @@ AVAILABLE_FUNCTIONS = {
         "category": "consulta"
     },
     "buscar_orden": {
-        "description": "Busca una orden específica por número de orden (OT-...), ID o código de siniestro",
-        "parameters": {"busqueda": "string (número, ID o código siniestro)"},
+        "description": "Busca una orden específica por número de orden (OT-...), ID, código de siniestro, número de autorización o token de seguimiento",
+        "parameters": {"busqueda": "string (número orden, ID, código siniestro, nº autorización o token)"},
         "category": "consulta"
     },
     "buscar_peticion": {
@@ -420,27 +434,33 @@ async def fn_listar_ordenes_por_estado(estados: str, limite: int = 20):
     return {"ordenes": ordenes, "total": len(ordenes), "estados_filtrados": lista_estados}
 
 async def fn_buscar_orden(busqueda: str):
-    """Busca una orden por número, ID o código siniestro"""
+    """Busca una orden por número, ID, código siniestro o número de autorización"""
     busqueda_upper = busqueda.upper().strip()
+    busqueda_clean = busqueda.strip()
     orden = await db.ordenes.find_one(
         {"$or": [
             {"numero_orden": {"$regex": busqueda_upper, "$options": "i"}},
-            {"id": busqueda},
-            {"codigo_siniestro": {"$regex": busqueda, "$options": "i"}}
+            {"id": busqueda_clean},
+            {"codigo_siniestro": {"$regex": busqueda_clean, "$options": "i"}},
+            {"numero_autorizacion": {"$regex": busqueda_clean, "$options": "i"}},
+            {"token_seguimiento": {"$regex": busqueda_upper, "$options": "i"}}
         ]},
         {"_id": 0}
     )
     if not orden:
-        return {"error": f"No se encontró ninguna orden con '{busqueda}'", "sugerencia": "Intenta con el número completo (OT-XXXXXXXX) o el código de siniestro"}
+        return {"error": f"No se encontró ninguna orden con '{busqueda}'", "sugerencia": "Intenta con el número de orden (OT-XXXXXXXX), código de siniestro, número de autorización o token de seguimiento"}
+    
+    # Limpiar ObjectIds
+    orden = clean_mongo_doc(orden)
     
     # Obtener info del cliente
     cliente = await db.clientes.find_one({"id": orden.get("cliente_id")}, {"_id": 0, "nombre": 1, "telefono": 1, "email": 1})
-    orden["cliente_info"] = cliente
+    orden["cliente_info"] = clean_mongo_doc(cliente)
     
     # Obtener info del técnico si está asignado
     if orden.get("tecnico_asignado"):
         tecnico = await db.users.find_one({"id": orden["tecnico_asignado"]}, {"_id": 0, "nombre": 1, "email": 1})
-        orden["tecnico_info"] = tecnico
+        orden["tecnico_info"] = clean_mongo_doc(tecnico)
     
     return {"orden": orden}
 

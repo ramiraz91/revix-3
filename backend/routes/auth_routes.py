@@ -121,7 +121,6 @@ async def login(credentials: UserLogin, request: Request):
     _check_rate_limit(ip, email)
 
     user = await db.users.find_one({"email": email}, {"_id": 0})
-    logger.info(f"User found: {user is not None}")
     if not user:
         _record_failed_attempt(ip, email)
         remaining = _attempts_remaining(ip, email)
@@ -132,12 +131,8 @@ async def login(credentials: UserLogin, request: Request):
     if not user.get('activo', True):
         raise HTTPException(status_code=401, detail="Usuario desactivado. Contacta con el administrador.")
     
-    # Debug: log hash info
     stored_hash = user.get('password_hash', '')
-    logger.info(f"Password hash exists: {bool(stored_hash)}, hash prefix: {stored_hash[:20] if stored_hash else 'N/A'}")
-    
     password_ok = verify_password(credentials.password, stored_hash)
-    logger.info(f"Password verification: {password_ok}")
     
     if not password_ok:
         _record_failed_attempt(ip, email)

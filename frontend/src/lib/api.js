@@ -736,10 +736,25 @@ export const finanzasAPI = {
 // Soporta tanto URLs de Cloudinary como archivos locales
 export const getUploadUrl = (fileRef) => {
   if (!fileRef) return '';
+  
+  // Si es un objeto con src (formato de fotos del portal), extraer el src
+  if (typeof fileRef === 'object' && fileRef.src) {
+    fileRef = fileRef.src;
+  }
+  
+  // Si no es string después de la extracción, retornar vacío
+  if (typeof fileRef !== 'string') return '';
+  
   // Si ya es una URL completa (Cloudinary u otra), devolverla directamente
   if (fileRef.startsWith('http://') || fileRef.startsWith('https://')) {
     return fileRef;
   }
+  
+  // Si ya tiene /api/uploads, construir solo con el backend
+  if (fileRef.startsWith('/api/uploads/')) {
+    return `${BACKEND_URL}${fileRef}`;
+  }
+  
   // Si es un nombre de archivo local, construir la URL del backend
   return `${BACKEND_URL}/api/uploads/${fileRef}`;
 };

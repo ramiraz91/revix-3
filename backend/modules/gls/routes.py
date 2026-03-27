@@ -159,12 +159,28 @@ async def descargar_etiqueta_por_codigo(
 
 # ─── TRACKING ──────────────────────────
 
+@router.get("/tracking-url/{codbarras}")
+async def obtener_url_tracking(codbarras: str):
+    """Get GLS tracking URL for a barcode (public, no auth required for customer sharing)."""
+    from modules.gls.shipment_service import get_tracking_url
+    url = get_tracking_url(codbarras)
+    if not url:
+        raise HTTPException(400, "Código de barras inválido")
+    return {"tracking_url": url, "codbarras": codbarras}
+
+
 @router.get("/tracking/{shipment_id}")
 async def consultar_tracking(shipment_id: str, user: dict = Depends(require_auth)):
     """Get full tracking for a shipment."""
     result = await shipment_service.get_tracking(db, shipment_id)
     if not result.get("success"):
         raise HTTPException(400, result.get("error", "No se pudo obtener tracking"))
+    
+    # Añadir tracking_url al resultado
+    from modules.gls.shipment_service import get_tracking_url
+    codbarras = result.get("shipment", {}).get("gls_codbarras", "")
+    result["tracking_url"] = get_tracking_url(codbarras)
+    
     return result
 
 

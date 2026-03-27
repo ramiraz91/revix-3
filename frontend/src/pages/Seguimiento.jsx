@@ -457,8 +457,8 @@ export default function Seguimiento() {
                             {orden.logistics.recogida.incidencia_texto}
                           </p>
                         )}
-                        {(orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada) && (
-                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}`}
+                        {(orden.logistics?.recogida?.tracking_url || orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada) && (
+                          <a href={orden.logistics?.recogida?.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}`}
                             target="_blank" rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
                             <ExternalLink className="w-3 h-3" /> Seguir recogida en GLS
@@ -496,11 +496,11 @@ export default function Seguimiento() {
                             {orden.logistics.envio.incidencia_texto}
                           </p>
                         )}
-                        {(orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
-                          <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`}
+                        {(orden.logistics?.envio?.tracking_url || orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
+                          <a href={orden.logistics?.envio?.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`}
                             target="_blank" rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
-                            <ExternalLink className="w-3 h-3" /> Seguir envio en GLS
+                            <ExternalLink className="w-3 h-3" /> Seguir envío en GLS
                           </a>
                         )}
                       </div>

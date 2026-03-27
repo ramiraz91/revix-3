@@ -1045,8 +1045,12 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             tipo = s.get("tipo", "")
             slot = "recogida" if tipo == "recogida" else "envio"
             if logistics_data[slot] is None:
+                codbarras = s.get("gls_codbarras", "")
+                # Generar URL de tracking de GLS
+                tracking_url = f"https://www.gls-spain.es/apptracking.asp?codigo={codbarras}" if codbarras else ""
                 logistics_data[slot] = {
-                    "codbarras": s.get("gls_codbarras", ""),
+                    "codbarras": codbarras,
+                    "tracking_url": tracking_url,
                     "estado": s.get("estado_interno", ""),
                     "estado_texto": s.get("estado_gls_texto", ""),
                     "es_final": s.get("es_final", False),

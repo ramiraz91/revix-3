@@ -11,6 +11,16 @@ from modules.gls.state_mapper import map_gls_state, is_final_state
 
 logger = logging.getLogger("gls.shipment")
 
+# URL de seguimiento de GLS España
+GLS_TRACKING_URL = "https://www.gls-spain.es/apptracking.asp"
+
+
+def get_tracking_url(codbarras: str) -> str:
+    """Genera la URL de seguimiento para el cliente."""
+    if not codbarras:
+        return ""
+    return f"{GLS_TRACKING_URL}?codigo={codbarras}"
+
 
 async def get_config(db) -> dict:
     """Get GLS configuration from DB."""
@@ -85,6 +95,7 @@ async def create_shipment(db, data: dict, user_email: str) -> dict:
         "gls_codexp": envio_data.get("codexp", ""),
         "gls_uid": envio_data.get("uid", ""),
         "gls_codbarras": envio_data.get("codbarras", ""),
+        "tracking_url": get_tracking_url(envio_data.get("codbarras", "")),
         "referencia_interna": data.get("referencia", ""),
         "servicio": data.get("servicio", ""),
         "horario": data.get("horario", ""),

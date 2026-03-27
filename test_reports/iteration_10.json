@@ -1,0 +1,106 @@
+{
+  "summary": "GLS Envios and Tracking URL endpoints tested successfully. All 9 backend tests passed (100%). Frontend /crm/logistica page verified working with 6 shipments displayed, tracking links visible. Backend APIs return correct structure with tracking_url field.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/gls/envios",
+        "issue": "1 legacy shipment (d7d2c390-fa02-4906-a9f9-fb378f044bdf) has gls_codbarras but tracking_url is null - likely created before tracking_url feature was added",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gls_envios_tracking.py",
+    "/app/test_reports/pytest/pytest_results_gls_tracking.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_gls_envios_tracking.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100% (GLS Logistica page verified)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "test_order_with_shipments": "57988501-4faa-4633-88ca-f0c96e6d75ce"
+  },
+  "seed_data_creation": "No new seed data created. Used existing shipments in gls_shipments collection.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GLS tracking URL feature verified working. Backend endpoints: GET /api/gls/envios returns list with total, data, tracking_url. GET /api/ordenes/{id}/logistics returns gls_activo=true and shipment data with tracking_url. Frontend /crm/logistica shows 6 shipments with tracking links. One legacy shipment missing tracking_url (data migration issue, not code bug).",
+  "verified_features": [
+    {
+      "feature": "GET /api/gls/envios",
+      "tests": [
+        "Returns list with total, data, page, limit fields",
+        "Shipments with codbarras have tracking_url pointing to gls-spain.es",
+        "Requires authentication"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/ordenes/{orden_id}/logistics",
+      "tests": [
+        "Returns correct structure with gls_activo, recogida, envio blocks",
+        "gls_activo is true when GLS is configured",
+        "Envio shipment has tracking_url with correct format",
+        "Requires authentication",
+        "Returns 404 for invalid order"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Tracking URL Format",
+      "tests": [
+        "URL format: https://www.gls-spain.es/apptracking.asp?codigo={codbarras}",
+        "URL contains the shipment's codbarras"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Frontend /crm/logistica",
+      "tests": [
+        "Page loads with data-testid='gls-admin-page'",
+        "Shows 6 shipments registered",
+        "Displays tracking codes (61143283984788, etc.)",
+        "Has GLS tracking external links",
+        "Has sync, download, delete buttons"
+      ],
+      "status": "PASSED"
+    }
+  ],
+  "api_responses_verified": {
+    "GET /api/gls/envios": {
+      "status": 200,
+      "response_structure": {
+        "data": "array of shipments",
+        "total": 6,
+        "page": 1,
+        "limit": 50
+      },
+      "tracking_url_example": "https://www.gls-spain.es/apptracking.asp?codigo=61143283984788"
+    },
+    "GET /api/ordenes/{id}/logistics": {
+      "status": 200,
+      "response_structure": {
+        "gls_activo": true,
+        "recogida": {"shipment": null, "eventos": [], "total": 0},
+        "envio": {"shipment": "object with tracking_url", "eventos": [], "total": 1}
+      }
+    }
+  },
+  "data_testids_verified": [
+    "gls-admin-page",
+    "gls-admin-search",
+    "btn-sync-all",
+    "gls-row-{id}"
+  ]
+}

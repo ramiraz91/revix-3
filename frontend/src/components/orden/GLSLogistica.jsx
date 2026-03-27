@@ -111,12 +111,12 @@ function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, u
               >
                 {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
               </Button>
-              {shipment.gls_codbarras && (
+              {(shipment.tracking_url || shipment.gls_codbarras) && (
                 <a
-                  href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${shipment.gls_codbarras}`}
+                  href={shipment.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${shipment.gls_codbarras}`}
                   target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent"
-                  title="Ver en GLS"
+                  title="Ver seguimiento GLS"
                   data-testid={`btn-gls-link-${tipo}`}
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-blue-500" />

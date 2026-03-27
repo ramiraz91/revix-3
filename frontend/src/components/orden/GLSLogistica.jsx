@@ -214,32 +214,57 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
   const [logisticsData, setLogisticsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCrear, setShowCrear] = useState(null); // 'recogida' | 'envio' | null
+  const [autoSyncing, setAutoSyncing] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (withSync = false) => {
     if (!orden?.id) return;
     try {
+      // Si hay envíos, sincronizar automáticamente con GLS para traer el estado actual
+      if (withSync) {
+        setAutoSyncing(true);
+        // Primero obtener los shipments existentes
+        const preCheck = await api.get(`/ordenes/${orden.id}/logistics`);
+        const recogidaId = preCheck.data?.recogida?.shipment?.id;
+        const envioId = preCheck.data?.envio?.shipment?.id;
+        
+        // Sincronizar cada uno si existe y no está en estado final
+        const syncPromises = [];
+        if (recogidaId && !preCheck.data?.recogida?.shipment?.es_final) {
+          syncPromises.push(api.post(`/ordenes/${orden.id}/logistics/${recogidaId}/sync`).catch(() => {}));
+        }
+        if (envioId && !preCheck.data?.envio?.shipment?.es_final) {
+          syncPromises.push(api.post(`/ordenes/${orden.id}/logistics/${envioId}/sync`).catch(() => {}));
+        }
+        if (syncPromises.length > 0) {
+          await Promise.all(syncPromises);
+        }
+        setAutoSyncing(false);
+      }
+      
       const res = await api.get(`/ordenes/${orden.id}/logistics`);
       setLogisticsData(res.data);
     } catch (err) {
       console.error('Error loading logistics:', err);
     } finally {
       setLoading(false);
+      setAutoSyncing(false);
     }
   }, [orden?.id]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(true); // true = auto-sync al cargar
+  }, [orden?.id]);
 
   const handleRefresh = () => {
-    loadData();
+    loadData(true); // Sincronizar al refrescar
     if (onUpdate) onUpdate();
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
+      <div className="flex flex-col items-center justify-center py-8">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        {autoSyncing && <p className="text-xs text-muted-foreground mt-2">Consultando estado en GLS...</p>}
       </div>
     );
   }

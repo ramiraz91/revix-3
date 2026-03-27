@@ -43,9 +43,21 @@ export default function GLSAdmin() {
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
 
-  const fetchEnvios = useCallback(async () => {
+  const fetchEnvios = useCallback(async (autoSync = false) => {
     setLoading(true);
     try {
+      // Si autoSync está activo, primero sincronizamos los envíos activos con GLS
+      if (autoSync) {
+        setSyncing(true);
+        try {
+          await api.post('/gls/sync');
+        } catch (e) {
+          // Silenciar error de sync, continuar con la carga
+        } finally {
+          setSyncing(false);
+        }
+      }
+      
       const params = new URLSearchParams({ page, limit: 30 });
       if (search) params.set('search', search);
       if (filtroEstado) params.set('estado', filtroEstado);
@@ -60,7 +72,15 @@ export default function GLSAdmin() {
     }
   }, [page, search, filtroEstado, filtroTipo]);
 
-  useEffect(() => { fetchEnvios(); }, [fetchEnvios]);
+  // Auto-sync al cargar la página por primera vez
+  useEffect(() => { 
+    fetchEnvios(true); // true = sincronizar automáticamente al cargar
+  }, []);
+  
+  // Recargar sin sync cuando cambian los filtros
+  useEffect(() => { 
+    fetchEnvios(false); 
+  }, [page, search, filtroEstado, filtroTipo]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -170,7 +190,10 @@ export default function GLSAdmin() {
 
       {/* Lista */}
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin" /></div>
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          {syncing && <p className="text-sm text-muted-foreground mt-2">Consultando estado actual en GLS...</p>}
+        </div>
       ) : envios.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -201,8 +224,8 @@ export default function GLSAdmin() {
                   <Button variant="ghost" size="icon" onClick={() => handleSyncSingle(e.id)} title="Actualizar tracking"><RotateCw className="w-4 h-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDescargarEtiqueta(e.id)} title="Descargar etiqueta"><FileDown className="w-4 h-4" /></Button>
                   {!e.es_final && <Button variant="ghost" size="icon" onClick={() => handleAnular(e.id)} title="Anular"><Trash2 className="w-4 h-4 text-red-500" /></Button>}
-                  {e.gls_codbarras && (
-                    <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${e.gls_codbarras}`} target="_blank" rel="noopener noreferrer" className="p-2" title="Tracking público">
+                  {(e.tracking_url || e.gls_codbarras) && (
+                    <a href={e.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${e.gls_codbarras}`} target="_blank" rel="noopener noreferrer" className="p-2" title="Tracking público">
                       <ExternalLink className="w-4 h-4 text-blue-500" />
                     </a>
                   )}
@@ -333,8 +356,8 @@ export default function GLSAdmin() {
               <div className="flex gap-2 pt-2">
                 <Button onClick={() => handleSyncSingle(detalle.id)} variant="outline" size="sm"><RotateCw className="w-4 h-4 mr-1" /> Actualizar</Button>
                 <Button onClick={() => handleDescargarEtiqueta(detalle.id)} variant="outline" size="sm"><FileDown className="w-4 h-4 mr-1" /> Etiqueta</Button>
-                {detalle.gls_codbarras && (
-                  <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${detalle.gls_codbarras}`} target="_blank" rel="noopener noreferrer">
+                {(detalle.tracking_url || detalle.gls_codbarras) && (
+                  <a href={detalle.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${detalle.gls_codbarras}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm"><ExternalLink className="w-4 h-4 mr-1" /> Tracking GLS</Button>
                   </a>
                 )}

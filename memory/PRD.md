@@ -59,10 +59,17 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
   - Los envíos están asociados a órdenes via `gls_envios` array
   - Corregidos enlaces de tracking en `GLSLogistica.jsx` y `Seguimiento.jsx` para usar `tracking_url` del BD
 
+### Added
+- **Sincronización automática con GLS**: Al cargar la página de Logística o el detalle de una orden, se consulta automáticamente el estado actual de los envíos en GLS
+  - `GLSAdmin.jsx`: Auto-sync al cargar la página
+  - `GLSLogistica.jsx`: Auto-sync de envíos activos (no finales) al cargar el componente
+  - Indicador visual "Consultando estado en GLS..." durante la sincronización
+
 ### Verified
 - **Testing Agent**: 9/9 tests backend pasados, frontend 100%
 - **API endpoints**: GET /api/gls/envios, GET /api/ordenes/{id}/logistics funcionan correctamente
 - **Frontend /crm/logistica**: Muestra 6 envíos con enlaces de tracking
+- **Frontend orden/logistica**: Muestra panel con bloques de Recogida y Envío con estado actualizado
 
 ## 2026-03-26
 ### Fixed

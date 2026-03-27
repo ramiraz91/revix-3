@@ -39,6 +39,7 @@ class GLSLabelFormat(str, Enum):
 class GLSConfigUpdate(BaseModel):
     activo: bool = False
     uid_cliente: str = ""
+    # Datos del remitente (Revix)
     remitente_nombre: str = ""
     remitente_direccion: str = ""
     remitente_poblacion: str = ""
@@ -47,6 +48,11 @@ class GLSConfigUpdate(BaseModel):
     remitente_pais: str = "34"
     remitente_telefono: str = ""
     remitente_email: str = ""
+    # Códigos de plaza y cliente (requeridos por GLS España)
+    plaza_remitente: str = ""  # Código de plaza (ej: 143)
+    codigo_remitente: str = ""  # Código cliente en remite (ej: 645831)
+    codigo_cliente_inf: str = ""  # Código inf (ej: 42669)
+    # Configuración de servicio
     servicio_defecto: str = "96"
     horario_defecto: str = "18"
     formato_etiqueta: str = "PDF"

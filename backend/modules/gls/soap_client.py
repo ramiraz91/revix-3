@@ -3,31 +3,41 @@ GLS SOAP Client - Raw communication with GLS web service.
 Endpoint: https://ws-customer.gls-spain.es/b2b.asmx
 Methods: GrabaServicios, EtiquetaEnvioV2, GetExp, GetExpCli
 WSDL: offline b2b.wsdl (as per GLS docs, do NOT use the online version)
+
+IMPORTANT: GLS Spain requires SOAP 1.1 (not 1.2) and NO CDATA sections.
 """
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Optional
+from html import escape as html_escape
 import httpx
 
 logger = logging.getLogger("gls.soap")
 
 GLS_ENDPOINT = "https://ws-customer.gls-spain.es/b2b.asmx"
 GLS_NAMESPACE = "http://www.asmred.com/"
-SOAP_NS = "http://www.w3.org/2003/05/soap-envelope"
+SOAP_NS = "http://schemas.xmlsoap.org/soap/envelope/"  # SOAP 1.1 namespace
 TIMEOUT = 30
 
 
+def _escape_xml(text: str) -> str:
+    """Escape text for XML (no CDATA, GLS doesn't like it)."""
+    if not text:
+        return ""
+    return html_escape(str(text), quote=False)
+
+
 def _soap_envelope(body_xml: str) -> str:
-    """Wrap body XML in SOAP 1.2 envelope."""
+    """Wrap body XML in SOAP 1.1 envelope (required by GLS Spain)."""
     return f'''<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Body>
+  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
     {body_xml}
-  </soap12:Body>
-</soap12:Envelope>'''
+  </soap:Body>
+</soap:Envelope>'''
 
 
 async def _soap_call(action: str, body_xml: str) -> str:
@@ -37,8 +47,9 @@ async def _soap_call(action: str, body_xml: str) -> str:
     # El WSDL de GLS España requiere el header SOAPAction
     soap_action = f"http://www.asmred.com/{action}"
     
+    # GLS España usa SOAP 1.1 que requiere text/xml (no application/soap+xml)
     headers = {
-        "Content-Type": "application/soap+xml; charset=utf-8",
+        "Content-Type": "text/xml; charset=utf-8",
         "SOAPAction": soap_action,
     }
     
@@ -63,16 +74,28 @@ def _extract_result(response_text: str, result_tag: str) -> str:
     """Extract the result content from a SOAP response."""
     try:
         root = ET.fromstring(response_text)
-        ns = {"soap": SOAP_NS, "gls": GLS_NAMESPACE}
-        el = root.find(f".//gls:{result_tag}", ns)
-        if el is not None and el.text:
-            return el.text
-        # Try without namespace
+        
+        # Buscar el elemento resultado por nombre (sin namespace específico)
         for elem in root.iter():
-            if result_tag in elem.tag:
-                return elem.text or ""
-    except ET.ParseError:
-        pass
+            tag_name = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+            if tag_name == result_tag:
+                # Si tiene hijos, serializar todo el contenido XML
+                if len(elem) > 0:
+                    # Buscar el elemento Servicios dentro
+                    for child in elem:
+                        child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                        if child_tag == "Servicios":
+                            return ET.tostring(child, encoding='unicode')
+                    # Si no encuentra Servicios, devolver el contenido como string
+                    return ET.tostring(elem, encoding='unicode')
+                # Si es texto directo
+                elif elem.text:
+                    return elem.text.strip()
+        
+        logger.warning(f"Could not find {result_tag} in response")
+        logger.debug(f"Response structure: {response_text[:500]}")
+    except ET.ParseError as e:
+        logger.error(f"XML parse error in _extract_result: {e}")
     return ""
 
 
@@ -201,40 +224,45 @@ def build_shipment_xml(uid_cliente: str, config: dict, data: dict) -> str:
     servicio = data.get("servicio") or config.get("servicio_defecto", "96")
     horario = data.get("horario") or config.get("horario_defecto", "18")
     portes = config.get("portes", "P")
+    
+    # Datos del remitente desde config (incluyendo plaza y código cliente)
+    plaza_remitente = config.get("plaza_remitente", "")
+    codigo_remitente = config.get("codigo_remitente", "")
 
     remitente_xml = f'''<Remite>
-      <Plaza></Plaza>
-      <Nombre><![CDATA[{config.get("remitente_nombre", "")}]]></Nombre>
-      <Direccion><![CDATA[{config.get("remitente_direccion", "")}]]></Direccion>
-      <Poblacion><![CDATA[{config.get("remitente_poblacion", "")}]]></Poblacion>
-      <Provincia><![CDATA[{config.get("remitente_provincia", "")}]]></Provincia>
+      <Plaza>{plaza_remitente}</Plaza>
+      <Codigo>{codigo_remitente}</Codigo>
+      <Nombre>{_escape_xml(config.get("remitente_nombre", ""))}</Nombre>
+      <Direccion>{_escape_xml(config.get("remitente_direccion", ""))}</Direccion>
+      <Poblacion>{_escape_xml(config.get("remitente_poblacion", ""))}</Poblacion>
+      <Provincia>{_escape_xml(config.get("remitente_provincia", ""))}</Provincia>
       <Pais>{config.get("remitente_pais", "34")}</Pais>
       <CP>{config.get("remitente_cp", "")}</CP>
-      <Telefono><![CDATA[{config.get("remitente_telefono", "")}]]></Telefono>
-      <Movil><![CDATA[]]></Movil>
-      <Email><![CDATA[{config.get("remitente_email", "")}]]></Email>
-      <Observaciones><![CDATA[]]></Observaciones>
+      <Telefono>{_escape_xml(config.get("remitente_telefono", ""))}</Telefono>
+      <Movil></Movil>
+      <Email>{_escape_xml(config.get("remitente_email", ""))}</Email>
+      <Observaciones></Observaciones>
     </Remite>'''
 
     dest_xml = f'''<Destinatario>
       <Codigo></Codigo>
       <Plaza></Plaza>
-      <Nombre><![CDATA[{data.get("dest_nombre", "")}]]></Nombre>
-      <Direccion><![CDATA[{data.get("dest_direccion", "")}]]></Direccion>
-      <Poblacion><![CDATA[{data.get("dest_poblacion", "")}]]></Poblacion>
-      <Provincia><![CDATA[{data.get("dest_provincia", "")}]]></Provincia>
+      <Nombre>{_escape_xml(data.get("dest_nombre", ""))}</Nombre>
+      <Direccion>{_escape_xml(data.get("dest_direccion", ""))}</Direccion>
+      <Poblacion>{_escape_xml(data.get("dest_poblacion", ""))}</Poblacion>
+      <Provincia>{_escape_xml(data.get("dest_provincia", ""))}</Provincia>
       <Pais>{data.get("dest_pais", "34")}</Pais>
       <CP>{data.get("dest_cp", "")}</CP>
-      <Telefono><![CDATA[{data.get("dest_telefono", "")}]]></Telefono>
-      <Movil><![CDATA[{data.get("dest_movil", "")}]]></Movil>
-      <Email><![CDATA[{data.get("dest_email", "")}]]></Email>
-      <Observaciones><![CDATA[{data.get("dest_observaciones", "")}]]></Observaciones>
-      <ATT><![CDATA[{data.get("dest_contacto", "")}]]></ATT>
+      <Telefono>{_escape_xml(data.get("dest_telefono", ""))}</Telefono>
+      <Movil>{_escape_xml(data.get("dest_movil", ""))}</Movil>
+      <Email>{_escape_xml(data.get("dest_email", ""))}</Email>
+      <Observaciones>{_escape_xml(data.get("dest_observaciones", ""))}</Observaciones>
+      <ATT>{_escape_xml(data.get("dest_contacto", ""))}</ATT>
     </Destinatario>'''
 
     ref = data.get("referencia", "")
     ref_xml = f'''<Referencias>
-      <Referencia tipo="C"><![CDATA[{ref}]]></Referencia>
+      <Referencia tipo="C">{_escape_xml(ref)}</Referencia>
     </Referencias>'''
 
     reembolso = data.get("reembolso", 0)
@@ -250,25 +278,7 @@ def build_shipment_xml(uid_cliente: str, config: dict, data: dict) -> str:
     </DevuelveAdicionales>'''
 
     if tipo == "recogida":
-        # For pickup: remitente=client (who we pick up from), destinatario=us
-        envio_xml = f'''<Recogida codbarras="">
-    <Fecha>{fecha}</Fecha>
-    <Portes>{portes}</Portes>
-    <Servicio>7</Servicio>
-    <Horario>3</Horario>
-    <Bultos>{data.get("bultos", 1)}</Bultos>
-    <Peso>{data.get("peso", 1)}</Peso>
-    <Retorno>{data.get("retorno", "0")}</Retorno>
-    <Pod>{data.get("pod", "N")}</Pod>
-    {dest_xml}
-    {remitente_xml.replace("<Remite>", "<Destinatario>").replace("</Remite>", "</Destinatario>")}
-    {ref_xml}
-    {importes_xml}
-    {adicionales_xml}
-  </Recogida>'''
-        # Actually for recogida the XML is different:
-        # The Remite block is WHO we pick up from (the customer)
-        # The Destinatario block is WHERE it goes (us)
+        # Para recogida: Remite=cliente (de quien recogemos), Destinatario=nosotros (Revix)
         envio_xml = f'''<Recogida codbarras="">
     <Fecha>{fecha}</Fecha>
     <Portes>{portes}</Portes>
@@ -280,18 +290,18 @@ def build_shipment_xml(uid_cliente: str, config: dict, data: dict) -> str:
     <Pod>{data.get("pod", "N")}</Pod>
     {dest_xml.replace("<Destinatario>", "<Remite>").replace("</Destinatario>", "</Remite>")}
     <Destinatario>
-      <Codigo></Codigo>
-      <Plaza></Plaza>
-      <Nombre><![CDATA[{config.get("remitente_nombre", "")}]]></Nombre>
-      <Direccion><![CDATA[{config.get("remitente_direccion", "")}]]></Direccion>
-      <Poblacion><![CDATA[{config.get("remitente_poblacion", "")}]]></Poblacion>
-      <Provincia><![CDATA[{config.get("remitente_provincia", "")}]]></Provincia>
+      <Plaza>{plaza_remitente}</Plaza>
+      <Codigo>{codigo_remitente}</Codigo>
+      <Nombre>{_escape_xml(config.get("remitente_nombre", ""))}</Nombre>
+      <Direccion>{_escape_xml(config.get("remitente_direccion", ""))}</Direccion>
+      <Poblacion>{_escape_xml(config.get("remitente_poblacion", ""))}</Poblacion>
+      <Provincia>{_escape_xml(config.get("remitente_provincia", ""))}</Provincia>
       <Pais>{config.get("remitente_pais", "34")}</Pais>
       <CP>{config.get("remitente_cp", "")}</CP>
-      <Telefono><![CDATA[{config.get("remitente_telefono", "")}]]></Telefono>
-      <Movil><![CDATA[]]></Movil>
-      <Email><![CDATA[{config.get("remitente_email", "")}]]></Email>
-      <Observaciones><![CDATA[]]></Observaciones>
+      <Telefono>{_escape_xml(config.get("remitente_telefono", ""))}</Telefono>
+      <Movil></Movil>
+      <Email>{_escape_xml(config.get("remitente_email", ""))}</Email>
+      <Observaciones></Observaciones>
     </Destinatario>
     {ref_xml}
     {importes_xml}
@@ -322,8 +332,9 @@ def build_shipment_xml(uid_cliente: str, config: dict, data: dict) -> str:
 async def graba_servicios(uid_cliente: str, config: dict, data: dict) -> dict:
     """Call GrabaServicios to create a shipment/pickup."""
     xml_in = build_shipment_xml(uid_cliente, config, data)
+    # GLS España NO acepta CDATA - el XML debe ir directo dentro de docIn
     body = f'''<GrabaServicios xmlns="{GLS_NAMESPACE}">
-      <docIn><![CDATA[{xml_in}]]></docIn>
+      <docIn>{xml_in}</docIn>
     </GrabaServicios>'''
 
     try:

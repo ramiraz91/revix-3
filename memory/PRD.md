@@ -52,6 +52,18 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 # CHANGELOG
 
+## 2026-03-27
+### Fixed
+- **P0: GLS Persistencia verificada** - Los envíos SÍ se guardan correctamente en BD
+  - Verificado: 6 documentos en `gls_shipments` con tracking_url, codbarras, estado
+  - Los envíos están asociados a órdenes via `gls_envios` array
+  - Corregidos enlaces de tracking en `GLSLogistica.jsx` y `Seguimiento.jsx` para usar `tracking_url` del BD
+
+### Verified
+- **Testing Agent**: 9/9 tests backend pasados, frontend 100%
+- **API endpoints**: GET /api/gls/envios, GET /api/ordenes/{id}/logistics funcionan correctamente
+- **Frontend /crm/logistica**: Muestra 6 envíos con enlaces de tracking
+
 ## 2026-03-26
 ### Fixed
 - **Carga Masiva IA**: Corregido parámetro `image_contents` → `file_contents` en UserMessage
@@ -59,13 +71,14 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - **Auditoría cambios de estado**: Ahora usa email del usuario autenticado + rol en historial_estados
 - **Avería en Seguimiento**: Corregido para leer campo `daños` además de `averia`
 - **Links Seguimiento**: Corregido `getUploadUrl()` para manejar objetos `{src, tipo}`
+- **Comunicación SOAP GLS**: Refactor completo a SOAP 1.1, eliminados CDATA, credenciales actualizadas
 
 ### Added
-- **Chatbot público ARIA**: El chatbot de la web ahora puede consultar estado de órdenes
-- Los clientes pueden preguntar por su reparación con código de seguimiento
+- **Chatbot público blindado**: Solo responde FAQs, ventas, links directos (no acceso interno)
+- **Tracking URL GLS**: Guardada en BD y mostrada al cliente
 
 ### Changed
-- **Integración Resend**: Reemplazado SMTP por Resend API (ayer)
+- **Integración Resend**: Reemplazado SMTP por Resend API
 
 ## 2026-03-25
 ### Fixed
@@ -93,6 +106,7 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 ## P0 (Crítico)
 - [x] Optimización endpoints dashboard
+- [x] GLS persistencia en BD (verificado funcionando)
 
 ## P1 (Alta Prioridad)
 - [ ] Error al importar presupuesto de Insurama ("las guarda pero aparece error")

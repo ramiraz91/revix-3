@@ -33,11 +33,28 @@ def _soap_envelope(body_xml: str) -> str:
 async def _soap_call(action: str, body_xml: str) -> str:
     """Execute SOAP call and return response body text."""
     envelope = _soap_envelope(body_xml)
+    
+    # El WSDL de GLS España requiere el header SOAPAction
+    soap_action = f"http://www.asmred.com/{action}"
+    
     headers = {
         "Content-Type": "application/soap+xml; charset=utf-8",
+        "SOAPAction": soap_action,
     }
+    
+    logger.debug(f"GLS SOAP Request to {action}:")
+    logger.debug(f"Headers: {headers}")
+    logger.debug(f"Body (truncated): {envelope[:500]}...")
+    
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         resp = await client.post(GLS_ENDPOINT, content=envelope, headers=headers)
+        
+        logger.debug(f"GLS SOAP Response status: {resp.status_code}")
+        logger.debug(f"GLS SOAP Response (truncated): {resp.text[:500] if resp.text else 'empty'}...")
+        
+        if resp.status_code != 200:
+            logger.error(f"GLS SOAP Error {resp.status_code}: {resp.text[:1000]}")
+        
         resp.raise_for_status()
         return resp.text
 

@@ -1038,19 +1038,17 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
     try:
         gls_shipments_cursor = db.gls_shipments.find(
             {"entidad_id": orden.get("id")},
-            {"_id": 0, "raw_request": 0, "raw_response": 0, "tracking_json": 0}
+            {"_id": 0, "raw_request": 0, "raw_response": 0, "tracking_json": 0, "label_base64": 0}
         ).sort("created_at", -1)
         gls_shipments = await gls_shipments_cursor.to_list(20)
         for s in gls_shipments:
             tipo = s.get("tipo", "")
             slot = "recogida" if tipo == "recogida" else "envio"
             if logistics_data[slot] is None:
-                codbarras = s.get("gls_codbarras", "")
-                # Generar URL de tracking de GLS
-                tracking_url = f"https://www.gls-spain.es/apptracking.asp?codigo={codbarras}" if codbarras else ""
                 logistics_data[slot] = {
-                    "codbarras": codbarras,
-                    "tracking_url": tracking_url,
+                    "codbarras": s.get("gls_codbarras", ""),
+                    "tracking_url": s.get("tracking_url", "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"),
+                    "tracking_source": s.get("tracking_source", "fallback"),
                     "estado": s.get("estado_interno", ""),
                     "estado_texto": s.get("estado_gls_texto", ""),
                     "es_final": s.get("es_final", False),

@@ -457,12 +457,18 @@ export default function Seguimiento() {
                             {orden.logistics.recogida.incidencia_texto}
                           </p>
                         )}
-                        {(orden.logistics?.recogida?.tracking_url || orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada) && (
-                          <a href={orden.logistics?.recogida?.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
-                            <ExternalLink className="w-3 h-3" /> Seguir recogida en GLS
-                          </a>
+                        {/* Tracking link - usa tracking_url si existe, sino URL canónica */}
+                        <a href={orden.logistics?.recogida?.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
+                          target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                          <ExternalLink className="w-3 h-3" /> Seguir en GLS
+                        </a>
+                        {/* Datos para consulta manual */}
+                        {orden.logistics?.recogida?.tracking_source === 'fallback' && (
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Código: <span className="font-mono">{orden.logistics?.recogida?.codbarras || orden.codigo_recogida_entrada}</span>
+                            {orden.cliente?.cp && <> · CP: <span className="font-mono">{orden.cliente.cp}</span></>}
+                          </p>
                         )}
                       </div>
                     ) : (
@@ -496,12 +502,18 @@ export default function Seguimiento() {
                             {orden.logistics.envio.incidencia_texto}
                           </p>
                         )}
-                        {(orden.logistics?.envio?.tracking_url || orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
-                          <a href={orden.logistics?.envio?.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
-                            <ExternalLink className="w-3 h-3" /> Seguir envío en GLS
-                          </a>
+                        {/* Tracking link - usa tracking_url si existe, sino URL canónica */}
+                        <a href={orden.logistics?.envio?.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
+                          target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
+                          <ExternalLink className="w-3 h-3" /> Seguir en GLS
+                        </a>
+                        {/* Datos para consulta manual */}
+                        {orden.logistics?.envio?.tracking_source === 'fallback' && (
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Código: <span className="font-mono">{orden.logistics?.envio?.codbarras || orden.codigo_seguimiento_salida}</span>
+                            {orden.cliente?.cp && <> · CP: <span className="font-mono">{orden.cliente.cp}</span></>}
+                          </p>
                         )}
                       </div>
                     ) : (

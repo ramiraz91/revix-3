@@ -163,6 +163,7 @@ export default function OrdenDetalle() {
   const [solicitandoReemplazo, setSolicitandoReemplazo] = useState(false);
   const [autorizandoReemplazo, setAutorizandoReemplazo] = useState(false);
   const [generandoLogistica, setGenerandoLogistica] = useState(false);
+  const [logisticaResumen, setLogisticaResumen] = useState(null);  // Resumen rápido de GLS
   
   // Material search states
   const [materialSearchQuery, setMaterialSearchQuery] = useState('');
@@ -248,6 +249,12 @@ export default function OrdenDetalle() {
       notificacionesAPI.marcarLeidasPorOrden(id).then(() => {
         window.dispatchEvent(new Event('notificaciones-updated'));
       }).catch(() => {});
+    });
+    // Cargar resumen de logística GLS
+    api.get(`/gls/orden/${id}`).then(res => {
+      setLogisticaResumen(res.data);
+    }).catch(() => {
+      setLogisticaResumen(null);
     });
   }, [id]);
 
@@ -1208,6 +1215,97 @@ export default function OrdenDetalle() {
                 <p className="text-xs text-muted-foreground">Creación → Envío</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Resumen Logística GLS - Widget rápido */}
+      {logisticaResumen?.gls_activo && (logisticaResumen.recogida?.shipment || logisticaResumen.envio?.shipment || logisticaResumen.devolucion?.shipment) && (
+        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-white print:hidden" data-testid="gls-resumen-widget">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <div className="flex items-center gap-2">
+                <Truck className="w-5 h-5 text-blue-600" />
+                Logística GLS
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setActiveTab('logistica')}
+                className="text-blue-600 hover:text-blue-800"
+                data-testid="btn-ver-logistica"
+              >
+                Ver detalles →
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Recogida */}
+              {logisticaResumen.recogida?.shipment && (
+                <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-amber-800">Recogida</p>
+                    <p className="text-xs font-mono truncate">{logisticaResumen.recogida.shipment.gls_codbarras}</p>
+                    <Badge variant="outline" className="text-[10px] mt-1">{logisticaResumen.recogida.shipment.estado_interno}</Badge>
+                  </div>
+                  {logisticaResumen.recogida.shipment.tracking_url && (
+                    <a href={logisticaResumen.recogida.shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:text-amber-800">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
+              
+              {/* Envío */}
+              {logisticaResumen.envio?.shipment && (
+                <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <Send className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-emerald-800">Envío</p>
+                    <p className="text-xs font-mono truncate">{logisticaResumen.envio.shipment.gls_codbarras}</p>
+                    <Badge variant="outline" className="text-[10px] mt-1">{logisticaResumen.envio.shipment.estado_interno}</Badge>
+                  </div>
+                  {logisticaResumen.envio.shipment.tracking_url && (
+                    <a href={logisticaResumen.envio.shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
+              
+              {/* Devolución */}
+              {logisticaResumen.devolucion?.shipment && (
+                <div className="flex items-center gap-3 p-3 bg-rose-50 rounded-lg border border-rose-200">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center">
+                    <Repeat className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-rose-800">Devolución</p>
+                    <p className="text-xs font-mono truncate">{logisticaResumen.devolucion.shipment.gls_codbarras}</p>
+                    <Badge variant="outline" className="text-[10px] mt-1">{logisticaResumen.devolucion.shipment.estado_interno}</Badge>
+                  </div>
+                  {logisticaResumen.devolucion.shipment.tracking_url && (
+                    <a href={logisticaResumen.devolucion.shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:text-rose-800">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Datos de consulta manual si hay fallback */}
+            {(logisticaResumen.envio?.shipment?.tracking_source === 'fallback' || logisticaResumen.recogida?.shipment?.tracking_source === 'fallback') && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+                Puedes consultar el estado en GLS con el código de barras y CP del cliente
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

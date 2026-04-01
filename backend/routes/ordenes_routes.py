@@ -1174,16 +1174,21 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         'ri_completada',  # El técnico puede marcar RI como completada
     ]
 
-    # Campos de diagnóstico/QC exclusivos del técnico (admin/master solo lectura)
-    # EXCEPCIÓN: Admin puede marcarlos como completados al finalizar una orden
+    # Campos de diagnóstico/QC que el técnico puede modificar libremente
+    # Admin puede LEER estos campos pero NO modificarlos (excepto diagnostico_tecnico e indicaciones)
     campos_diagnostico_qc_exclusivos_tecnico = [
-        'diagnostico_tecnico',
         'notas_cierre_tecnico',
         'fecha_fin_reparacion',
         'recepcion_checklist_completo',
         'recepcion_estado_fisico_registrado',
         'recepcion_accesorios_registrados',
         'recepcion_notas',
+    ]
+    
+    # Campos que TANTO admin como técnico pueden editar
+    campos_admin_y_tecnico = [
+        'diagnostico_tecnico',       # Admin puede editar/revisar el diagnóstico
+        'indicaciones_tecnico',      # Admin da instrucciones al técnico
     ]
     
     # Campos de QC que el admin PUEDE marcar como completados al finalizar
@@ -1195,9 +1200,11 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
     
     is_admin = user.get('role') in ['admin', 'master']
     if not is_admin:
-        data = {k: v for k, v in data.items() if k in campos_tecnico_permitidos}
+        # Técnico: solo puede editar sus campos permitidos + campos compartidos
+        campos_permitidos_tecnico = campos_tecnico_permitidos + campos_admin_y_tecnico
+        data = {k: v for k, v in data.items() if k in campos_permitidos_tecnico}
     else:
-        # Admin puede marcar campos de QC como completados (pero no modificarlos a False)
+        # Admin: puede editar casi todo EXCEPTO campos exclusivos del técnico
         intentos_restringidos = [k for k in data.keys() if k in campos_diagnostico_qc_exclusivos_tecnico]
         
         # Verificar si intenta modificar campos de QC de finalización
@@ -1210,7 +1217,7 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         if intentos_restringidos:
             raise HTTPException(
                 status_code=403,
-                detail="Diagnóstico y control de calidad solo pueden ser actualizados por el técnico",
+                detail="Algunos campos de control de calidad solo pueden ser actualizados por el técnico",
             )
     
     if not data:

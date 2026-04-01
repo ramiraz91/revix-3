@@ -1602,6 +1602,15 @@ export default function OrdenDetalle() {
                     toast.error('Error al guardar diagnóstico');
                   }
                 }}
+                onGuardarIndicaciones={async (indicaciones) => {
+                  try {
+                    await ordenesAPI.actualizar(id, { indicaciones_tecnico: indicaciones });
+                    updateOrdenPartial({ indicaciones_tecnico: indicaciones });
+                    toast.success('Indicaciones guardadas');
+                  } catch (error) {
+                    toast.error('Error al guardar indicaciones');
+                  }
+                }}
                 guardandoChecklist={guardandoChecklist}
                 puedeEditarDiagnosticoQC={true}
                 puedeEditarBateria={true}

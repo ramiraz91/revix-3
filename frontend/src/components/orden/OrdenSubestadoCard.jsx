@@ -53,7 +53,7 @@ const SUBESTADO_CONFIG = {
   otro: { label: 'Otro', icon: AlertCircle, color: 'bg-gray-100 text-gray-700' },
 };
 
-export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoActual, fechaRevision, onUpdate }) {
+export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoActual, fechaRevision, onUpdate, onSubestadoChange }) {
   const [showModal, setShowModal] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,7 +106,17 @@ export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoAct
       });
       toast.success('Subestado actualizado');
       setShowModal(false);
-      if (onUpdate) onUpdate();
+      
+      // Usar callback de actualización parcial si está disponible
+      if (onSubestadoChange) {
+        onSubestadoChange({
+          subestado: formData.subestado,
+          motivo_subestado: formData.motivo,
+          fecha_revision_subestado: formData.fecha_revision || null
+        });
+      } else if (onUpdate) {
+        onUpdate();
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al cambiar subestado');
     } finally {
@@ -123,7 +133,17 @@ export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoAct
       });
       toast.success('Subestado quitado');
       setShowModal(false);
-      if (onUpdate) onUpdate();
+      
+      // Usar callback de actualización parcial si está disponible
+      if (onSubestadoChange) {
+        onSubestadoChange({
+          subestado: 'ninguno',
+          motivo_subestado: null,
+          fecha_revision_subestado: null
+        });
+      } else if (onUpdate) {
+        onUpdate();
+      }
     } catch (error) {
       toast.error('Error al quitar subestado');
     } finally {

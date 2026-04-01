@@ -189,3 +189,36 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - Mejoras de UI/UX
 - Reportes avanzados
 - Integración con más proveedores de logística
+
+---
+
+## 2026-04-01 - Optimización de Actualizaciones en OrdenDetalle
+
+### Fixed - Recargas innecesarias de página
+- **Problema**: Al añadir/editar/eliminar materiales, la página recargaba TODO (orden, cliente, repuestos, mensajes, métricas, garantías) causando lentitud extrema.
+- **Solución**: Implementado sistema de actualizaciones parciales en segundo plano.
+
+### Changed - Frontend (`OrdenDetalle.jsx`)
+- Nueva función `updateOrdenPartial(partialData)`: Actualiza solo campos específicos del estado
+- Nueva función `updateOrdenTotales(totales)`: Actualiza solo los totales financieros
+- Nueva función `updateOrdenMateriales(materiales, totales)`: Actualiza materiales y totales juntos
+- Nueva función `refreshOrdenSilent()`: Recarga silenciosa sin mostrar spinner de loading
+- `fetchOrden` ahora acepta parámetro `showLoading` para recargas silenciosas
+
+### Changed - Frontend (`TablaMaterialesEditable.jsx`)
+- Ya no llama a `onUpdate` para recargar toda la página
+- Ahora pasa `(nuevosMateriales, totales)` al callback para actualización local
+- Nueva prop `onTotalesUpdate` para solo actualizar totales
+
+### Changed - Frontend (`OrdenSubestadoCard.jsx`)
+- Nueva prop `onSubestadoChange` para actualización parcial de subestado
+- Ya no requiere recarga completa al cambiar subestado
+
+### Changed - Frontend (`GLSLogistica.jsx`)
+- Removida llamada a `onUpdate` en refresh de logística
+- El componente maneja su propio estado sin afectar al padre
+
+### Impact
+- **Antes**: ~4-6 peticiones HTTP por cada cambio de material
+- **Después**: 1 petición HTTP + actualización local inmediata
+- Experiencia de usuario mucho más fluida y ágil

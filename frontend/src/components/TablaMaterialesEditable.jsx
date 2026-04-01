@@ -39,7 +39,8 @@ const TIPOS_IVA = [
 export default function TablaMaterialesEditable({ 
   ordenId, 
   materiales: materialesIniciales = [], 
-  onUpdate, 
+  onUpdate,  // Ahora recibe (nuevosMateriales, totales) para actualización local
+  onTotalesUpdate, // Opcional: solo para actualizar totales sin recargar
   readOnly = false,
   mostrarCoste = true 
 }) {
@@ -137,9 +138,11 @@ export default function TablaMaterialesEditable({
       setEditingIndex(null);
       setEditData({});
       
-      // Solo notificar al padre si necesita actualizar los totales (silenciosamente)
-      if (response?.data?.totales) {
-        onUpdate?.(response.data.totales);
+      // Notificar al padre con los materiales actualizados y totales (actualización local, sin recarga)
+      if (onUpdate && response?.data?.totales) {
+        onUpdate(updatedMateriales, response.data.totales);
+      } else if (onTotalesUpdate && response?.data?.totales) {
+        onTotalesUpdate(response.data.totales);
       }
     } catch (error) {
       toast.error('Error al actualizar material');
@@ -161,9 +164,11 @@ export default function TablaMaterialesEditable({
       const updatedMateriales = localMateriales.filter((_, i) => i !== index);
       setLocalMateriales(updatedMateriales);
       
-      // Solo notificar al padre si necesita actualizar los totales
-      if (response?.data?.totales) {
-        onUpdate?.(response.data.totales);
+      // Notificar al padre con los materiales actualizados y totales
+      if (onUpdate && response?.data?.totales) {
+        onUpdate(updatedMateriales, response.data.totales);
+      } else if (onTotalesUpdate && response?.data?.totales) {
+        onTotalesUpdate(response.data.totales);
       }
     } catch (error) {
       toast.error('Error al eliminar material');
@@ -202,7 +207,8 @@ export default function TablaMaterialesEditable({
         descuento: parseFloat(newMaterial.descuento) || 0,
         es_personalizado: true
       };
-      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      const updatedMateriales = [...localMateriales, nuevoMaterial];
+      setLocalMateriales(updatedMateriales);
       
       setShowNewRow(false);
       setNewMaterial({
@@ -214,9 +220,11 @@ export default function TablaMaterialesEditable({
         descuento: 0
       });
       
-      // Solo notificar al padre si necesita actualizar los totales
-      if (response?.data?.totales) {
-        onUpdate?.(response.data.totales);
+      // Notificar al padre con los materiales actualizados y totales
+      if (onUpdate && response?.data?.totales) {
+        onUpdate(updatedMateriales, response.data.totales);
+      } else if (onTotalesUpdate && response?.data?.totales) {
+        onTotalesUpdate(response.data.totales);
       }
     } catch (error) {
       toast.error('Error al añadir material');

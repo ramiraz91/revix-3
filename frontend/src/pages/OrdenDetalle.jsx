@@ -202,9 +202,9 @@ export default function OrdenDetalle() {
 
 
   // ===== DATA FETCHING =====
-  const fetchOrden = async () => {
+  const fetchOrden = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [ordenRes, repuestosRes, mensajesRes, metricasRes] = await Promise.all([
         ordenesAPI.obtener(id),
         repuestosAPI.listar({ page_size: 100 }),
@@ -240,8 +240,56 @@ export default function OrdenDetalle() {
       toast.error('Error al cargar la orden');
       console.error(error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
+  };
+
+  // Actualización parcial de la orden (sin recargar toda la página)
+  // Se usa para actualizaciones en segundo plano después de editar materiales, etc.
+  const updateOrdenPartial = (partialData) => {
+    setOrden(prev => {
+      if (!prev) return prev;
+      return { ...prev, ...partialData };
+    });
+  };
+
+  // Actualiza solo los totales financieros de la orden (para materiales)
+  const updateOrdenTotales = (totales) => {
+    if (!totales) return;
+    setOrden(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        subtotal_materiales: totales.subtotal_materiales ?? prev.subtotal_materiales,
+        total_iva: totales.total_iva ?? prev.total_iva,
+        presupuesto_total: totales.presupuesto_total ?? prev.presupuesto_total,
+        coste_total: totales.coste_total ?? prev.coste_total,
+        beneficio_estimado: totales.beneficio_estimado ?? prev.beneficio_estimado,
+        base_imponible: totales.base_imponible ?? prev.base_imponible,
+      };
+    });
+  };
+
+  // Actualiza los materiales de la orden localmente
+  const updateOrdenMateriales = (nuevosMateriales, totales = null) => {
+    setOrden(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, materiales: nuevosMateriales };
+      if (totales) {
+        updated.subtotal_materiales = totales.subtotal_materiales ?? prev.subtotal_materiales;
+        updated.total_iva = totales.total_iva ?? prev.total_iva;
+        updated.presupuesto_total = totales.presupuesto_total ?? prev.presupuesto_total;
+        updated.coste_total = totales.coste_total ?? prev.coste_total;
+        updated.beneficio_estimado = totales.beneficio_estimado ?? prev.beneficio_estimado;
+        updated.base_imponible = totales.base_imponible ?? prev.base_imponible;
+      }
+      return updated;
+    });
+  };
+
+  // Refetch silencioso en segundo plano (no muestra loading)
+  const refreshOrdenSilent = () => {
+    fetchOrden(false);
   };
 
   useEffect(() => {
@@ -576,11 +624,19 @@ export default function OrdenDetalle() {
       } else {
         data.nombre = nuevoMaterialData.nombre;
       }
-      await ordenesAPI.añadirMaterial(id, data);
+      const response = await ordenesAPI.añadirMaterial(id, data);
       toast.success('Material añadido');
       setShowAddMaterialDialog(false);
       setMaterialSeleccionado(null);
-      fetchOrden();
+      
+      // Actualizar localmente en lugar de recargar toda la página
+      if (response?.data?.material && response?.data?.totales) {
+        const nuevosMateriales = [...(orden.materiales || []), response.data.material];
+        updateOrdenMateriales(nuevosMateriales, response.data.totales);
+      } else {
+        // Fallback: refetch silencioso si no hay datos en respuesta
+        refreshOrdenSilent();
+      }
     } catch (error) {
       toast.error('Error al añadir material');
     } finally {
@@ -591,14 +647,29 @@ export default function OrdenDetalle() {
   const handleConfirmEditMaterial = async () => {
     setGuardandoMaterial(true);
     try {
-      await ordenesAPI.actualizarMaterial(id, materialEditIndex, {
+      const response = await ordenesAPI.actualizarMaterial(id, materialEditIndex, {
         precio_unitario: parseFloat(editMaterialData.precio_unitario) || 0,
         coste: parseFloat(editMaterialData.coste) || 0,
         iva: parseFloat(editMaterialData.iva) || 21
       });
       toast.success('Precios actualizados');
       setShowEditMaterialDialog(false);
-      fetchOrden();
+      
+      // Actualizar localmente
+      if (response?.data?.totales) {
+        const materialesActualizados = [...(orden.materiales || [])];
+        if (materialesActualizados[materialEditIndex]) {
+          materialesActualizados[materialEditIndex] = {
+            ...materialesActualizados[materialEditIndex],
+            precio_unitario: parseFloat(editMaterialData.precio_unitario) || 0,
+            coste: parseFloat(editMaterialData.coste) || 0,
+            iva: parseFloat(editMaterialData.iva) || 21
+          };
+        }
+        updateOrdenMateriales(materialesActualizados, response.data.totales);
+      } else {
+        refreshOrdenSilent();
+      }
     } catch (error) {
       toast.error('Error al actualizar precios');
     } finally {
@@ -691,7 +762,8 @@ export default function OrdenDetalle() {
       }
       if (successCount > 0) {
         toast.success(`${successCount} evidencia${successCount > 1 ? 's' : ''} subida${successCount > 1 ? 's' : ''}`);
-        fetchOrden();
+        // Usar refetch silencioso para no bloquear la UI
+        refreshOrdenSilent();
       }
     } catch (error) {
       toast.error('Error al subir evidencias');
@@ -1550,7 +1622,7 @@ export default function OrdenDetalle() {
                 subestadoActual={orden.subestado}
                 motivoActual={orden.motivo_subestado}
                 fechaRevision={orden.fecha_revision_subestado}
-                onUpdate={fetchOrden}
+                onSubestadoChange={updateOrdenPartial}
               />
               
               {orden.notas && (
@@ -1711,7 +1783,8 @@ export default function OrdenDetalle() {
               <TablaMaterialesEditable
                 ordenId={id}
                 materiales={orden.materiales || []}
-                onUpdate={fetchOrden}
+                onUpdate={updateOrdenMateriales}
+                onTotalesUpdate={updateOrdenTotales}
                 readOnly={!isAdmin()}
                 mostrarCoste={isAdmin()}
               />
@@ -1771,9 +1844,15 @@ export default function OrdenDetalle() {
                             const valor = parseFloat(e.target.value) || 0;
                             if (valor !== (orden.mano_obra || 0)) {
                               try {
-                                await ordenesAPI.actualizarManoObra(id, valor);
+                                const response = await ordenesAPI.actualizarManoObra(id, valor);
                                 toast.success('Mano de obra actualizada');
-                                fetchOrden();
+                                // Actualizar localmente
+                                if (response?.data?.totales) {
+                                  updateOrdenPartial({ mano_obra: valor, ...response.data.totales });
+                                } else {
+                                  updateOrdenPartial({ mano_obra: valor });
+                                  refreshOrdenSilent();
+                                }
                               } catch (err) {
                                 toast.error('Error al actualizar mano de obra');
                               }
@@ -1787,9 +1866,14 @@ export default function OrdenDetalle() {
                         size="sm"
                         onClick={async () => {
                           try {
-                            await ordenesAPI.recalcularTotales(id);
+                            const response = await ordenesAPI.recalcularTotales(id);
                             toast.success('Totales recalculados');
-                            fetchOrden();
+                            // Actualizar localmente con los nuevos totales
+                            if (response?.data?.totales) {
+                              updateOrdenTotales(response.data.totales);
+                            } else {
+                              refreshOrdenSilent();
+                            }
                           } catch (err) {
                             toast.error('Error al recalcular');
                           }

@@ -266,7 +266,8 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
 
   const handleRefresh = () => {
     loadData(true); // Sincronizar al refrescar
-    if (onUpdate) onUpdate();
+    // No llamar a onUpdate aquí para evitar recarga de página completa
+    // El componente ya maneja su propio estado (logisticsData)
   };
 
   if (loading) {

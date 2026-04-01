@@ -256,3 +256,31 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - **Antes**: Cada validación de material o foto recargaba toda la orden
 - **Después**: Actualización instantánea local
 - Los técnicos pueden trabajar de forma fluida sin esperas
+
+---
+
+## 2026-04-01 - Diagnóstico Técnico Visible para Admin
+
+### Added - Vista de Diagnóstico para Administradores
+- **Problema**: Los admins no podían ver ni editar el diagnóstico técnico de las órdenes
+- **Solución**: El card "Diagnóstico Técnico y Control de Calidad" ahora es visible para Admin/Master
+
+### Changed - Frontend (`OrdenDetalle.jsx`)
+- `OrdenDiagnosticoCard` ahora se muestra para todos los roles (no solo técnicos)
+- Añadido callback `onGuardarDiagnostico` para edición por admin
+- Props `puedeEditarDiagnostico` y `esAdmin` para controlar permisos
+
+### Changed - Frontend (`OrdenDiagnosticoCard.jsx`)
+- Rediseño completo del componente con mejor organización visual
+- Badge "Vista Admin" para indicar el contexto
+- Botón "Editar" para modificar el diagnóstico técnico (solo admin)
+- Textarea editable con botones "Guardar" y "Cancelar"
+- Estados locales para edición sin recargar página
+- Mensaje de autoguardado para checkboxes
+
+### Features para Admin
+- Ver diagnóstico técnico registrado por el técnico
+- Editar/modificar el diagnóstico técnico
+- Modificar checklist de recepción y QC
+- Gestionar trazabilidad de baterías
+- Editar notas de cierre técnico

@@ -1587,17 +1587,28 @@ export default function OrdenDetalle() {
                 onGenerarEnvio={() => setShowGenerarEnvio(true)}
               />
               <OrdenInsuramaPanel orden={orden} />
-              {/* Diagnóstico y Control de Calidad - SOLO visible para técnicos */}
-              {isTecnico() && (
-                <OrdenDiagnosticoCard
-                  orden={orden}
-                  tecnicoAsignado={orden.tecnico_asignado}
-                  onGuardarChecklist={handleGuardarChecklist}
-                  guardandoChecklist={guardandoChecklist}
-                  puedeEditarDiagnosticoQC={true}
-                  puedeEditarBateria={true}
-                />
-              )}
+              
+              {/* Diagnóstico y Control de Calidad - Visible para técnicos Y admins */}
+              <OrdenDiagnosticoCard
+                orden={orden}
+                tecnicoAsignado={orden.tecnico_asignado}
+                onGuardarChecklist={handleGuardarChecklist}
+                onGuardarDiagnostico={async (diagnostico) => {
+                  try {
+                    await ordenesAPI.guardarDiagnostico(id, diagnostico);
+                    updateOrdenPartial({ diagnostico_tecnico: diagnostico });
+                    toast.success('Diagnóstico actualizado');
+                  } catch (error) {
+                    toast.error('Error al guardar diagnóstico');
+                  }
+                }}
+                guardandoChecklist={guardandoChecklist}
+                puedeEditarDiagnosticoQC={true}
+                puedeEditarBateria={true}
+                puedeEditarDiagnostico={isAdmin()}
+                esAdmin={isAdmin()}
+              />
+              
               <OrdenHistorialEstados historial={orden.historial_estados} statusConfig={statusConfig} />
             </div>
 

@@ -24,8 +24,8 @@ from modules.gls.state_mapper import map_gls_state, is_final_state, STATE_BADGES
 
 logger = logging.getLogger("gls.shipment")
 
-# URL de seguimiento pública oficial de GLS España (fallback)
-GLS_TRACKING_PUBLIC_URL = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
+# URL de seguimiento pública oficial de GLS España (canónica, sin parámetros)
+GLS_TRACKING_CANONICAL_URL = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
 
 # Tipos de envío soportados
 ShipmentType = Literal["envio", "recogida", "devolucion"]
@@ -37,12 +37,14 @@ def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", d
     
     PRIORIDAD:
     1. Buscar evento con tipo='URLPARTNER' que contenga URL válida
-    2. Si no existe, usar fallback con URL pública oficial + datos del envío
+    2. Si no existe, usar fallback con URL canónica oficial (sin parámetros)
+       + datos para consulta manual (codbarras, dest_cp)
     
     Returns: {
         "tracking_url": str,       # URL para el cliente
         "tracking_source": str,    # "urlpartner" | "fallback"
-        "urlpartner_found": bool
+        "urlpartner_found": bool,
+        "consulta_manual": dict    # Solo en fallback: datos para buscar manualmente
     }
     """
     # Buscar URLPARTNER en tracking_list
@@ -56,32 +58,31 @@ def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", d
                 return {
                     "tracking_url": evento_text.strip(),
                     "tracking_source": "urlpartner",
-                    "urlpartner_found": True
+                    "urlpartner_found": True,
+                    "consulta_manual": None
                 }
     
-    # Fallback: URL pública oficial de GLS España
-    # Mostrar datos del envío para que el cliente pueda buscar manualmente
-    fallback_url = GLS_TRACKING_PUBLIC_URL
-    if codbarras:
-        fallback_url += f"?match={codbarras}"
-    
+    # Fallback: URL canónica oficial de GLS España (sin parámetros)
+    # Los datos se muestran por separado para consulta manual
     return {
-        "tracking_url": fallback_url,
+        "tracking_url": GLS_TRACKING_CANONICAL_URL,
         "tracking_source": "fallback",
         "urlpartner_found": False,
-        "fallback_data": {
+        "consulta_manual": {
             "gls_codbarras": codbarras,
-            "dest_cp": dest_cp
+            "dest_cp": dest_cp,
+            "instrucciones": "Introduce el código de barras y código postal en la web de GLS"
         }
     }
 
 
-def build_tracking_url_fallback(codbarras: str, dest_cp: str = "") -> str:
-    """Construye URL de tracking fallback con datos del envío."""
-    url = GLS_TRACKING_PUBLIC_URL
-    if codbarras:
-        url += f"?match={codbarras}"
-    return url
+def build_tracking_fallback_data(codbarras: str, dest_cp: str = "") -> dict:
+    """Construye datos de tracking fallback con URL canónica + datos manuales."""
+    return {
+        "tracking_url": GLS_TRACKING_CANONICAL_URL,
+        "gls_codbarras": codbarras,
+        "dest_cp": dest_cp
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -369,9 +370,9 @@ async def create_shipment(
     # Obtener etiqueta inline si fue solicitada y está disponible
     label_base64 = envio_data.get("label_base64", "")
     
-    # PRIORIDAD 1: Para creación inicial, usar fallback hasta que tengamos URLPARTNER
-    # El tracking_url real se actualizará en la primera sincronización
-    initial_tracking_url = build_tracking_url_fallback(codbarras, dest_cp)
+    # PRIORIDAD 1: Para creación inicial, usar URL canónica fallback
+    # El tracking_url real (URLPARTNER) se actualizará en la primera sincronización
+    initial_tracking_data = build_tracking_fallback_data(codbarras, dest_cp)
 
     shipment = {
         "id": shipment_id,
@@ -382,9 +383,13 @@ async def create_shipment(
         "gls_codexp": envio_data.get("codexp", ""),
         "gls_uid": envio_data.get("uid", ""),
         "gls_codbarras": codbarras,
-        "tracking_url": initial_tracking_url,
+        "tracking_url": initial_tracking_data["tracking_url"],
         "tracking_source": "fallback",  # Se actualizará a "urlpartner" si existe en sync
         "urlpartner_found": False,
+        "consulta_manual": {
+            "gls_codbarras": codbarras,
+            "dest_cp": dest_cp
+        },
         "referencia_interna": data.get("referencia", ""),
         "servicio": data.get("servicio", ""),
         "horario": data.get("horario", ""),
@@ -460,7 +465,7 @@ async def create_shipment(
             "id": shipment_id,
             "tipo": tipo,
             "codbarras": codbarras,
-            "tracking_url": initial_tracking_url,
+            "tracking_url": initial_tracking_data["tracking_url"],
             "estado_gls": "grabado",
             "created_at": now,
             "created_by": user_email,
@@ -688,6 +693,7 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
             "tracking_url": tracking_info["tracking_url"],
             "tracking_source": tracking_info["tracking_source"],
             "urlpartner_found": tracking_info["urlpartner_found"],
+            "consulta_manual": tracking_info.get("consulta_manual"),
         }
         
         # Actualizar identificadores si los obtuvimos de la respuesta
@@ -1037,24 +1043,39 @@ async def _notify_client_shipment_created(db, shipment: dict, config: dict):
         if not email:
             return
         
-        tracking_url = shipment.get("tracking_url", "")
+        tracking_url = shipment.get("tracking_url", GLS_TRACKING_CANONICAL_URL)
         codbarras = shipment.get("gls_codbarras", "")
-        dest_cp = shipment.get("destinatario", {}).get("cp", "")
-        tracking_source = shipment.get("tracking_source", "fallback")
+        dest_cp = shipment.get("destinatario", {}).get("cp", "") or shipment.get("consulta_manual", {}).get("dest_cp", "")
+        urlpartner_found = shipment.get("urlpartner_found", False)
         
-        # Si es fallback, incluir instrucciones adicionales
-        tracking_note = ""
-        if tracking_source == "fallback" and dest_cp:
-            tracking_note = f"<p><small>Si el enlace no funciona, introduce tu código {codbarras} y código postal {dest_cp} en la web de GLS.</small></p>"
+        # Siempre mostrar los datos de consulta manual (codbarras + CP)
+        # para que el cliente pueda buscar manualmente si es necesario
+        datos_consulta = f"""
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <p style="margin: 0 0 10px 0;"><strong>Datos para seguimiento:</strong></p>
+            <p style="margin: 5px 0;"><strong>Código de barras:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">{codbarras}</code></p>
+            {f'<p style="margin: 5px 0;"><strong>Código postal:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">{dest_cp}</code></p>' if dest_cp else ''}
+        </div>
+        """
+        
+        # Si NO es URLPARTNER, indicar que puede buscar manualmente
+        if not urlpartner_found:
+            tracking_note = """
+            <p style="font-size: 13px; color: #666;">
+                Puedes consultar el estado de tu envío en la web oficial de GLS España 
+                introduciendo tu código de barras y código postal.
+            </p>
+            """
+        else:
+            tracking_note = ""
         
         subject = f"Tu {tipo_label} GLS ha sido generado - {codbarras}"
         html_content = f"""
         <h2>Tu {tipo_label} ha sido generado</h2>
         <p>Hola {shipment.get('destinatario', {}).get('nombre', '')},</p>
         <p>Te informamos que tu {tipo_label} con GLS ha sido creado correctamente.</p>
-        <p><strong>Código de seguimiento:</strong> {codbarras}</p>
-        {f'<p><strong>Código postal destino:</strong> {dest_cp}</p>' if dest_cp else ''}
-        <p><a href="{tracking_url}" style="background-color: #FFA500; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Seguir envío</a></p>
+        {datos_consulta}
+        <p><a href="{tracking_url}" style="background-color: #FFA500; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Seguir envío en GLS</a></p>
         {tracking_note}
         <p>Saludos,<br>{config.get('remitente_nombre', 'El equipo')}</p>
         """
@@ -1092,15 +1113,24 @@ async def _notify_client_status_change(db, shipment: dict, old_state: str, new_s
         badge = STATE_BADGES.get(new_state, {})
         state_label = badge.get("label", new_state)
         codbarras = shipment.get("gls_codbarras", "")
-        tracking_url = shipment.get("tracking_url", "")
+        dest_cp = shipment.get("destinatario", {}).get("cp", "") or shipment.get("consulta_manual", {}).get("dest_cp", "")
+        tracking_url = shipment.get("tracking_url", GLS_TRACKING_CANONICAL_URL)
+        
+        # Siempre mostrar datos de consulta manual
+        datos_consulta = f"""
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <p style="margin: 5px 0;"><strong>Código de barras:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">{codbarras}</code></p>
+            {f'<p style="margin: 5px 0;"><strong>Código postal:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">{dest_cp}</code></p>' if dest_cp else ''}
+        </div>
+        """
         
         subject = f"Actualización de tu envío GLS - {state_label}"
         html_content = f"""
         <h2>Tu envío tiene un nuevo estado</h2>
         <p>Hola {shipment.get('destinatario', {}).get('nombre', '')},</p>
         <p>El estado de tu envío ha cambiado a: <strong>{state_label}</strong></p>
-        <p><strong>Código de seguimiento:</strong> {codbarras}</p>
-        <p><a href="{tracking_url}" style="background-color: #FFA500; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver detalles</a></p>
+        {datos_consulta}
+        <p><a href="{tracking_url}" style="background-color: #FFA500; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Ver detalles en GLS</a></p>
         <p>Saludos,<br>{config.get('remitente_nombre', 'El equipo')}</p>
         """
         

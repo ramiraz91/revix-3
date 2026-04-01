@@ -3272,6 +3272,8 @@ class LogisticsCreateRequest(BaseModel):
     bultos: int = 1
     peso: float = 1.0
     referencia: str = ""
+    skip_duplicate_check: bool = False
+    notify_client: bool = False
 
 
 PICKUP_VALID_STATES = {"pendiente_recibir", "recibida", "cuarentena", "en_taller"}
@@ -3280,55 +3282,13 @@ DELIVERY_VALID_STATES = {"reparado", "validacion", "enviado"}
 
 @router.get("/ordenes/{orden_id}/logistics")
 async def get_orden_logistics(orden_id: str, user: dict = Depends(require_auth)):
-    """Obtiene toda la información logística de una orden: recogidas y envíos."""
+    """Obtiene toda la información logística de una orden: recogidas, envíos y devoluciones."""
     orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0, "id": 1})
     if not orden:
         raise HTTPException(404, "Orden no encontrada")
 
-    # Get all shipments for this order
-    cursor = db.gls_shipments.find(
-        {"entidad_id": orden_id},
-        {"_id": 0, "raw_request": 0, "raw_response": 0}
-    ).sort("created_at", -1)
-    all_shipments = await cursor.to_list(50)
-
-    recogidas = [s for s in all_shipments if s.get("tipo") == "recogida"]
-    envios = [s for s in all_shipments if s.get("tipo") in ("envio", "recogida_cruzada")]
-
-    # Get latest active shipment of each type
-    recogida_activa = next((s for s in recogidas if not s.get("es_final") or s.get("estado_interno") == "entregado"), recogidas[0] if recogidas else None)
-    envio_activo = next((s for s in envios if not s.get("es_final") or s.get("estado_interno") == "entregado"), envios[0] if envios else None)
-
-    # Get tracking events for active shipments
-    recogida_eventos = []
-    envio_eventos = []
-    if recogida_activa:
-        recogida_eventos = await db.gls_tracking_events.find(
-            {"shipment_id": recogida_activa["id"]}, {"_id": 0}
-        ).sort("fecha_evento", -1).to_list(50)
-    if envio_activo:
-        envio_eventos = await db.gls_tracking_events.find(
-            {"shipment_id": envio_activo["id"]}, {"_id": 0}
-        ).sort("fecha_evento", -1).to_list(50)
-
-    # Check GLS config status
-    config = await db.configuracion.find_one({"tipo": "gls_config"}, {"_id": 0})
-    gls_activo = config.get("datos", {}).get("activo", False) if config else False
-
-    return {
-        "gls_activo": gls_activo,
-        "recogida": {
-            "shipment": recogida_activa,
-            "eventos": recogida_eventos,
-            "total": len(recogidas),
-        },
-        "envio": {
-            "shipment": envio_activo,
-            "eventos": envio_eventos,
-            "total": len(envios),
-        },
-        "all_shipments": all_shipments,
-    }
+    from modules.gls import shipment_service
+    return await shipment_service.get_orden_logistics(db, orden_id)
 
 
 @router.post("/ordenes/{orden_id}/logistics/pickup")
@@ -3355,6 +3315,12 @@ async def crear_recogida_logistica(orden_id: str, data: LogisticsCreateRequest, 
 
     from modules.gls import shipment_service
 
+    # Check for duplicates unless forced
+    if not data.skip_duplicate_check:
+        existing = await shipment_service.check_duplicate_shipment(db, orden_id, "recogida")
+        if existing:
+            raise HTTPException(409, f"Ya existe una recogida activa para esta orden (código: {existing.get('gls_codbarras', 'N/A')}). Anúlala primero o usa skip_duplicate_check=true.")
+
     # Build shipment data
     shipment_data = {
         "orden_id": orden_id,
@@ -3374,7 +3340,11 @@ async def crear_recogida_logistica(orden_id: str, data: LogisticsCreateRequest, 
         "referencia": data.referencia or orden.get("numero_orden", "")[:20],
     }
 
-    result = await shipment_service.create_shipment(db, shipment_data, user.get("email", ""))
+    result = await shipment_service.create_shipment(
+        db, shipment_data, user.get("email", ""),
+        skip_duplicate_check=True,  # Already checked above
+        notify_client=data.notify_client if hasattr(data, 'notify_client') else False
+    )
 
     if not result["success"]:
         raise HTTPException(400, result.get("error", "Error al crear recogida GLS"))
@@ -3419,6 +3389,12 @@ async def crear_envio_logistica(orden_id: str, data: LogisticsCreateRequest, use
 
     from modules.gls import shipment_service
 
+    # Check for duplicates unless forced
+    if not data.skip_duplicate_check:
+        existing = await shipment_service.check_duplicate_shipment(db, orden_id, "envio")
+        if existing:
+            raise HTTPException(409, f"Ya existe un envío activo para esta orden (código: {existing.get('gls_codbarras', 'N/A')}). Anúlalo primero o usa skip_duplicate_check=true.")
+
     # Build shipment data
     shipment_data = {
         "orden_id": orden_id,
@@ -3438,7 +3414,11 @@ async def crear_envio_logistica(orden_id: str, data: LogisticsCreateRequest, use
         "referencia": data.referencia or orden.get("numero_orden", "")[:20],
     }
 
-    result = await shipment_service.create_shipment(db, shipment_data, user.get("email", ""))
+    result = await shipment_service.create_shipment(
+        db, shipment_data, user.get("email", ""),
+        skip_duplicate_check=True,  # Already checked above
+        notify_client=data.notify_client if hasattr(data, 'notify_client') else False
+    )
 
     if not result["success"]:
         raise HTTPException(400, result.get("error", "Error al crear envío GLS"))
@@ -3517,3 +3497,115 @@ async def descargar_etiqueta_logistica(orden_id: str, shipment_id: str, user: di
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="etiqueta_gls_{shipment_id[:8]}.pdf"'}
     )
+
+
+
+DEVOLUCION_VALID_STATES = {"enviado", "entregado", "incidencia", "reparado"}
+
+
+@router.post("/ordenes/{orden_id}/logistics/return")
+async def crear_devolucion_logistica(orden_id: str, data: LogisticsCreateRequest, user: dict = Depends(require_auth)):
+    """Genera una devolución GLS para la orden. El cliente envía de vuelta al taller."""
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden generar devoluciones")
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+
+    # Validate order state
+    estado = orden.get("estado", "")
+    if estado not in DEVOLUCION_VALID_STATES and user.get("role") != "master":
+        raise HTTPException(400, f"No se puede crear devolución en estado '{estado}'. Estados válidos: {', '.join(DEVOLUCION_VALID_STATES)}")
+
+    # Validate address data
+    if not data.dest_nombre or not data.dest_direccion or not data.dest_cp:
+        raise HTTPException(400, "Datos de dirección incompletos: nombre, dirección y CP son obligatorios")
+
+    if not data.dest_telefono:
+        raise HTTPException(400, "El teléfono es obligatorio para el transportista")
+
+    from modules.gls import shipment_service
+
+    # Check for duplicates unless forced
+    if not data.skip_duplicate_check:
+        existing = await shipment_service.check_duplicate_shipment(db, orden_id, "devolucion")
+        if existing:
+            raise HTTPException(409, f"Ya existe una devolución activa para esta orden (código: {existing.get('gls_codbarras', 'N/A')}). Anúlala primero o usa skip_duplicate_check=true.")
+
+    # Build shipment data - for devolucion, dest is the CLIENT (from where we pickup return)
+    shipment_data = {
+        "orden_id": orden_id,
+        "entidad_tipo": "orden",
+        "tipo": "devolucion",  # Will be handled specially in shipment_service
+        "cliente_id": orden.get("cliente_id", ""),
+        "dest_nombre": data.dest_nombre,
+        "dest_direccion": data.dest_direccion,
+        "dest_poblacion": data.dest_poblacion,
+        "dest_cp": data.dest_cp,
+        "dest_provincia": data.dest_provincia,
+        "dest_telefono": data.dest_telefono,
+        "dest_email": data.dest_email,
+        "dest_observaciones": data.dest_observaciones or "DEVOLUCIÓN",
+        "bultos": data.bultos,
+        "peso": data.peso,
+        "referencia": data.referencia or f"DEV-{orden.get('numero_orden', '')[:15]}",
+    }
+
+    result = await shipment_service.create_shipment(
+        db, shipment_data, user.get("email", ""),
+        skip_duplicate_check=True,
+        notify_client=data.notify_client
+    )
+
+    if not result["success"]:
+        raise HTTPException(400, result.get("error", "Error al crear devolución GLS"))
+
+    shipment = result.get("shipment", {})
+    codbarras = shipment.get("gls_codbarras", "")
+
+    # Register event in order timeline
+    await _registrar_evento_logistica(
+        orden_id, "devolucion_creada",
+        f"Devolución GLS creada - Código: {codbarras}",
+        user.get("email", "Sistema")
+    )
+
+    # Send email notification (async, don't block)
+    asyncio.create_task(_enviar_email_logistica(orden_id, "devolucion", codbarras))
+
+    return {"success": True, "shipment": shipment}
+
+
+@router.delete("/ordenes/{orden_id}/logistics/{shipment_id}")
+async def anular_envio_logistica(
+    orden_id: str, 
+    shipment_id: str, 
+    motivo: str = "", 
+    user: dict = Depends(require_auth)
+):
+    """Anula un envío específico de esta orden."""
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden anular envíos")
+
+    shipment = await db.gls_shipments.find_one(
+        {"id": shipment_id, "entidad_id": orden_id},
+        {"_id": 0, "id": 1, "tipo": 1, "gls_codbarras": 1}
+    )
+    if not shipment:
+        raise HTTPException(404, "Envío no encontrado para esta orden")
+
+    from modules.gls import shipment_service
+    result = await shipment_service.cancel_shipment(db, shipment_id, user.get("email", ""), motivo)
+
+    if not result["success"]:
+        raise HTTPException(400, result.get("error"))
+
+    tipo_label = {"envio": "Envío", "recogida": "Recogida", "devolucion": "Devolución"}.get(shipment.get("tipo"), "Envío")
+    await _registrar_evento_logistica(
+        orden_id, "envio_anulado",
+        f"{tipo_label} GLS anulado - Código: {shipment.get('gls_codbarras', 'N/A')}" + (f" - Motivo: {motivo}" if motivo else ""),
+        user.get("email", "Sistema")
+    )
+
+    return {"success": True, "message": "Envío anulado"}

@@ -52,6 +52,43 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 # CHANGELOG
 
+## 2026-04-01
+### Added
+- **Módulo Logístico GLS Completo** - Refactorizado como sistema desacoplado y auditable:
+  - **Tipos de envío**: Recogida, Envío, Devolución
+  - **Prevención de duplicados**: Validación antes de crear nuevo envío del mismo tipo
+  - **Almacenamiento de etiquetas**: Las etiquetas se guardan en BD para reimpresión sin llamar a GLS
+  - **Notificaciones al cliente**: Emails automáticos al crear envío o cambiar estado
+  - **Trazabilidad completa**: Historial de logística integrado en la orden (`historial_logistica`)
+  - **Timeline de eventos**: Todos los eventos de tracking guardados en `gls_tracking_events`
+  - **Auditoría**: Logs detallados de cada operación en `gls_logs`
+
+### Changed
+- **Backend** (`/app/backend/modules/gls/`):
+  - `shipment_service.py`: Reescrito con validaciones, cache de etiquetas, notificaciones
+  - `routes.py`: Endpoints completos para CRUD, tracking, sync, maestros
+- **Frontend** (`GLSLogistica.jsx`):
+  - Ahora muestra 3 bloques: Recogida, Envío, Devolución
+  - Botón para crear devolución
+  - Títulos dinámicos según tipo
+- **API de órdenes** (`ordenes_routes.py`):
+  - Nuevo endpoint `POST /ordenes/{id}/logistics/return` para devoluciones
+  - Nuevo endpoint `DELETE /ordenes/{id}/logistics/{shipment_id}` para anular
+  - Validación de duplicados en pickup y delivery
+
+### API Endpoints GLS
+- `GET /api/gls/status` - Estado de la integración
+- `GET /api/gls/envios` - Listar envíos con filtros
+- `POST /api/gls/envios` - Crear envío
+- `GET /api/gls/envios/{id}` - Detalle de envío
+- `DELETE /api/gls/envios/{id}` - Anular envío
+- `GET /api/gls/check-duplicate/{orden_id}/{tipo}` - Verificar duplicados
+- `GET /api/gls/etiqueta/{id}` - Descargar etiqueta (con cache)
+- `GET /api/gls/tracking/{id}` - Consultar tracking
+- `POST /api/gls/sync` - Sincronizar todos los envíos activos
+- `GET /api/gls/maestros` - Datos de referencia (servicios, estados)
+- `GET /api/gls/orden/{orden_id}` - Logística completa de una orden
+
 ## 2026-03-27
 ### Fixed
 - **P0: GLS Persistencia verificada** - Los envíos SÍ se guardan correctamente en BD
@@ -114,6 +151,7 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 ## P0 (Crítico)
 - [x] Optimización endpoints dashboard
 - [x] GLS persistencia en BD (verificado funcionando)
+- [x] Módulo logístico GLS completo (recogidas, envíos, devoluciones, tracking, etiquetas, auditoría)
 
 ## P1 (Alta Prioridad)
 - [ ] Error al importar presupuesto de Insurama ("las guarda pero aparece error")

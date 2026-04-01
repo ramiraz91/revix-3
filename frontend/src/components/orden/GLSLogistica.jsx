@@ -34,15 +34,19 @@ const STATE_LABELS = {
 
 const PICKUP_VALID_STATES = ['pendiente_recibir', 'recibida', 'cuarentena', 'en_taller'];
 const DELIVERY_VALID_STATES = ['reparado', 'validacion', 'enviado'];
+const DEVOLUCION_VALID_STATES = ['enviado', 'entregado', 'incidencia', 'reparado'];
 
-function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, userRole, onRefresh }) {
+function ShipmentBlock({ tipo, shipment, eventos, total, historial, ordenId, ordenEstado, userRole, onRefresh }) {
   const [syncing, setSyncing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
+  
   const isRecogida = tipo === 'recogida';
-  const icon = isRecogida ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />;
-  const color = isRecogida ? 'amber' : 'emerald';
-  const label = isRecogida ? 'Recogida' : 'Envio';
-  const validStates = isRecogida ? PICKUP_VALID_STATES : DELIVERY_VALID_STATES;
+  const isDevolucion = tipo === 'devolucion';
+  const icon = isRecogida ? <ArrowDown className="w-4 h-4" /> : isDevolucion ? <RotateCw className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />;
+  const color = isRecogida ? 'amber' : isDevolucion ? 'rose' : 'emerald';
+  const label = isRecogida ? 'Recogida' : isDevolucion ? 'Devolución' : 'Envío';
+  const validStates = isRecogida ? PICKUP_VALID_STATES : isDevolucion ? DEVOLUCION_VALID_STATES : DELIVERY_VALID_STATES;
   const canCreate = validStates.includes(ordenEstado) || userRole === 'master';
   const isAdmin = userRole === 'admin' || userRole === 'master';
 
@@ -81,6 +85,7 @@ function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, u
   const estadoInterno = shipment?.estado_interno || '';
   const stateColor = STATE_COLORS[estadoInterno] || 'bg-gray-100 text-gray-600';
   const stateLabel = STATE_LABELS[estadoInterno] || estadoInterno.replace(/_/g, ' ');
+  const blockTitle = isRecogida ? 'Recogida' : isDevolucion ? 'Devolución' : 'Envío';
 
   return (
     <Card className={`border-${color}-200`} data-testid={`logistics-block-${tipo}`}>
@@ -90,7 +95,7 @@ function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, u
             <div className={`p-1.5 rounded-md bg-${color}-100`}>
               {icon}
             </div>
-            {isRecogida ? 'Recogida' : 'Envio'}
+            {blockTitle}
             {total > 1 && <Badge variant="outline" className="text-xs ml-1">{total} total</Badge>}
           </div>
           {shipment && (
@@ -131,12 +136,16 @@ function ShipmentBlock({ tipo, shipment, eventos, total, ordenId, ordenEstado, u
           <div className="text-center py-6" data-testid={`logistics-empty-${tipo}`}>
             <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">
-              {isRecogida ? 'No hay recogida generada' : 'No hay envio generado'}
+              No hay {blockTitle.toLowerCase()} generada
             </p>
             {!canCreate && isAdmin && (
               <p className="text-xs text-muted-foreground mt-1">
                 Estado actual: <strong>{ordenEstado}</strong>.
-                {isRecogida ? ' Disponible en: pendiente_recibir, recibida, cuarentena, en_taller' : ' Disponible en: reparado, validacion, enviado'}
+                {isRecogida 
+                  ? ' Disponible en: pendiente_recibir, recibida, cuarentena, en_taller' 
+                  : isDevolucion
+                    ? ' Disponible en: enviado, entregado, incidencia, reparado'
+                    : ' Disponible en: reparado, validacion, enviado'}
               </p>
             )}
           </div>
@@ -287,9 +296,11 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
 
   const canCreatePickup = isAdmin && (PICKUP_VALID_STATES.includes(estado) || role === 'master');
   const canCreateDelivery = isAdmin && (DELIVERY_VALID_STATES.includes(estado) || role === 'master');
+  const canCreateDevolucion = isAdmin && (DEVOLUCION_VALID_STATES.includes(estado) || role === 'master');
 
   const hasPickup = !!logisticsData?.recogida?.shipment;
   const hasDelivery = !!logisticsData?.envio?.shipment;
+  const hasDevolucion = !!logisticsData?.devolucion?.shipment;
 
   return (
     <div className="space-y-4" data-testid="gls-logistica-panel">
@@ -312,18 +323,28 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
             data-testid="btn-crear-envio"
           >
             <ArrowUp className="w-4 h-4 mr-1 text-emerald-600" />
-            {hasDelivery ? 'Nuevo Envio' : 'Generar Envio'}
+            {hasDelivery ? 'Nuevo Envío' : 'Generar Envío'}
+          </Button>
+          <Button
+            onClick={() => setShowCrear('devolucion')}
+            variant="outline" size="sm"
+            disabled={!canCreateDevolucion}
+            data-testid="btn-crear-devolucion"
+          >
+            <RotateCw className="w-4 h-4 mr-1 text-rose-600" />
+            {hasDevolucion ? 'Nueva Devolución' : 'Generar Devolución'}
           </Button>
         </div>
       )}
 
-      {/* Two blocks: Recogida and Envio */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Three blocks: Recogida, Envio, Devolucion */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <ShipmentBlock
           tipo="recogida"
           shipment={logisticsData?.recogida?.shipment}
           eventos={logisticsData?.recogida?.eventos}
           total={logisticsData?.recogida?.total || 0}
+          historial={logisticsData?.recogida?.historial || []}
           ordenId={orden?.id}
           ordenEstado={estado}
           userRole={role}
@@ -334,6 +355,18 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
           shipment={logisticsData?.envio?.shipment}
           eventos={logisticsData?.envio?.eventos}
           total={logisticsData?.envio?.total || 0}
+          historial={logisticsData?.envio?.historial || []}
+          ordenId={orden?.id}
+          ordenEstado={estado}
+          userRole={role}
+          onRefresh={handleRefresh}
+        />
+        <ShipmentBlock
+          tipo="devolucion"
+          shipment={logisticsData?.devolucion?.shipment}
+          eventos={logisticsData?.devolucion?.eventos}
+          total={logisticsData?.devolucion?.total || 0}
+          historial={logisticsData?.devolucion?.historial || []}
           ordenId={orden?.id}
           ordenEstado={estado}
           userRole={role}
@@ -342,12 +375,13 @@ export default function GLSLogistica({ orden, onUpdate, userRole }) {
       </div>
 
       {/* Info note */}
-      {!hasPickup && !hasDelivery && (
+      {!hasPickup && !hasDelivery && !hasDevolucion && (
         <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <p>
-            Usa los botones de arriba para generar recogida o envio via GLS.
-            La recogida esta disponible en estados iniciales y el envio en estados finales de la reparacion.
+            Usa los botones de arriba para generar recogida, envío o devolución vía GLS.
+            La recogida está disponible en estados iniciales, el envío en estados finales de la reparación,
+            y la devolución cuando sea necesario retornar un equipo.
           </p>
         </div>
       )}
@@ -400,25 +434,29 @@ function CrearEnvioGLSModal({ tipo, orden, onClose, onCreated }) {
 
   const handleCrear = async () => {
     if (!form.dest_nombre || !form.dest_direccion || !form.dest_cp) {
-      toast.error('Nombre, direccion y CP son obligatorios');
+      toast.error('Nombre, dirección y CP son obligatorios');
       return;
     }
     if (!form.dest_telefono) {
-      toast.error('El telefono es obligatorio para el transportista');
+      toast.error('El teléfono es obligatorio para el transportista');
       return;
     }
     setLoading(true);
     try {
-      const endpoint = tipo === 'recogida'
-        ? `/ordenes/${orden.id}/logistics/pickup`
-        : `/ordenes/${orden.id}/logistics/delivery`;
+      const endpoints = {
+        recogida: `/ordenes/${orden.id}/logistics/pickup`,
+        envio: `/ordenes/${orden.id}/logistics/delivery`,
+        devolucion: `/ordenes/${orden.id}/logistics/return`,
+      };
+      const endpoint = endpoints[tipo];
       const payload = {
         ...form,
         bultos: parseInt(form.bultos) || 1,
         peso: parseFloat(form.peso) || 1,
       };
       await api.post(endpoint, payload);
-      toast.success(`${tipo === 'recogida' ? 'Recogida' : 'Envio'} GLS creado correctamente`);
+      const labels = { recogida: 'Recogida', envio: 'Envío', devolucion: 'Devolución' };
+      toast.success(`${labels[tipo]} GLS creado correctamente`);
       onClose();
       onCreated();
     } catch (err) {
@@ -429,15 +467,20 @@ function CrearEnvioGLSModal({ tipo, orden, onClose, onCreated }) {
   };
 
   const isRecogida = tipo === 'recogida';
+  const isDevolucion = tipo === 'devolucion';
+  const tipoLabel = isRecogida ? 'Recogida' : isDevolucion ? 'Devolución' : 'Envío';
+  const tipoIcon = isRecogida ? <ArrowDown className="w-5 h-5 text-amber-600" /> 
+    : isDevolucion ? <RotateCw className="w-5 h-5 text-rose-600" /> 
+    : <ArrowUp className="w-5 h-5 text-emerald-600" />;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} data-testid="gls-crear-modal">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-4">
-            {isRecogida ? <ArrowDown className="w-5 h-5 text-amber-600" /> : <ArrowUp className="w-5 h-5 text-emerald-600" />}
+            {tipoIcon}
             <h3 className="text-lg font-semibold">
-              {isRecogida ? 'Generar Recogida GLS' : 'Generar Envio GLS'}
+              Generar {tipoLabel} GLS
             </h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">

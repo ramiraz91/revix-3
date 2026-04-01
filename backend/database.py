@@ -1,9 +1,9 @@
 """
 database.py — Configuración de conexión MongoDB
 
-Configuración flexible para soportar:
-- Emergent Kubernetes deployment (usa variables de entorno del cluster)
-- Desarrollo local (usa .env)
+Configuración con fallback de seguridad a la BD privada del cliente.
+- Primero intenta usar variables de entorno (para Kubernetes/Emergent)
+- Si no existen, usa la BD privada de Revix como fallback
 """
 
 import os
@@ -21,22 +21,27 @@ load_dotenv(override=False)
 logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DE BASE DE DATOS
+# CONFIGURACIÓN DE BASE DE DATOS CON FALLBACK DE SEGURIDAD
 # ══════════════════════════════════════════════════════════════════════════════
-# Las variables de entorno son proporcionadas por:
-# - Kubernetes (deployment): MONGO_URL, DB_NAME definidas en el cluster
-# - Desarrollo local: archivo .env
+# Prioridad:
+# 1. Variables de entorno (MONGO_URL, DB_NAME) - para Kubernetes/Emergent
+# 2. Fallback: BD privada de Revix en MongoDB Atlas
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Obtener configuración desde variables de entorno
-MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL")
-DB_NAME = os.getenv("DB_NAME", "production")
+# Fallback de seguridad - BD privada de Revix
+_FALLBACK_MONGO_URL = "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
+_FALLBACK_DB_NAME = "production"
 
-# Validación: Asegurar que MONGO_URL esté configurada
-if not MONGO_URL:
-    logger.critical("⛔ ERROR CRÍTICO: MONGO_URL no está configurada")
-    logger.critical("⛔ Configure MONGO_URL en las variables de entorno o en el archivo .env")
-    raise ValueError("MONGO_URL environment variable is required")
+# Usar variable de entorno SI existe, sino usar el fallback
+MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL") or _FALLBACK_MONGO_URL
+DB_NAME = os.getenv("DB_NAME") or _FALLBACK_DB_NAME
+
+# Log de la conexión (sin exponer credenciales)
+_using_fallback = (MONGO_URL == _FALLBACK_MONGO_URL)
+if _using_fallback:
+    logger.info("📦 Usando BD de fallback (Revix Atlas privado)")
+else:
+    logger.info("📦 Usando BD desde variables de entorno")
 
 # ── Clientes ──────────────────────────────────────────────────────────────────
 

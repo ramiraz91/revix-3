@@ -94,7 +94,12 @@ frontend/node_modules/.cache/default-development/10.pack
 frontend/node_modules/.cache/default-development/14.pack
 frontend/node_modules/.cache/default-development/13.pack
 
-# Environment files - NOTA: backend/.env y frontend/.env SÍ se trackean para deploy
+# Environment files
+*.env
+*.env.*
+.env.local
+.env.development
+.env.production
 frontend/node_modules/.cache/default-development/15.pack
 frontend/node_modules/.cache/default-development/16.pack
 frontend/node_modules/.cache/default-development/18.pack

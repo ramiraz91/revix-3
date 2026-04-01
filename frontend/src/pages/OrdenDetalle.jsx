@@ -138,6 +138,7 @@ export default function OrdenDetalle() {
   // Form data states
   const [linkSeguimiento, setLinkSeguimiento] = useState(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
+  const [mensajeCambioEstado, setMensajeCambioEstado] = useState('');  // Mensaje obligatorio para cambio de estado
   const [codigoEnvio, setCodigoEnvio] = useState('');
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [mensajeVisibleTecnico, setMensajeVisibleTecnico] = useState(true);
@@ -450,6 +451,13 @@ export default function OrdenDetalle() {
 
   const handleCambiarEstado = async (forzar = false) => {
     if (!nuevoEstado) return;
+    
+    // OBLIGATORIO: Mensaje para el cambio de estado
+    if (!mensajeCambioEstado || !mensajeCambioEstado.trim()) {
+      toast.error('Debes indicar un motivo para el cambio de estado');
+      return;
+    }
+    
     if (nuevoEstado === 'enviado' && !codigoEnvio) {
       toast.error('Introduce el código de envío');
       return;
@@ -458,6 +466,7 @@ export default function OrdenDetalle() {
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: nuevoEstado,
         codigo_envio: codigoEnvio || undefined,
+        mensaje: mensajeCambioEstado.trim(),
         usuario: 'admin',
         forzar_sin_validacion: forzar
       });
@@ -465,6 +474,7 @@ export default function OrdenDetalle() {
       setShowCambioEstado(false);
       setNuevoEstado('');
       setCodigoEnvio('');
+      setMensajeCambioEstado('');
       fetchOrden();
     } catch (error) {
       const detail = error.response?.data?.detail || 'Error al cambiar estado';
@@ -518,12 +528,18 @@ export default function OrdenDetalle() {
   };
 
   const handleMarcarIrreparable = async () => {
+    const motivo = window.prompt('¿Por qué es irreparable? (motivo obligatorio)');
+    if (!motivo || !motivo.trim()) {
+      toast.error('Debes indicar un motivo');
+      return;
+    }
     if (!window.confirm('¿Estás seguro de marcar esta orden como "Irreparable"? Esta acción indica que el dispositivo no se puede reparar.')) {
       return;
     }
     try {
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: 'irreparable',
+        mensaje: motivo.trim(),
         usuario: 'admin'
       });
       toast.success('Orden marcada como irreparable');
@@ -1994,6 +2010,8 @@ export default function OrdenDetalle() {
         setNuevoEstado={setNuevoEstado}
         codigoEnvio={codigoEnvio}
         setCodigoEnvio={setCodigoEnvio}
+        mensajeCambio={mensajeCambioEstado}
+        setMensajeCambio={setMensajeCambioEstado}
         onCambiarEstado={handleCambiarEstado}
         isTecnico={isTecnico()}
         isMaster={isMaster()}

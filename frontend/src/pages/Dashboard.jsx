@@ -123,12 +123,46 @@ export default function Dashboard() {
 
   // Scanner functions
   // Regla: primera vez (pendiente_recibir) → marcar recibido; el resto → buscar y abrir
+  // NUEVO: Detecta códigos de barras GLS y los procesa automáticamente
   const handleScannerSubmit = async (e) => {
     e.preventDefault();
     if (!scannerValue.trim()) return;
     
     setProcessing(true);
     try {
+      // Detectar si es código de barras GLS (numérico de 10-20 dígitos)
+      const esCodigoGLS = /^\d{10,20}$/.test(scannerValue.trim());
+      
+      if (esCodigoGLS && !isTecnico()) {
+        // Usar endpoint específico de escaneo GLS (sin prefijo /ordenes)
+        try {
+          const response = await api.post('/scan-gls', {
+            codigo_barras: scannerValue.trim(),
+            usuario_email: 'admin',
+            mensaje: 'Paquete recibido vía escaneo de código de barras GLS'
+          });
+          
+          if (response.data.success) {
+            toast.success(response.data.message);
+            navigate(`/crm/ordenes/${response.data.orden_id}`);
+            return;
+          } else {
+            // La orden existe pero no se puede marcar como recibida
+            toast.info(response.data.message);
+            navigate(`/crm/ordenes/${response.data.orden_id}`);
+            return;
+          }
+        } catch (glsError) {
+          // Si 404, continuar con búsqueda normal (puede ser otro tipo de código)
+          if (glsError.response?.status !== 404) {
+            const detail = glsError.response?.data?.detail;
+            toast.error(typeof detail === 'string' ? detail : 'Error al procesar código GLS');
+            return;
+          }
+        }
+      }
+      
+      // Búsqueda normal por número de orden u otros campos
       const ordenes = await ordenesAPI.listarPaginado({ search: scannerValue.trim(), page_size: 1 });
       
       if (!ordenes.data.data || ordenes.data.data.length === 0) {

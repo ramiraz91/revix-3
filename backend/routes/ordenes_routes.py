@@ -489,6 +489,7 @@ class EnvioAuthUpdate(BaseModel):
 class CambioEstadoRequest(BaseModel):
     nuevo_estado: OrderStatus
     usuario: str = "admin"
+    mensaje: str  # OBLIGATORIO - Motivo del cambio de estado
     codigo_envio: Optional[str] = None
     forzar_sin_validacion: Optional[bool] = False  # Solo admin puede forzar
 
@@ -897,12 +898,16 @@ async def listar_ordenes_v2(
         else:
             return {"data": [], "total": 0, "page": page, "page_size": page_size, "pages": 0}
     if search:
+        # Buscar también por código de barras GLS
         conditions.append({
             "$or": [
                 {"numero_orden": {"$regex": search, "$options": "i"}},
                 {"numero_autorizacion": {"$regex": search, "$options": "i"}},
                 {"dispositivo.modelo": {"$regex": search, "$options": "i"}},
-                {"dispositivo.imei": {"$regex": search, "$options": "i"}}
+                {"dispositivo.imei": {"$regex": search, "$options": "i"}},
+                {"gls_envios.codbarras": search},  # Código de barras GLS exacto
+                {"codigo_recogida_entrada": search},  # Código legacy
+                {"codigo_recogida_salida": search},
             ]
         })
     if fecha_desde:
@@ -1395,6 +1400,14 @@ def validar_transicion(estado_actual: str, nuevo_estado: str, es_admin: bool = F
 
 @router.patch("/ordenes/{orden_id}/estado")
 async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user: dict = Depends(require_auth)):
+    """
+    Cambiar estado de una orden.
+    
+    REGLAS:
+    - Solo admin/master pueden cambiar estados (excepto transiciones técnicas específicas)
+    - Mensaje es OBLIGATORIO
+    - Se graba quién y cuándo en historial_estados
+    """
     orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
@@ -1404,20 +1417,42 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     es_master = user.get('role') == 'master'
     es_tecnico = user.get('role') == 'tecnico'
 
-    # ─── Transiciones técnicas: solo técnico puede ejecutarlas ───
-    # EXCEPCIÓN: Master puede forzar validacion y enviado desde cualquier estado
-    ESTADOS_SOLO_TECNICO = {'en_taller', 'reparado', 'validacion', 'irreparable'}
-    # Resolución de cuarentena (cuarentena → recibida) también es técnica
-    es_resolucion_cuarentena = (estado_actual == 'cuarentena' and request.nuevo_estado.value == 'recibida')
-    if request.nuevo_estado.value in ESTADOS_SOLO_TECNICO or es_resolucion_cuarentena:
-        # Master puede forzar validacion y enviado sin ser técnico
-        if es_master and request.nuevo_estado.value in {'validacion', 'enviado'}:
-            pass  # Master permitido
-        elif not es_tecnico:
+    # Validar mensaje obligatorio
+    if not request.mensaje or not request.mensaje.strip():
+        raise HTTPException(status_code=400, detail="El mensaje/motivo del cambio de estado es obligatorio")
+
+    # ─── RESTRICCIÓN: Solo admin/master pueden cambiar estados ───
+    # EXCEPCIÓN: Técnico puede marcar estados de su flujo de trabajo
+    ESTADOS_TECNICO_PERMITIDOS = {'en_taller', 'reparado', 'irreparable'}
+    
+    if es_tecnico:
+        # El técnico SOLO puede cambiar a estos estados específicos
+        if request.nuevo_estado.value not in ESTADOS_TECNICO_PERMITIDOS:
             raise HTTPException(
                 status_code=403,
-                detail=f"La transición a '{request.nuevo_estado.value}' es una acción técnica. "
-                       "Solo el rol 'técnico' puede ejecutarla."
+                detail=f"Como técnico, solo puedes cambiar a los estados: {', '.join(ESTADOS_TECNICO_PERMITIDOS)}. "
+                       "Contacta a un administrador para otros cambios de estado."
+            )
+        # Y solo desde estados válidos de su flujo
+        if estado_actual not in {'recibida', 'en_taller', 'cuarentena'}:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Como técnico, no puedes cambiar el estado desde '{estado_actual}'. "
+                       "Contacta a un administrador."
+            )
+
+    # ─── Transiciones técnicas: verificación adicional ───
+    ESTADOS_SOLO_TECNICO = {'en_taller', 'reparado', 'irreparable'}
+    es_resolucion_cuarentena = (estado_actual == 'cuarentena' and request.nuevo_estado.value == 'recibida')
+    
+    # Si es estado técnico y NO es técnico (y tampoco master)
+    if request.nuevo_estado.value in ESTADOS_SOLO_TECNICO:
+        if es_master:
+            pass  # Master puede todo
+        elif not es_tecnico and not es_admin:
+            raise HTTPException(
+                status_code=403,
+                detail=f"La transición a '{request.nuevo_estado.value}' es una acción técnica."
             )
 
     # Validar transición de estado
@@ -1484,8 +1519,10 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     historial.append({
         "estado": request.nuevo_estado.value, 
         "fecha": now.isoformat(), 
-        "usuario": usuario_cambio + nota_forzado,
-        "rol": user.get('role', 'unknown')
+        "usuario": usuario_cambio,
+        "rol": user.get('role', 'unknown'),
+        "mensaje": request.mensaje.strip(),
+        "nota": nota_forzado if nota_forzado else None,
     })
     update_data = {"estado": request.nuevo_estado.value, "historial_estados": historial, "updated_at": now.isoformat()}
     if request.nuevo_estado == OrderStatus.RECIBIDA:
@@ -1505,7 +1542,7 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         action="cambio_estado",
         actor=user,
         source="api_estado",
-        updates={"estado": request.nuevo_estado.value, "codigo_envio": request.codigo_envio},
+        updates={"estado": request.nuevo_estado.value, "codigo_envio": request.codigo_envio, "mensaje": request.mensaje},
         before={"estado": estado_actual, "codigo_envio": orden.get("codigo_recogida_salida")},
     )
     
@@ -1517,7 +1554,7 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         usuario_id=user.get('user_id'),
         usuario_email=user.get('email'),
         rol=user.get('role'),
-        cambios={"estado_anterior": estado_actual, "estado_nuevo": request.nuevo_estado.value}
+        cambios={"estado_anterior": estado_actual, "estado_nuevo": request.nuevo_estado.value, "mensaje": request.mensaje}
     )
     
     if request.nuevo_estado == OrderStatus.REPARADO and request.usuario != "admin":
@@ -1614,6 +1651,128 @@ async def escanear_orden(orden_ref: str, request: ScanQRRequest):
         asyncio.create_task(sync_order_status_to_insurama(orden, nuevo_estado.value))
     
     return {"message": f"Orden escaneada. Nuevo estado: {nuevo_estado.value}", "nuevo_estado": nuevo_estado.value}
+
+
+# ==================== ESCANEO CÓDIGO DE BARRAS GLS ====================
+
+class ScanGLSRequest(BaseModel):
+    codigo_barras: str
+    usuario_email: str
+    mensaje: str = "Paquete recibido vía escaneo GLS"
+
+
+@router.post("/scan-gls")
+async def escanear_codigo_gls(request: ScanGLSRequest, user: dict = Depends(require_auth)):
+    """
+    Busca una orden por código de barras GLS y la marca como RECIBIDA.
+    Solo funciona si la orden está en estado pendiente_recibir.
+    Solo admin/master pueden usar esta función.
+    """
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden escanear paquetes GLS")
+    
+    codigo = request.codigo_barras.strip()
+    if not codigo:
+        raise HTTPException(400, "Código de barras requerido")
+    
+    # Buscar primero en gls_shipments
+    gls_shipment = await db.gls_shipments.find_one(
+        {"gls_codbarras": codigo},
+        {"_id": 0, "entidad_id": 1, "tipo": 1, "estado_interno": 1}
+    )
+    
+    orden = None
+    if gls_shipment and gls_shipment.get("entidad_id"):
+        orden = await db.ordenes.find_one({"id": gls_shipment["entidad_id"]}, {"_id": 0})
+    
+    # Si no encontramos por shipment, buscar directamente en la orden
+    if not orden:
+        orden = await db.ordenes.find_one(
+            {"$or": [
+                {"gls_envios.codbarras": codigo},
+                {"codigo_recogida_entrada": codigo},
+                {"codigo_recogida_salida": codigo},
+            ]},
+            {"_id": 0}
+        )
+    
+    if not orden:
+        raise HTTPException(404, f"No se encontró orden con código GLS: {codigo}")
+    
+    # Verificar estado
+    estado_actual = orden.get("estado", "")
+    if estado_actual != "pendiente_recibir":
+        return {
+            "success": False,
+            "message": f"La orden {orden.get('numero_orden')} ya está en estado '{estado_actual}'. No se puede marcar como recibida.",
+            "orden_id": orden.get("id"),
+            "numero_orden": orden.get("numero_orden"),
+            "estado_actual": estado_actual,
+            "accion": "ver_orden"
+        }
+    
+    # Marcar como RECIBIDA
+    now = datetime.now(timezone.utc).isoformat()
+    historial = orden.get("historial_estados", [])
+    historial.append({
+        "estado": "recibida",
+        "fecha": now,
+        "usuario": user.get("email"),
+        "mensaje": request.mensaje,
+        "via": "escaneo_gls",
+        "codigo_gls": codigo,
+    })
+    
+    await db.ordenes.update_one(
+        {"id": orden["id"]},
+        {"$set": {
+            "estado": "recibida",
+            "historial_estados": historial,
+            "fecha_recibida_centro": now,
+            "updated_at": now,
+        }}
+    )
+    
+    # Registrar evento
+    await registrar_evento_ot(
+        ot_doc=orden,
+        action="recepcion_gls",
+        actor=user,
+        source="scan_gls",
+        updates={"estado": "recibida", "codigo_gls": codigo},
+        before={"estado": estado_actual},
+    )
+    
+    # Actualizar estado del shipment GLS si existe
+    if gls_shipment:
+        await db.gls_shipments.update_one(
+            {"gls_codbarras": codigo},
+            {"$set": {"recepcion_confirmada": True, "recepcion_fecha": now, "recepcion_usuario": user.get("email")}}
+        )
+    
+    # Auto-sync con Insurama si aplica
+    if orden.get("numero_autorizacion"):
+        asyncio.create_task(sync_order_status_to_insurama(orden, "recibida"))
+    
+    # Notificar al cliente
+    try:
+        cliente = await db.clientes.find_one({"id": orden["cliente_id"]}, {"_id": 0})
+        if cliente:
+            orden_actualizada = orden.copy()
+            orden_actualizada["estado"] = "recibida"
+            await send_order_notification(orden_actualizada, cliente, "status_change")
+    except Exception as e:
+        logger.error(f"Error enviando notificación tras escaneo GLS: {e}")
+    
+    return {
+        "success": True,
+        "message": f"Orden {orden.get('numero_orden')} marcada como RECIBIDA",
+        "orden_id": orden.get("id"),
+        "numero_orden": orden.get("numero_orden"),
+        "estado_nuevo": "recibida",
+        "codigo_gls": codigo,
+    }
+
 
 # ==================== MATERIALES ====================
 

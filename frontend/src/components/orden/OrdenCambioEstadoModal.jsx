@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -16,18 +17,18 @@ import {
 } from '@/components/ui/select';
 
 // Estados que solo el técnico puede ejecutar
-const ESTADOS_TECNICO = new Set(['en_taller', 'reparado', 'validacion', 'irreparable', 'cuarentena']);
+const ESTADOS_TECNICO = new Set(['en_taller', 'reparado', 'irreparable']);
 // Estados que solo admin/master puede ejecutar
-const ESTADOS_ADMIN = new Set(['recibida', 'enviado', 'cancelado', 're_presupuestar', 'reemplazo', 'garantia', 'pendiente_recibir']);
+const ESTADOS_ADMIN = new Set(['recibida', 'enviado', 'cancelado', 're_presupuestar', 'reemplazo', 'garantia', 'pendiente_recibir', 'validacion', 'cuarentena']);
 
 const statusConfig = {
   pendiente_recibir: { label: 'Pendiente Recibir',  admin: true },
   recibida:          { label: 'Recibida',            admin: true },
-  cuarentena:        { label: 'Cuarentena',          tecnico: true },
+  cuarentena:        { label: 'Cuarentena',          admin: true },
   en_taller:         { label: 'En Taller',           tecnico: true },
   re_presupuestar:   { label: 'Re-presupuestar',     admin: true },
   reparado:          { label: 'Reparado',            tecnico: true },
-  validacion:        { label: 'Validación / QC OK',  tecnico: true },
+  validacion:        { label: 'Validación / QC OK',  admin: true },
   enviado:           { label: 'Enviado',             admin: true },
   garantia:          { label: 'Garantía',            admin: true },
   cancelado:         { label: 'Cancelado',           admin: true },
@@ -42,16 +43,19 @@ export function OrdenCambioEstadoModal({
   setNuevoEstado,
   codigoEnvio,
   setCodigoEnvio,
+  mensajeCambio,
+  setMensajeCambio,
   onCambiarEstado,
   isTecnico = false,
   isMaster = false,
 }) {
   // Filtrar estados según rol
   const estadosDisponibles = Object.entries(statusConfig).filter(([key, cfg]) => {
+    // Técnico solo ve estados técnicos específicos
     if (isTecnico) return cfg.tecnico === true;
-    // Master puede ver TODOS los estados (admin + validacion y enviado)
+    // Master puede ver TODOS los estados
     if (isMaster) return true;
-    // admin normal solo ve estados admin
+    // Admin ve estados admin
     return cfg.admin === true;
   });
 
@@ -62,14 +66,19 @@ export function OrdenCambioEstadoModal({
           <DialogTitle>Cambiar Estado de la Orden</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {isTecnico && (
+            <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-1.5" data-testid="estado-tecnico-notice">
+              Como técnico, solo puedes cambiar a: En Taller, Reparado, Irreparable.
+            </p>
+          )}
           {!isTecnico && !isMaster && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5" data-testid="estado-admin-only-notice">
-              Solo se muestran transiciones administrativas. Las técnicas (En Taller, Reparado, QC) requieren rol técnico.
+              Solo admin/master pueden cambiar estados. Los técnicos tienen estados limitados.
             </p>
           )}
           {isMaster && (
-            <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-1.5" data-testid="estado-master-notice">
-              Modo Master: puedes forzar cualquier transición de estado, incluyendo Validación y Envío directamente.
+            <p className="text-xs text-purple-600 bg-purple-50 border border-purple-200 rounded px-2 py-1.5" data-testid="estado-master-notice">
+              Modo Master: acceso completo a todos los estados.
             </p>
           )}
           <div>
@@ -85,6 +94,25 @@ export function OrdenCambioEstadoModal({
               </SelectContent>
             </Select>
           </div>
+          
+          {/* Campo de mensaje OBLIGATORIO */}
+          <div>
+            <Label className="flex items-center gap-1">
+              Motivo del cambio <span className="text-red-500">*</span>
+            </Label>
+            <Textarea
+              value={mensajeCambio || ''}
+              onChange={(e) => setMensajeCambio(e.target.value)}
+              placeholder="Indica el motivo del cambio de estado (obligatorio)"
+              rows={2}
+              className="resize-none"
+              data-testid="mensaje-cambio-textarea"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Este mensaje quedará registrado en el historial de la orden.
+            </p>
+          </div>
+          
           {nuevoEstado === 'enviado' && (
             <div>
               <Label>Código de Envío (Salida) *</Label>
@@ -101,7 +129,11 @@ export function OrdenCambioEstadoModal({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button onClick={onCambiarEstado} data-testid="confirmar-cambio-estado-btn">
+            <Button 
+              onClick={() => onCambiarEstado()} 
+              disabled={!nuevoEstado || !mensajeCambio?.trim()}
+              data-testid="confirmar-cambio-estado-btn"
+            >
               Guardar
             </Button>
           </div>

@@ -56,6 +56,7 @@ const SUBESTADO_CONFIG = {
 export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoActual, fechaRevision, onUpdate, onSubestadoChange }) {
   const [showModal, setShowModal] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
+  const [showAlertaVencimiento, setShowAlertaVencimiento] = useState(false);
   const [loading, setLoading] = useState(false);
   const [historial, setHistorial] = useState([]);
   const [formData, setFormData] = useState({
@@ -66,6 +67,32 @@ export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoAct
 
   const currentConfig = SUBESTADO_CONFIG[subestadoActual] || SUBESTADO_CONFIG.ninguno;
   const IconComponent = currentConfig.icon;
+
+  // Calcular estado de vencimiento
+  const calcularEstadoVencimiento = () => {
+    if (!fechaRevision || subestadoActual === 'ninguno') return null;
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fechaRev = new Date(fechaRevision);
+    fechaRev.setHours(0, 0, 0, 0);
+    
+    const diffDias = Math.ceil((fechaRev - hoy) / (1000 * 60 * 60 * 24));
+    
+    if (diffDias < 0) return { tipo: 'vencido', dias: Math.abs(diffDias), mensaje: `Plazo vencido hace ${Math.abs(diffDias)} día(s)` };
+    if (diffDias === 0) return { tipo: 'hoy', dias: 0, mensaje: 'El plazo vence HOY' };
+    if (diffDias <= 2) return { tipo: 'proximo', dias: diffDias, mensaje: `El plazo vence en ${diffDias} día(s)` };
+    return { tipo: 'ok', dias: diffDias, mensaje: `Faltan ${diffDias} días` };
+  };
+
+  const estadoVencimiento = calcularEstadoVencimiento();
+
+  // Mostrar alerta automática al cargar si hay vencimiento
+  useEffect(() => {
+    if (estadoVencimiento && (estadoVencimiento.tipo === 'vencido' || estadoVencimiento.tipo === 'hoy')) {
+      setShowAlertaVencimiento(true);
+    }
+  }, [subestadoActual, fechaRevision]);
 
   const fetchHistorial = async () => {
     try {
@@ -169,14 +196,65 @@ export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoAct
   // Check if fecha_revision is today or past
   const isRevisionDue = fechaRevision && new Date(fechaRevision) <= new Date();
 
+  // Colores según estado de vencimiento
+  const getAlertStyle = () => {
+    if (!estadoVencimiento) return '';
+    switch (estadoVencimiento.tipo) {
+      case 'vencido': return 'border-red-500 bg-red-50';
+      case 'hoy': return 'border-orange-500 bg-orange-50';
+      case 'proximo': return 'border-yellow-500 bg-yellow-50';
+      default: return '';
+    }
+  };
+
   return (
     <>
-      <Card data-testid="subestado-card">
+      {/* Popup de alerta de vencimiento */}
+      <Dialog open={showAlertaVencimiento} onOpenChange={setShowAlertaVencimiento}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className={`flex items-center gap-2 ${estadoVencimiento?.tipo === 'vencido' ? 'text-red-600' : 'text-orange-600'}`}>
+              <AlertCircle className="w-5 h-5" />
+              {estadoVencimiento?.tipo === 'vencido' ? '⚠️ Plazo Vencido' : '⏰ Plazo Próximo a Vencer'}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              <div className="space-y-3">
+                <div className={`p-3 rounded-lg ${estadoVencimiento?.tipo === 'vencido' ? 'bg-red-100' : 'bg-orange-100'}`}>
+                  <p className="font-medium">{estadoVencimiento?.mensaje}</p>
+                </div>
+                <div className="space-y-1">
+                  <p><span className="font-medium">Subestado:</span> {currentConfig.label}</p>
+                  {motivoActual && <p><span className="font-medium">Motivo:</span> {motivoActual}</p>}
+                  <p><span className="font-medium">Fecha límite:</span> {fechaRevision ? new Date(fechaRevision).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</p>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowAlertaVencimiento(false)}>
+              Cerrar
+            </Button>
+            <Button onClick={() => { setShowAlertaVencimiento(false); handleOpenModal(); }}>
+              Actualizar Subestado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Card data-testid="subestado-card" className={`transition-all ${getAlertStyle()}`}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
               Subestado Interno
+              {estadoVencimiento && estadoVencimiento.tipo !== 'ok' && (
+                <Badge 
+                  variant="destructive" 
+                  className={`text-xs ${estadoVencimiento.tipo === 'vencido' ? 'bg-red-600' : estadoVencimiento.tipo === 'hoy' ? 'bg-orange-600' : 'bg-yellow-600'}`}
+                >
+                  {estadoVencimiento.tipo === 'vencido' ? '⚠️ VENCIDO' : estadoVencimiento.tipo === 'hoy' ? '⏰ HOY' : '⏳ PRÓXIMO'}
+                </Badge>
+              )}
             </div>
             <Button 
               variant="outline" 
@@ -189,6 +267,22 @@ export default function OrdenSubestadoCard({ ordenId, subestadoActual, motivoAct
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Banner de alerta si hay vencimiento */}
+          {estadoVencimiento && (estadoVencimiento.tipo === 'vencido' || estadoVencimiento.tipo === 'hoy') && (
+            <div 
+              className={`p-3 rounded-lg cursor-pointer ${estadoVencimiento.tipo === 'vencido' ? 'bg-red-100 border border-red-300' : 'bg-orange-100 border border-orange-300'}`}
+              onClick={() => setShowAlertaVencimiento(true)}
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className={`w-5 h-5 ${estadoVencimiento.tipo === 'vencido' ? 'text-red-600' : 'text-orange-600'}`} />
+                <span className={`font-medium ${estadoVencimiento.tipo === 'vencido' ? 'text-red-700' : 'text-orange-700'}`}>
+                  {estadoVencimiento.mensaje}
+                </span>
+              </div>
+              <p className="text-xs mt-1 text-muted-foreground">Haz clic para ver más detalles</p>
+            </div>
+          )}
+
           {/* Current subestado */}
           <div className="flex items-center gap-3">
             <Badge className={`${currentConfig.color} flex items-center gap-1.5 px-3 py-1.5`}>

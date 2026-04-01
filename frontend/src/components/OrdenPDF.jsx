@@ -303,24 +303,72 @@ const OrdenPDF = forwardRef(function OrdenPDF(
               </p>
             </div>
 
-            {/* QC */}
-            <span style={S.label}>Control de calidad final (QC)</span>
-            <div style={{ fontSize: '7.5px', marginBottom: '2.5mm', lineHeight: '1.5' }}>
-              <p style={{ margin: 0 }}>
-                Estado: <strong>
+            {/* QC - Control de Calidad de Diagnóstico de Salida */}
+            <span style={S.label}>Control de calidad final (QC) - Diagnóstico de Salida</span>
+            <div style={{ fontSize: '7.5px', marginBottom: '2.5mm', lineHeight: '1.5', padding: '2mm', backgroundColor: orden?.diagnostico_salida_realizado && orden?.funciones_verificadas ? '#f0fdf4' : '#fef2f2', border: '1px solid', borderColor: orden?.diagnostico_salida_realizado && orden?.funciones_verificadas ? '#22c55e' : '#ef4444', borderRadius: '2mm' }}>
+              <p style={{ margin: 0, fontWeight: '600', fontSize: '8px' }}>
+                ✓ Estado del Dispositivo: <strong style={{ color: (orden?.diagnostico_salida_realizado && orden?.funciones_verificadas && orden?.limpieza_realizada) ? '#16a34a' : '#dc2626' }}>
                   {isBlank
                     ? '_____'
-                    : ((orden?.diagnostico_salida_realizado && orden?.funciones_verificadas && orden?.limpieza_realizada) ? 'OK' : 'NO OK / PENDIENTE')}
+                    : ((orden?.diagnostico_salida_realizado && orden?.funciones_verificadas && orden?.limpieza_realizada) ? '✅ VERIFICADO - CONFORME' : '⚠️ PENDIENTE DE VERIFICACIÓN')}
                 </strong>
               </p>
-              <p style={{ margin: 0 }}>
-                Diagnóstico salida: {boolLabel(orden?.diagnostico_salida_realizado)}
-                {' '}· Funciones: {boolLabel(orden?.funciones_verificadas)}
-                {' '}· Limpieza: {boolLabel(orden?.limpieza_realizada)}
-              </p>
-              <p style={{ margin: 0 }}>
-                Responsable: {isBlank ? '_____' : val(orden?.tecnico_asignado)}
-                {' '}· Fecha: {isBlank ? '_____' : fmtDT(orden?.fecha_fin_reparacion || orden?.updated_at)}
+              <div style={{ marginTop: '1.5mm', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2mm' }}>
+                <p style={{ margin: 0 }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Diagnóstico salida:</span><br/>
+                  <strong>{orden?.diagnostico_salida_realizado ? '✓ Realizado' : '✗ Pendiente'}</strong>
+                </p>
+                <p style={{ margin: 0 }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Funciones verificadas:</span><br/>
+                  <strong>{orden?.funciones_verificadas ? '✓ OK' : '✗ Pendiente'}</strong>
+                </p>
+                <p style={{ margin: 0 }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Limpieza:</span><br/>
+                  <strong>{orden?.limpieza_realizada ? '✓ Realizada' : '✗ Pendiente'}</strong>
+                </p>
+              </div>
+              {orden?.qc_funciones && !isBlank && (
+                <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Funciones del sistema verificadas:</span>
+                  <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px' }}>
+                    {Object.entries(orden.qc_funciones || {})
+                      .filter(([_, checked]) => checked)
+                      .map(([func]) => {
+                        const labels = {
+                          pantalla_touch: 'Pantalla/Touch',
+                          wifi: 'WiFi',
+                          bluetooth: 'Bluetooth',
+                          camara_trasera: 'Cám. trasera',
+                          camara_frontal: 'Cám. frontal',
+                          microfono: 'Micrófono',
+                          altavoz_auricular: 'Altavoz',
+                          carga: 'Carga',
+                          botones_fisicos: 'Botones',
+                          sim_red: 'SIM/Red',
+                          biometria: 'Biometría'
+                        };
+                        return labels[func] || func;
+                      })
+                      .join(' · ') || 'N/A'}
+                  </p>
+                </div>
+              )}
+              {orden?.bateria_estado && !isBlank && (
+                <p style={{ margin: '1.5mm 0 0 0', fontSize: '7px' }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Batería:</span>{' '}
+                  {orden.bateria_estado === 'ok' ? '✓ OK (>80%)' : 
+                   orden.bateria_estado === 'degradada' ? '⚠️ Degradada (<80%)' :
+                   orden.bateria_estado === 'reemplazada' ? '🔄 Reemplazada' : 'N/A'}
+                  {orden.bateria_nivel ? ` · ${orden.bateria_nivel}%` : ''}
+                  {orden.bateria_ciclos ? ` · ${orden.bateria_ciclos} ciclos` : ''}
+                </p>
+              )}
+              <p style={{ margin: '1.5mm 0 0 0' }}>
+                <span style={{ fontSize: '6px', color: '#666' }}>Técnico responsable:</span>{' '}
+                {isBlank ? '_____' : val(orden?.tecnico_asignado)}
+                {' '}·{' '}
+                <span style={{ fontSize: '6px', color: '#666' }}>Fecha QC:</span>{' '}
+                {isBlank ? '_____' : fmtDT(orden?.fecha_fin_reparacion || orden?.updated_at)}
               </p>
             </div>
 

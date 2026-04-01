@@ -284,3 +284,25 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - Modificar checklist de recepción y QC
 - Gestionar trazabilidad de baterías
 - Editar notas de cierre técnico
+
+---
+
+## 2026-04-01 - Correcciones de Subestados, QC y Cierre de Reparación
+
+### Fixed - BUG: Página en blanco al marcar como reparado
+- **Causa**: El endpoint de cambio de estado ahora requiere `mensaje` obligatorio
+- **Solución**: `TecnicoCierreReparacion.jsx` ahora envía mensaje con las notas del QC
+
+### Added - Alertas automáticas de vencimiento de subestados
+- Popup automático al abrir una orden con plazo vencido o próximo a vencer
+- Badge visual en el card de subestado: "⚠️ VENCIDO", "⏰ HOY", "⏳ PRÓXIMO"
+- Colores de borde dinámicos según estado (rojo/naranja/amarillo)
+- Banner clickeable para ver detalles y actualizar subestado
+
+### Improved - Sección QC en ficha impresa (OrdenPDF.jsx)
+- Recuadro visual con fondo verde (conforme) o rojo (pendiente)
+- Estado claro: "✅ VERIFICADO - CONFORME" o "⚠️ PENDIENTE DE VERIFICACIÓN"
+- Grid con diagnóstico salida, funciones verificadas, limpieza
+- Lista de funciones del sistema verificadas (si disponible)
+- Estado de batería con porcentaje y ciclos
+- Técnico responsable y fecha del QC

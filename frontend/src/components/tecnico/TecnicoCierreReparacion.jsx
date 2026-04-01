@@ -101,10 +101,11 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
 
     setGuardando(true);
     try {
-      // 1. Cambiar estado → reparado
+      // 1. Cambiar estado → reparado (con mensaje obligatorio)
       await ordenesAPI.cambiarEstado(orden.id, {
         nuevo_estado: 'reparado',
         usuario: 'tecnico',
+        mensaje: notas?.trim() || 'Reparación completada - QC verificado',
       });
       // 2. Guardar datos de QC
       await ordenesAPI.actualizar(orden.id, qcPayload);

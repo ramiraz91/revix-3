@@ -1440,8 +1440,9 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
                 detail=f"Como técnico, solo puedes cambiar a los estados: {', '.join(ESTADOS_TECNICO_PERMITIDOS)}. "
                        "Contacta a un administrador para otros cambios de estado."
             )
-        # Y solo desde estados válidos de su flujo
-        if estado_actual not in {'recibida', 'en_taller', 'cuarentena'}:
+        # Y solo desde estados válidos de su flujo de trabajo
+        ESTADOS_ORIGEN_TECNICO = {'recibida', 'en_taller', 'reparando', 'cuarentena'}
+        if estado_actual not in ESTADOS_ORIGEN_TECNICO:
             raise HTTPException(
                 status_code=403,
                 detail=f"Como técnico, no puedes cambiar el estado desde '{estado_actual}'. "

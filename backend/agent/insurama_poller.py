@@ -65,6 +65,8 @@ async def poll_insurama_budgets():
     1. New budgets (not in DB) → create pre_registro + notification
     2. Accepted budgets (pre_registro exists, no order) → create order
     3. Status changes → update pre_registro + notification
+    
+    Polling interval: 4 hours (configurable via agent_config.poll_interval)
     """
     client = await _get_sumbroker_client()
     if not client:
@@ -81,7 +83,20 @@ async def poll_insurama_budgets():
     if not budgets:
         return {"action": "ok", "new": 0, "accepted": 0, "changes": 0}
     
-    stats = {"new": 0, "accepted": 0, "changes": 0, "errors": 0}
+    stats = {"new": 0, "accepted": 0, "changes": 0, "errors": 0, "skipped_existing": 0}
+    
+    # Pre-cargar códigos existentes para filtrado eficiente
+    existing_orders_cursor = db.ordenes.find({}, {"numero_autorizacion": 1, "_id": 0})
+    existing_order_codes = set()
+    async for o in existing_orders_cursor:
+        if o.get("numero_autorizacion"):
+            existing_order_codes.add(o["numero_autorizacion"])
+    
+    existing_preregs_cursor = db.pre_registros.find({}, {"codigo_siniestro": 1, "_id": 0})
+    existing_prereg_codes = {}
+    async for p in existing_preregs_cursor:
+        if p.get("codigo_siniestro"):
+            existing_prereg_codes[p["codigo_siniestro"]] = True
     
     for b in budgets:
         try:
@@ -89,6 +104,11 @@ async def poll_insurama_budgets():
             prc = cb.get("policy_risk_claim") or {}
             codigo = prc.get("identifier")
             if not codigo:
+                continue
+            
+            # Filtrar códigos que ya tienen orden creada (skip silencioso)
+            if codigo in existing_order_codes:
+                stats["skipped_existing"] += 1
                 continue
             
             budget_id = b.get("id")
@@ -206,7 +226,7 @@ async def _handle_new_budget(codigo: str, budget: dict, prc: dict, cb: dict):
             "historial": [{
                 "evento": "descartado_duplicado",
                 "fecha": datetime.now(timezone.utc).isoformat(),
-                "detalle": f"Código ya existe en órdenes — no se notifica"
+                "detalle": "Código ya existe en órdenes — no se notifica"
             }],
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -318,7 +338,7 @@ async def _handle_accepted_budget(codigo: str, pre_reg: dict, budget: dict) -> b
                 "historial": {
                     "evento": "descartado_duplicado_aceptacion",
                     "fecha": datetime.now(timezone.utc).isoformat(),
-                    "detalle": f"Código ya existe en órdenes — aceptación descartada"
+                    "detalle": "Código ya existe en órdenes — aceptación descartada"
                 }
             }}
         )

@@ -400,22 +400,30 @@ async def scrape_portal_data(codigo: str) -> Optional[dict]:
     Only budget-related admin queries go through the external API.
     Returns structured dict or None on failure.
     """
-    config = await db.configuracion.find_one({"tipo": "agent_config"}, {"_id": 0})
-    if not config:
-        await log_agent("portal_sin_config", "error", "error", codigo=codigo,
-                        error="Agent config not found")
-        return None
-
-    datos = config.get('datos', {})
-    portal_user = datos.get('portal_user')
-    portal_pass = datos.get('portal_password')
+    # Intentar obtener credenciales de sumbroker config primero
+    config = await db.configuracion.find_one({"tipo": "sumbroker"}, {"_id": 0})
+    portal_user = None
+    portal_pass = None
+    
+    if config and config.get("datos"):
+        datos = config["datos"]
+        portal_user = datos.get("login")
+        portal_pass = datos.get("password")
+    
+    # Fallback a agent_config si no hay sumbroker config
+    if not portal_user or not portal_pass:
+        config = await db.configuracion.find_one({"tipo": "agent_config"}, {"_id": 0})
+        if config:
+            datos = config.get('datos', {})
+            portal_user = datos.get('portal_user')
+            portal_pass = datos.get('portal_password')
 
     if not portal_user or not portal_pass:
         await log_agent("portal_credenciales_incompletas", "error", "error",
-                        codigo=codigo)
+                        codigo=codigo, error="No Sumbroker credentials found")
         return None
 
-    # Decrypt password
+    # Decrypt password if needed
     try:
         from agent.crypto import decrypt_value
         portal_pass = decrypt_value(portal_pass)

@@ -228,6 +228,127 @@ async def rechazar_nueva_orden(
     return {"message": "Nueva orden archivada"}
 
 
+@router.delete("/{pre_registro_id}")
+async def eliminar_nueva_orden(
+    pre_registro_id: str,
+    user: dict = Depends(require_admin)
+):
+    """Eliminar permanentemente una pre-orden."""
+    pre_reg = await db.pre_registros.find_one({"id": pre_registro_id}, {"_id": 0})
+    if not pre_reg:
+        raise HTTPException(status_code=404, detail="Pre-registro no encontrado")
+    
+    # No permitir eliminar si ya tiene orden creada
+    if pre_reg.get("orden_id"):
+        raise HTTPException(status_code=400, detail="No se puede eliminar: ya tiene una orden de trabajo asociada")
+    
+    codigo = pre_reg.get("codigo_siniestro", "")
+    await db.pre_registros.delete_one({"id": pre_registro_id})
+    
+    logger.info(f"Pre-registro {codigo} eliminado por {user.get('email')}")
+    return {"message": f"Pre-orden {codigo} eliminada permanentemente"}
+
+
+@router.post("/{pre_registro_id}/refrescar-datos")
+async def refrescar_datos_portal(
+    pre_registro_id: str,
+    user: dict = Depends(require_admin)
+):
+    """Re-scrapea los datos del portal Sumbroker para enriquecer la pre-orden."""
+    pre_reg = await db.pre_registros.find_one({"id": pre_registro_id}, {"_id": 0})
+    if not pre_reg:
+        raise HTTPException(status_code=404, detail="Pre-registro no encontrado")
+    
+    codigo = pre_reg.get("codigo_siniestro")
+    if not codigo:
+        raise HTTPException(status_code=400, detail="Código de siniestro no válido")
+    
+    try:
+        from agent.processor import scrape_portal_data
+        
+        datos_portal = await scrape_portal_data(codigo)
+        
+        if not datos_portal:
+            raise HTTPException(status_code=404, detail="No se pudieron obtener datos del portal")
+        
+        # Mapear datos del portal a campos del pre-registro
+        update_data = {
+            "datos_portal": datos_portal,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Enriquecer campos del pre-registro
+        dp = datos_portal
+        if dp.get("client_full_name"):
+            update_data["cliente_nombre"] = dp["client_full_name"]
+        if dp.get("client_phone"):
+            update_data["cliente_telefono"] = dp["client_phone"]
+        if dp.get("client_email"):
+            update_data["cliente_email"] = dp["client_email"]
+        if dp.get("client_nif"):
+            update_data["cliente_dni"] = dp["client_nif"]
+        if dp.get("client_address"):
+            update_data["cliente_direccion"] = dp["client_address"]
+        if dp.get("client_zip"):
+            update_data["cliente_codigo_postal"] = dp["client_zip"]
+        if dp.get("client_city"):
+            update_data["cliente_ciudad"] = dp["client_city"]
+        if dp.get("client_province"):
+            update_data["cliente_provincia"] = dp["client_province"]
+        
+        # Dispositivo
+        device_brand = dp.get("device_brand") or ""
+        device_model = dp.get("device_model") or ""
+        if device_brand or device_model:
+            update_data["dispositivo_modelo"] = f"{device_brand} {device_model}".strip()
+        if device_brand:
+            update_data["dispositivo_marca"] = device_brand
+        if dp.get("device_imei"):
+            update_data["dispositivo_imei"] = dp["device_imei"]
+        if dp.get("device_colour"):
+            update_data["dispositivo_color"] = dp["device_colour"]
+        
+        # Daño y servicio
+        if dp.get("damage_description"):
+            update_data["daño_descripcion"] = dp["damage_description"]
+        if dp.get("damage_type_text"):
+            update_data["tipo_servicio"] = dp["damage_type_text"]
+        
+        # Tracking/envío
+        if dp.get("tracking_number"):
+            update_data["codigo_recogida_sugerido"] = dp["tracking_number"]
+        if dp.get("shipping_company"):
+            update_data["agencia_envio"] = dp["shipping_company"]
+        
+        # Seguro
+        if dp.get("policy_number"):
+            update_data["poliza"] = dp["policy_number"]
+        if dp.get("insurance_company"):
+            update_data["compania"] = dp["insurance_company"]
+        if dp.get("product_name"):
+            update_data["producto"] = dp["product_name"]
+        
+        # Historial
+        historial = pre_reg.get("historial", [])
+        historial.append({
+            "evento": "datos_refrescados",
+            "fecha": datetime.now(timezone.utc).isoformat(),
+            "detalle": f"Datos actualizados desde portal por {user.get('email')}"
+        })
+        update_data["historial"] = historial
+        
+        await db.pre_registros.update_one({"id": pre_registro_id}, {"$set": update_data})
+        
+        updated = await db.pre_registros.find_one({"id": pre_registro_id}, {"_id": 0})
+        return updated
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refrescando datos de {codigo}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error obteniendo datos: {str(e)}")
+
+
 @router.post("/actualizar-insurama")
 async def actualizar_desde_insurama(user: dict = Depends(require_admin)):
     """Fuerza una consulta inmediata a Insurama para buscar nuevos presupuestos aceptados."""

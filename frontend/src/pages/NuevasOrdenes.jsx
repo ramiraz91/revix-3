@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   PackagePlus, RefreshCw, Truck, User, Smartphone, AlertCircle,
-  CheckCircle, XCircle, Clock, FileText, ArrowRight, Phone, Mail, MapPin
+  CheckCircle, XCircle, Clock, FileText, ArrowRight, Phone, Mail, MapPin, Trash2
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -59,6 +59,17 @@ export default function NuevasOrdenes() {
     }
   };
 
+  const handleEliminar = async (item) => {
+    if (!window.confirm(`¿ELIMINAR PERMANENTEMENTE el siniestro ${item.codigo_siniestro}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await API.delete(`/nuevas-ordenes/${item.id}`);
+      toast.success('Pre-orden eliminada permanentemente');
+      cargarDatos();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar');
+    }
+  };
+
   const fmt = (v) => v ? new Date(v).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 
   if (loading) {
@@ -103,7 +114,7 @@ export default function NuevasOrdenes() {
             <CheckCircle className="w-12 h-12 mx-auto text-green-400 mb-4" />
             <p className="text-lg font-medium">No hay nuevas órdenes pendientes</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Las órdenes autorizadas aparecerán aquí automáticamente (polling cada 2h)
+              Las órdenes autorizadas aparecerán aquí automáticamente (polling cada 4h)
             </p>
           </CardContent>
         </Card>
@@ -168,6 +179,9 @@ export default function NuevasOrdenes() {
 
                 {/* Acciones */}
                 <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleEliminar(item)} data-testid={`eliminar-${item.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => handleRechazar(item)} data-testid={`archivar-${item.id}`}>
                     <XCircle className="w-4 h-4 mr-1" /> Archivar
                   </Button>

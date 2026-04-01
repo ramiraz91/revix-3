@@ -18,7 +18,7 @@ import {
 import {
   ArrowLeft, User, Smartphone, MapPin, Mail, Phone, FileText, Shield,
   Truck, RefreshCw, Save, CheckCircle, XCircle, Clock, CreditCard,
-  Hash, Palette, AlertTriangle, ArrowRight, Pencil
+  Hash, Palette, AlertTriangle, ArrowRight, Pencil, Trash2, RotateCw
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ export default function NuevaOrdenDetalle() {
   const [showTramitar, setShowTramitar] = useState(false);
   const [tramitarForm, setTramitarForm] = useState({ codigo_recogida: '', agencia_envio: '', notas: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [refreshingData, setRefreshingData] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -104,6 +105,31 @@ export default function NuevaOrdenDetalle() {
     }
   };
 
+  const handleEliminar = async () => {
+    if (!window.confirm('¿ELIMINAR PERMANENTEMENTE esta pre-orden? Esta acción no se puede deshacer.')) return;
+    try {
+      await API.delete(`/nuevas-ordenes/${id}`);
+      toast.success('Pre-orden eliminada permanentemente');
+      navigate('/nuevas-ordenes');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar');
+    }
+  };
+
+  const handleRefrescarDatos = async () => {
+    setRefreshingData(true);
+    try {
+      const res = await API.post(`/nuevas-ordenes/${id}/refrescar-datos`);
+      setData(res.data);
+      setForm(res.data);
+      toast.success('Datos actualizados desde el portal');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error obteniendo datos del portal');
+    } finally {
+      setRefreshingData(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
@@ -168,6 +194,10 @@ export default function NuevaOrdenDetalle() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefrescarDatos} disabled={refreshingData} data-testid="refrescar-datos-btn">
+            {refreshingData ? <RotateCw className="w-4 h-4 animate-spin mr-1" /> : <RotateCw className="w-4 h-4 mr-1" />}
+            {refreshingData ? 'Obteniendo...' : 'Refrescar datos'}
+          </Button>
           {editMode ? (
             <>
               <Button variant="outline" size="sm" onClick={() => { setForm(data); setEditMode(false); }}>
@@ -292,6 +322,9 @@ export default function NuevaOrdenDetalle() {
               </Button>
               <Button variant="outline" className="w-full" onClick={handleRechazar} data-testid="btn-archivar">
                 <XCircle className="w-4 h-4 mr-2" /> Archivar
+              </Button>
+              <Button variant="ghost" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleEliminar} data-testid="btn-eliminar">
+                <Trash2 className="w-4 h-4 mr-2" /> Eliminar permanentemente
               </Button>
             </CardContent>
           </Card>

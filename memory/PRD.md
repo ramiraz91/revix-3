@@ -43,6 +43,8 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - `GET /api/dashboard/stats` - Estadísticas dashboard (OPTIMIZADO)
 - `GET /api/dashboard/metricas-avanzadas` - Métricas detalladas (OPTIMIZADO)
 - `POST /api/insurama/presupuesto/{codigo}/importar` - Importar a CRM
+- `POST /api/nuevas-ordenes/{id}/refrescar-datos` - Re-scrapear datos de Sumbroker
+- `DELETE /api/nuevas-ordenes/{id}` - Eliminar pre-orden permanentemente
 
 ## Credentials
 - `master@revix.es` / `RevixMaster2026!`
@@ -51,6 +53,30 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 ---
 
 # CHANGELOG
+
+## 2026-04-01 (Sesión actual)
+### Fixed - Problema de despliegue de producción
+- **Error 520 en producción**: Resuelto eliminando archivos `.env` del repositorio Git que causaban conflicto con las System Keys de Emergent
+- **Scraper de Sumbroker**: Ahora busca credenciales en configuración `sumbroker` además de `agent_config`
+
+### Added - Mejoras en Pre-órdenes (Nuevas Órdenes)
+- **Botón Eliminar permanentemente**: Permite eliminar pre-órdenes que no se van a tramitar
+- **Botón Refrescar datos**: Re-scrapea información completa desde el portal Sumbroker
+- **Endpoint DELETE `/api/nuevas-ordenes/{id}`**: Eliminación permanente de pre-registros
+- **Endpoint POST `/api/nuevas-ordenes/{id}/refrescar-datos`**: Actualiza datos desde Sumbroker
+
+### Changed - Polling de Insurama
+- **Intervalo de polling**: Cambiado de 2h a **4 horas** (configurable via `poll_interval`)
+- **Filtrado eficiente**: Pre-carga códigos existentes en memoria antes del loop para evitar mostrar duplicados
+- **Enriquecimiento de datos**: Mapeo completo de campos desde Sumbroker (DNI, dirección, ciudad, provincia, IMEI, tipo servicio, póliza, producto)
+
+### Files Modified
+- `backend/routes/nuevas_ordenes_routes.py`: +2 endpoints (DELETE, refrescar-datos)
+- `backend/agent/processor.py`: Mejorado `scrape_portal_data()` para usar config de sumbroker
+- `backend/agent/insurama_poller.py`: Polling optimizado con pre-carga de códigos
+- `backend/agent/scheduler.py`: Intervalo cambiado a 4 horas
+- `frontend/src/pages/NuevasOrdenes.jsx`: Botón eliminar añadido
+- `frontend/src/pages/NuevaOrdenDetalle.jsx`: Botones refrescar y eliminar añadidos
 
 ## 2026-04-01
 ### Fixed - Correcciones GLS (5 Prioridades)

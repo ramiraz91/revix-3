@@ -1371,7 +1371,7 @@ TRANSICIONES_VALIDAS = {
     "pendiente_recibir": ["recibida", "cancelado"],
     "recibida": ["cuarentena", "en_taller", "cancelado"],
     "cuarentena": ["recibida", "cancelado"],
-    "en_taller": ["reparado", "validacion", "re_presupuestar", "irreparable", "reemplazo", "cancelado"],  # técnico puede ir directo a validación
+    "en_taller": ["reparado", "validacion", "re_presupuestar", "irreparable", "reemplazo", "cancelado"],
     "re_presupuestar": ["en_taller", "cancelado"],
     "reparado": ["validacion", "enviado", "en_taller"],  # Admin puede enviar directamente, puede volver si falla QA
     "validacion": ["enviado", "reparado", "en_taller"],  # puede volver a taller si hay problema
@@ -1441,7 +1441,7 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
                        "Contacta a un administrador para otros cambios de estado."
             )
         # Y solo desde estados válidos de su flujo de trabajo
-        ESTADOS_ORIGEN_TECNICO = {'recibida', 'en_taller', 'reparando', 'cuarentena'}
+        ESTADOS_ORIGEN_TECNICO = {'recibida', 'en_taller', 'cuarentena'}
         if estado_actual not in ESTADOS_ORIGEN_TECNICO:
             raise HTTPException(
                 status_code=403,

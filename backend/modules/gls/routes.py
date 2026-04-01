@@ -37,13 +37,16 @@ def _require_admin(user: dict):
 
 @router.get("/config")
 async def get_gls_config(user: dict = Depends(require_auth)):
-    """Get GLS configuration (admin only, UID masked)."""
+    """Get GLS configuration (admin only, UID NUNCA expuesto)."""
     _require_admin(user)
     config = await shipment_service.get_config(db)
-    # Never expose uid_cliente to frontend fully
-    safe = {**config}
-    uid = safe.get("uid_cliente", "")
+    
+    # PRIORIDAD 2: NUNCA exponer uid_cliente al frontend
+    uid = config.get("uid_cliente", "")
+    safe = {k: v for k, v in config.items() if k != "uid_cliente"}
     safe["uid_masked"] = f"{uid[:8]}...{uid[-4:]}" if len(uid) > 12 else ("***" if uid else "")
+    safe["uid_configurado"] = bool(uid)
+    
     return safe
 
 

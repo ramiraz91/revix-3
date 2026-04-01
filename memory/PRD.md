@@ -53,6 +53,27 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 # CHANGELOG
 
 ## 2026-04-01
+### Fixed - Correcciones GLS (5 Prioridades)
+- **P1: TRACKING_URL desde URLPARTNER**: 
+  - Ya no se construye manualmente con `apptracking.asp`
+  - Ahora busca evento `URLPARTNER` en `tracking_list`
+  - Fallback usa URL pública oficial: `gls-spain.es/es/ayuda/seguimiento-de-envio/`
+  - Nuevos campos: `tracking_source`, `urlpartner_found`
+
+- **P2: uid_cliente NO expuesto**:
+  - `GET /api/gls/config` ya NO devuelve `uid_cliente`
+  - Solo devuelve `uid_masked` y `uid_configurado`
+
+- **P3: Fallback de identificadores mejorado**:
+  - Orden: `gls_uid` → `gls_codbarras` → `gls_codexp` → `referencia_interna`
+  - Campo `identificador_usado` en respuesta de tracking
+
+- **P4: Múltiples expediciones**:
+  - Función `_select_correct_expedition()` identifica expedición correcta
+  - Detecta retorno vs ida por campo `retorno="S"`
+
+- **P5: Mantenido funcionamiento existente**: Cache de etiquetas, historial, eventos, sync
+
 ### Added
 - **Módulo Logístico GLS Completo** - Refactorizado como sistema desacoplado y auditable:
   - **Tipos de envío**: Recogida, Envío, Devolución

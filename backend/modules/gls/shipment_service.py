@@ -24,18 +24,64 @@ from modules.gls.state_mapper import map_gls_state, is_final_state, STATE_BADGES
 
 logger = logging.getLogger("gls.shipment")
 
-# URL de seguimiento de GLS España
-GLS_TRACKING_URL = "https://www.gls-spain.es/apptracking.asp"
+# URL de seguimiento pública oficial de GLS España (fallback)
+GLS_TRACKING_PUBLIC_URL = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
 
 # Tipos de envío soportados
 ShipmentType = Literal["envio", "recogida", "devolucion"]
 
 
-def get_tracking_url(codbarras: str) -> str:
-    """Genera la URL de seguimiento para el cliente."""
-    if not codbarras:
-        return ""
-    return f"{GLS_TRACKING_URL}?codigo={codbarras}"
+def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", dest_cp: str = "") -> dict:
+    """
+    Extrae la URL de tracking de los eventos de GLS.
+    
+    PRIORIDAD:
+    1. Buscar evento con tipo='URLPARTNER' que contenga URL válida
+    2. Si no existe, usar fallback con URL pública oficial + datos del envío
+    
+    Returns: {
+        "tracking_url": str,       # URL para el cliente
+        "tracking_source": str,    # "urlpartner" | "fallback"
+        "urlpartner_found": bool
+    }
+    """
+    # Buscar URLPARTNER en tracking_list
+    for event in (tracking_list or []):
+        tipo = (event.get("tipo") or "").upper()
+        evento_text = event.get("evento") or ""
+        
+        if tipo == "URLPARTNER" and evento_text:
+            # Verificar si el evento contiene una URL válida
+            if evento_text.startswith("http://") or evento_text.startswith("https://"):
+                return {
+                    "tracking_url": evento_text.strip(),
+                    "tracking_source": "urlpartner",
+                    "urlpartner_found": True
+                }
+    
+    # Fallback: URL pública oficial de GLS España
+    # Mostrar datos del envío para que el cliente pueda buscar manualmente
+    fallback_url = GLS_TRACKING_PUBLIC_URL
+    if codbarras:
+        fallback_url += f"?match={codbarras}"
+    
+    return {
+        "tracking_url": fallback_url,
+        "tracking_source": "fallback",
+        "urlpartner_found": False,
+        "fallback_data": {
+            "gls_codbarras": codbarras,
+            "dest_cp": dest_cp
+        }
+    }
+
+
+def build_tracking_url_fallback(codbarras: str, dest_cp: str = "") -> str:
+    """Construye URL de tracking fallback con datos del envío."""
+    url = GLS_TRACKING_PUBLIC_URL
+    if codbarras:
+        url += f"?match={codbarras}"
+    return url
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +107,84 @@ async def is_gls_active(db) -> bool:
     """Check if GLS integration is active and configured."""
     config = await get_config(db)
     return bool(config.get("activo") and config.get("uid_cliente"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRIORIDAD 4: SELECCIÓN DE EXPEDICIÓN CORRECTA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _select_correct_expedition(expediciones: list, shipment_tipo: str, shipment: dict) -> dict:
+    """
+    Selecciona la expedición correcta cuando GetExpCli devuelve múltiples.
+    
+    LÓGICA:
+    - Si solo hay una, devolverla
+    - Si hay múltiples, intentar identificar por:
+      1. Coincidencia con gls_codbarras o gls_codexp del shipment
+      2. Por tipo de expedición (retorno vs ida)
+      3. Por fecha más reciente
+    
+    Args:
+        expediciones: Lista de expediciones de GLS
+        shipment_tipo: "envio", "recogida", "devolucion"
+        shipment: Documento del shipment en BD
+    
+    Returns: Expedición seleccionada
+    """
+    if not expediciones:
+        return {}
+    
+    if len(expediciones) == 1:
+        return expediciones[0]
+    
+    logger.info(f"Múltiples expediciones encontradas ({len(expediciones)}), seleccionando correcta...")
+    
+    # 1. Buscar coincidencia exacta por código de barras
+    gls_codbarras = shipment.get("gls_codbarras", "")
+    gls_codexp = shipment.get("gls_codexp", "")
+    
+    for exp in expediciones:
+        exp_codbar = exp.get("codbar", "")
+        exp_codexp = exp.get("codexp", "")
+        
+        if gls_codbarras and exp_codbar == gls_codbarras:
+            logger.info(f"Seleccionada expedición por codbarras: {exp_codbar}")
+            return exp
+        
+        if gls_codexp and exp_codexp == gls_codexp:
+            logger.info(f"Seleccionada expedición por codexp: {exp_codexp}")
+            return exp
+    
+    # 2. Buscar por tipo de expedición (retorno indica devolución)
+    # Si buscamos devolucion, preferir la que tenga retorno="S"
+    if shipment_tipo == "devolucion":
+        for exp in expediciones:
+            if exp.get("retorno", "").upper() == "S":
+                logger.info(f"Seleccionada expedición de retorno: {exp.get('codbar', '')}")
+                return exp
+    else:
+        # Para envío/recogida normal, preferir la que NO sea retorno
+        for exp in expediciones:
+            if exp.get("retorno", "").upper() != "S":
+                logger.info(f"Seleccionada expedición principal (no retorno): {exp.get('codbar', '')}")
+                return exp
+    
+    # 3. Por fecha más reciente
+    try:
+        sorted_exps = sorted(
+            expediciones, 
+            key=lambda x: x.get("fecha", ""), 
+            reverse=True
+        )
+        selected = sorted_exps[0]
+        logger.info(f"Seleccionada expedición más reciente: {selected.get('codbar', '')} ({selected.get('fecha', '')})")
+        return selected
+    except Exception:
+        pass
+    
+    # Fallback: primera expedición
+    logger.warning("No se pudo determinar expedición correcta, usando primera")
+    return expediciones[0]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -240,9 +364,14 @@ async def create_shipment(
 
     envio_data = result.get("envios", [{}])[0] if result.get("envios") else {}
     codbarras = envio_data.get("codbarras", "")
+    dest_cp = data.get("dest_cp", "")
 
     # Obtener etiqueta inline si fue solicitada y está disponible
     label_base64 = envio_data.get("label_base64", "")
+    
+    # PRIORIDAD 1: Para creación inicial, usar fallback hasta que tengamos URLPARTNER
+    # El tracking_url real se actualizará en la primera sincronización
+    initial_tracking_url = build_tracking_url_fallback(codbarras, dest_cp)
 
     shipment = {
         "id": shipment_id,
@@ -253,7 +382,9 @@ async def create_shipment(
         "gls_codexp": envio_data.get("codexp", ""),
         "gls_uid": envio_data.get("uid", ""),
         "gls_codbarras": codbarras,
-        "tracking_url": get_tracking_url(codbarras),
+        "tracking_url": initial_tracking_url,
+        "tracking_source": "fallback",  # Se actualizará a "urlpartner" si existe en sync
+        "urlpartner_found": False,
         "referencia_interna": data.get("referencia", ""),
         "servicio": data.get("servicio", ""),
         "horario": data.get("horario", ""),
@@ -329,7 +460,7 @@ async def create_shipment(
             "id": shipment_id,
             "tipo": tipo,
             "codbarras": codbarras,
-            "tracking_url": get_tracking_url(codbarras),
+            "tracking_url": initial_tracking_url,
             "estado_gls": "grabado",
             "created_at": now,
             "created_by": user_email,
@@ -452,6 +583,16 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
     """
     Get full tracking for a shipment and update DB.
     
+    PRIORIDAD DE IDENTIFICADORES (P3):
+    1. gls_uid → GetExp
+    2. gls_codbarras → GetExpCli
+    3. gls_codexp → GetExpCli
+    4. referencia_interna → GetExpCli (último recurso)
+    
+    TRACKING URL (P1):
+    - Busca evento URLPARTNER en tracking_list
+    - Si no existe, usa fallback con URL pública oficial
+    
     Args:
         db: Database connection
         shipment_id: Shipment ID
@@ -469,20 +610,68 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
         return {"success": False, "error": "Envío no encontrado"}
 
     old_state = shipment.get("estado_interno", "")
+    old_tracking_url = shipment.get("tracking_url", "")
+    shipment_tipo = shipment.get("tipo", "envio")
+    dest_cp = shipment.get("destinatario", {}).get("cp", "")
 
-    # Try GetExp first (by uid), then GetExpCli
+    # PRIORIDAD 3: Orden de identificadores para consulta
+    result = None
+    identificador_usado = None
+    
+    # 1. Intentar con gls_uid (más fiable)
     gls_uid = shipment.get("gls_uid")
     if gls_uid:
         result = await get_exp(gls_uid)
-    else:
-        codigo = shipment.get("gls_codbarras") or shipment.get("referencia_interna", "")
-        result = await get_exp_cli(uid, codigo)
+        identificador_usado = f"gls_uid={gls_uid}"
+        if result.get("success") and result.get("expediciones"):
+            logger.debug(f"Tracking OK con gls_uid: {gls_uid}")
+    
+    # 2. Si falla, intentar con gls_codbarras
+    if not result or not result.get("success") or not result.get("expediciones"):
+        gls_codbarras = shipment.get("gls_codbarras")
+        if gls_codbarras:
+            result = await get_exp_cli(uid, gls_codbarras)
+            identificador_usado = f"gls_codbarras={gls_codbarras}"
+            if result.get("success") and result.get("expediciones"):
+                logger.debug(f"Tracking OK con gls_codbarras: {gls_codbarras}")
+    
+    # 3. Si falla, intentar con gls_codexp
+    if not result or not result.get("success") or not result.get("expediciones"):
+        gls_codexp = shipment.get("gls_codexp")
+        if gls_codexp:
+            result = await get_exp_cli(uid, gls_codexp)
+            identificador_usado = f"gls_codexp={gls_codexp}"
+            if result.get("success") and result.get("expediciones"):
+                logger.debug(f"Tracking OK con gls_codexp: {gls_codexp}")
+    
+    # 4. Último recurso: referencia_interna
+    if not result or not result.get("success") or not result.get("expediciones"):
+        referencia = shipment.get("referencia_interna")
+        if referencia:
+            result = await get_exp_cli(uid, referencia)
+            identificador_usado = f"referencia_interna={referencia}"
+            if result.get("success") and result.get("expediciones"):
+                logger.debug(f"Tracking OK con referencia_interna: {referencia}")
+    
+    # Si ningún identificador funcionó
+    if not result:
+        result = {"success": False, "expediciones": [], "error": "No se encontró identificador válido"}
 
-    if result["success"] and result["expediciones"]:
-        exp = result["expediciones"][0]
+    if result.get("success") and result.get("expediciones"):
+        # PRIORIDAD 4: Seleccionar expedición correcta si hay múltiples
+        expediciones = result["expediciones"]
+        exp = _select_correct_expedition(expediciones, shipment_tipo, shipment)
+        
         mapped = map_gls_state(exp.get("codestado", ""))
         now = datetime.now(timezone.utc).isoformat()
         new_state = mapped["estado"]
+
+        # PRIORIDAD 1: Extraer tracking_url desde URLPARTNER o usar fallback
+        tracking_info = extract_tracking_url_from_events(
+            exp.get("tracking_list", []),
+            codbarras=exp.get("codbar") or shipment.get("gls_codbarras", ""),
+            dest_cp=dest_cp
+        )
 
         # Update shipment with tracking data
         update = {
@@ -495,7 +684,20 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
             "updated_at": now,
             "sync_status": "ok",
             "sync_error": None,
+            # PRIORIDAD 1: Actualizar tracking_url desde eventos
+            "tracking_url": tracking_info["tracking_url"],
+            "tracking_source": tracking_info["tracking_source"],
+            "urlpartner_found": tracking_info["urlpartner_found"],
         }
+        
+        # Actualizar identificadores si los obtuvimos de la respuesta
+        if exp.get("uidExp") and not shipment.get("gls_uid"):
+            update["gls_uid"] = exp["uidExp"]
+        if exp.get("codbar") and not shipment.get("gls_codbarras"):
+            update["gls_codbarras"] = exp["codbar"]
+        if exp.get("codexp") and not shipment.get("gls_codexp"):
+            update["gls_codexp"] = exp["codexp"]
+        
         if exp.get("FPEntrega"):
             update["fecha_prevista_entrega"] = exp["FPEntrega"]
         if exp.get("NombreEntrega"):
@@ -551,6 +753,7 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
                     "gls_envios.$.estado_gls": new_state,
                     "gls_envios.$.es_final": mapped["es_final"],
                     "gls_envios.$.ultima_sync": now,
+                    "gls_envios.$.tracking_url": tracking_info["tracking_url"],
                 }}
             )
             
@@ -564,16 +767,21 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
                 )
                 
                 # Notificar al cliente si está habilitado
+                # Recargar shipment con tracking_url actualizado
                 if notify_on_change and shipment.get("destinatario", {}).get("email"):
-                    await _notify_client_status_change(db, shipment, old_state, new_state, config)
+                    updated_shipment = await db.gls_shipments.find_one({"id": shipment_id}, {"_id": 0})
+                    await _notify_client_status_change(db, updated_shipment, old_state, new_state, config)
 
         result["new_events"] = new_events_count
         result["state_changed"] = old_state != new_state
+        result["tracking_url_updated"] = old_tracking_url != tracking_info["tracking_url"]
+        result["tracking_source"] = tracking_info["tracking_source"]
+        result["identificador_usado"] = identificador_usado
 
     await _log_operation(
         db, shipment_id, "tracking",
-        f"UID: {shipment.get('gls_uid', '')} | Codbarras: {shipment.get('gls_codbarras', '')}",
-        f"Success: {result['success']} | Estado: {result.get('expediciones', [{}])[0].get('estado', '') if result.get('expediciones') else 'N/A'}",
+        f"Identificador: {identificador_usado}",
+        f"Success: {result.get('success')} | Estado: {result.get('expediciones', [{}])[0].get('estado', '') if result.get('expediciones') else 'N/A'} | TrackingSource: {result.get('tracking_source', 'N/A')}",
         orden_id=shipment.get("entidad_id")
     )
 
@@ -831,6 +1039,13 @@ async def _notify_client_shipment_created(db, shipment: dict, config: dict):
         
         tracking_url = shipment.get("tracking_url", "")
         codbarras = shipment.get("gls_codbarras", "")
+        dest_cp = shipment.get("destinatario", {}).get("cp", "")
+        tracking_source = shipment.get("tracking_source", "fallback")
+        
+        # Si es fallback, incluir instrucciones adicionales
+        tracking_note = ""
+        if tracking_source == "fallback" and dest_cp:
+            tracking_note = f"<p><small>Si el enlace no funciona, introduce tu código {codbarras} y código postal {dest_cp} en la web de GLS.</small></p>"
         
         subject = f"Tu {tipo_label} GLS ha sido generado - {codbarras}"
         html_content = f"""
@@ -838,7 +1053,9 @@ async def _notify_client_shipment_created(db, shipment: dict, config: dict):
         <p>Hola {shipment.get('destinatario', {}).get('nombre', '')},</p>
         <p>Te informamos que tu {tipo_label} con GLS ha sido creado correctamente.</p>
         <p><strong>Código de seguimiento:</strong> {codbarras}</p>
+        {f'<p><strong>Código postal destino:</strong> {dest_cp}</p>' if dest_cp else ''}
         <p><a href="{tracking_url}" style="background-color: #FFA500; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Seguir envío</a></p>
+        {tracking_note}
         <p>Saludos,<br>{config.get('remitente_nombre', 'El equipo')}</p>
         """
         

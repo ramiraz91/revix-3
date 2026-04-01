@@ -1,10 +1,9 @@
 """
 database.py — Configuración de conexión MongoDB
-⚠️  BASE DE DATOS DE PRODUCCIÓN - NO MODIFICAR ⚠️
 
-IMPORTANTE: Este archivo está configurado para usar EXCLUSIVAMENTE
-la base de datos privada del cliente en MongoDB Atlas.
-NO cambiar MONGO_URL ni DB_NAME bajo ninguna circunstancia.
+Configuración flexible para soportar:
+- Emergent Kubernetes deployment (usa variables de entorno del cluster)
+- Desarrollo local (usa .env)
 """
 
 import os
@@ -16,39 +15,28 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from dotenv import load_dotenv
 
-load_dotenv()
+# Cargar .env solo si las variables no están ya definidas (Kubernetes las define)
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ⚠️  CONFIGURACIÓN FIJA DE BASE DE DATOS - NO MODIFICAR ⚠️
+# CONFIGURACIÓN DE BASE DE DATOS
 # ══════════════════════════════════════════════════════════════════════════════
-# 
-# Base de datos: MongoDB Atlas (Cluster privado del cliente)
-# Host: revix.d7soggd.mongodb.net
-# Database: production
-#
-# NUNCA usar otra base de datos. NUNCA cambiar estos valores.
+# Las variables de entorno son proporcionadas por:
+# - Kubernetes (deployment): MONGO_URL, DB_NAME definidas en el cluster
+# - Desarrollo local: archivo .env
 # ══════════════════════════════════════════════════════════════════════════════
 
-# URL FIJA - Solo se puede sobrescribir con variable de entorno
-_FIXED_MONGO_URL = "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
-_FIXED_DB_NAME = "production"
+# Obtener configuración desde variables de entorno
+MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL")
+DB_NAME = os.getenv("DB_NAME", "production")
 
-# Usar variable de entorno SI existe, sino usar la fija
-MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL") or _FIXED_MONGO_URL
-DB_NAME = os.getenv("DB_NAME") or _FIXED_DB_NAME
-
-# Validación: Asegurar que siempre apunte al cluster correcto
-if "revix.d7soggd.mongodb.net" not in MONGO_URL:
-    logger.critical("⛔ ERROR CRÍTICO: MONGO_URL no apunta al cluster correcto (revix.d7soggd.mongodb.net)")
-    logger.critical(f"⛔ URL detectada: {MONGO_URL[:50]}...")
-    logger.critical("⛔ Usando URL fija de seguridad")
-    MONGO_URL = _FIXED_MONGO_URL
-
-if DB_NAME != "production":
-    logger.warning(f"⚠️  DB_NAME no es 'production', es '{DB_NAME}'. Corrigiendo...")
-    DB_NAME = "production"
+# Validación: Asegurar que MONGO_URL esté configurada
+if not MONGO_URL:
+    logger.critical("⛔ ERROR CRÍTICO: MONGO_URL no está configurada")
+    logger.critical("⛔ Configure MONGO_URL en las variables de entorno o en el archivo .env")
+    raise ValueError("MONGO_URL environment variable is required")
 
 # ── Clientes ──────────────────────────────────────────────────────────────────
 

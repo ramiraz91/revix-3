@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,22 +8,43 @@ import { Separator } from '@/components/ui/separator';
 import { ordenesAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
-export function TecnicoMensajesCard({ orden, mensajes, onRefresh }) {
+export function TecnicoMensajesCard({ orden, mensajes, onRefresh, onMensajeAdd }) {
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  
+  // Estado local de mensajes para actualización inmediata
+  const [localMensajes, setLocalMensajes] = useState(mensajes || []);
+  
+  // Sincronizar cuando cambian los mensajes desde el padre
+  useEffect(() => {
+    setLocalMensajes(mensajes || []);
+  }, [mensajes]);
 
   const handleEnviarMensaje = async () => {
     if (!nuevoMensaje.trim()) return;
     
     setEnviandoMensaje(true);
     try {
-      await ordenesAPI.añadirMensaje(orden.id, {
+      const response = await ordenesAPI.añadirMensaje(orden.id, {
         mensaje: nuevoMensaje.trim(),
         visible_tecnico: true
       });
+      
+      // Crear objeto de mensaje para actualización local
+      const nuevoMsgObj = response?.data || {
+        mensaje: nuevoMensaje.trim(),
+        rol: 'tecnico',
+        autor_nombre: 'Técnico',
+        fecha: new Date().toISOString(),
+        visible_tecnico: true
+      };
+      
+      // Actualizar estado local
+      setLocalMensajes(prev => [...prev, nuevoMsgObj]);
+      if (onMensajeAdd) onMensajeAdd(nuevoMsgObj);
+      
       setNuevoMensaje('');
       toast.success('Mensaje enviado');
-      onRefresh();
     } catch (error) {
       toast.error('Error al enviar mensaje');
     } finally {
@@ -41,12 +62,12 @@ export function TecnicoMensajesCard({ orden, mensajes, onRefresh }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
-          {mensajes.length === 0 ? (
+          {localMensajes.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">
               No hay mensajes en esta orden
             </p>
           ) : (
-            mensajes.map((msg, index) => (
+            localMensajes.map((msg, index) => (
               <div 
                 key={index}
                 className={`p-3 rounded-lg ${

@@ -29,7 +29,7 @@ import {
 import { ordenesAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
-export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
+export function TecnicoMaterialesCard({ orden, repuestos, onRefresh, onMaterialesChange }) {
   const [openMaterialSearch, setOpenMaterialSearch] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedRepuesto, setSelectedRepuesto] = useState(null);
@@ -49,6 +49,13 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
   const [showValidacionModal, setShowValidacionModal] = useState(false);
   const [codigoValidacion, setCodigoValidacion] = useState('');
   const [validando, setValidando] = useState(false);
+
+  // Helper para notificar cambios al padre
+  const notifyMaterialesChange = (nuevosMateriales) => {
+    if (onMaterialesChange) {
+      onMaterialesChange(nuevosMateriales);
+    }
+  };
 
   const handleSelectMaterial = (repuesto) => {
     setSelectedRepuesto(repuesto);
@@ -76,7 +83,9 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
         cantidad: 1,
         añadido_por_tecnico: true
       };
-      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      const nuevosMateriales = [...localMateriales, nuevoMaterial];
+      setLocalMateriales(nuevosMateriales);
+      notifyMaterialesChange(nuevosMateriales);
       
       setSelectedRepuesto(null);
     } catch (error) {
@@ -107,7 +116,9 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
         cantidad: parseInt(materialPersonalizado.cantidad) || 1,
         añadido_por_tecnico: true
       };
-      setLocalMateriales([...localMateriales, nuevoMaterial]);
+      const nuevosMateriales = [...localMateriales, nuevoMaterial];
+      setLocalMateriales(nuevosMateriales);
+      notifyMaterialesChange(nuevosMateriales);
       
       setMaterialPersonalizado({ nombre: '', cantidad: 1 });
     } catch (error) {
@@ -138,6 +149,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
           i === res.data.index ? { ...m, validado_tecnico: true } : m
         );
         setLocalMateriales(updatedMateriales);
+        notifyMaterialesChange(updatedMateriales);
       }
       
       setCodigoValidacion('');
@@ -165,6 +177,7 @@ export function TecnicoMaterialesCard({ orden, repuestos, onRefresh }) {
         i === index ? { ...m, validado_tecnico: true } : m
       );
       setLocalMateriales(updatedMateriales);
+      notifyMaterialesChange(updatedMateriales);
     } catch (error) {
       toast.error('Error al validar material');
     }

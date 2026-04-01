@@ -222,3 +222,37 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 - **Antes**: ~4-6 peticiones HTTP por cada cambio de material
 - **Después**: 1 petición HTTP + actualización local inmediata
 - Experiencia de usuario mucho más fluida y ágil
+
+---
+
+## 2026-04-01 - Optimización Vista Técnico (OrdenTecnico.jsx)
+
+### Fixed - Recargas innecesarias en la vista de técnico
+- **Problema**: Al validar materiales o cargar imágenes desde la vista de técnico, se recargaba toda la página causando lentitud.
+- **Solución**: Implementado el mismo patrón de actualizaciones parciales.
+
+### Changed - Frontend (`OrdenTecnico.jsx`)
+- `fetchOrden(showLoading)`: Ahora acepta parámetro para recargas silenciosas
+- `updateOrdenPartial(partialData)`: Actualiza solo campos específicos
+- `addFotosLocal(fotos, tipo)`: Añade fotos localmente sin recargar
+- `updateMaterialesLocal(materiales)`: Actualiza materiales localmente
+- `addMensajeLocal(mensaje)`: Añade mensaje sin recargar
+- `refreshSilent()`: Recarga en segundo plano
+
+### Changed - Frontend (`TecnicoFotosCard.jsx`)
+- Estado local para fotos (ANTES, DESPUÉS, General)
+- Actualización inmediata al subir fotos sin recargar página
+- Nueva prop `onFotosChange` para notificar al padre
+
+### Changed - Frontend (`TecnicoMaterialesCard.jsx`)
+- Nueva prop `onMaterialesChange` para notificar cambios al padre
+- `notifyMaterialesChange()` helper para sincronizar estado
+
+### Changed - Frontend (`TecnicoMensajesCard.jsx`)
+- Estado local para mensajes
+- Nueva prop `onMensajeAdd` para actualización inmediata
+
+### Impact
+- **Antes**: Cada validación de material o foto recargaba toda la orden
+- **Después**: Actualización instantánea local
+- Los técnicos pueden trabajar de forma fluida sin esperas

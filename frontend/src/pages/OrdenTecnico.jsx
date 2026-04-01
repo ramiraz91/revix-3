@@ -57,9 +57,10 @@ export default function OrdenTecnico() {
   const [diagnostico, setDiagnostico] = useState('');
   const [imeiValidado, setImeiValidado] = useState(false);
 
-  const fetchOrden = async () => {
+  // Fetch principal con opción de loading silencioso
+  const fetchOrden = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [ordenRes, repuestosRes, mensajesRes] = await Promise.all([
         ordenesAPI.obtener(id),
         repuestosAPI.listar({ page_size: 100 }),
@@ -75,8 +76,50 @@ export default function OrdenTecnico() {
       toast.error('Error al cargar la orden');
       console.error(error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
+  };
+
+  // Actualización parcial de la orden (sin recargar toda la página)
+  const updateOrdenPartial = (partialData) => {
+    setOrden(prev => {
+      if (!prev) return prev;
+      return { ...prev, ...partialData };
+    });
+  };
+
+  // Añadir fotos localmente sin recargar
+  const addFotosLocal = (nuevasFotos, tipo) => {
+    setOrden(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      if (tipo === 'antes') {
+        updated.fotos_antes = [...(prev.fotos_antes || []), ...nuevasFotos];
+      } else if (tipo === 'despues') {
+        updated.fotos_despues = [...(prev.fotos_despues || []), ...nuevasFotos];
+      } else {
+        updated.evidencias_tecnico = [...(prev.evidencias_tecnico || []), ...nuevasFotos];
+      }
+      return updated;
+    });
+  };
+
+  // Actualizar materiales localmente
+  const updateMaterialesLocal = (nuevosMateriales) => {
+    setOrden(prev => {
+      if (!prev) return prev;
+      return { ...prev, materiales: nuevosMateriales };
+    });
+  };
+
+  // Añadir mensaje localmente
+  const addMensajeLocal = (nuevoMensaje) => {
+    setMensajes(prev => [...prev, nuevoMensaje]);
+  };
+
+  // Refetch silencioso en segundo plano
+  const refreshSilent = () => {
+    fetchOrden(false);
   };
 
   useEffect(() => {
@@ -187,20 +230,23 @@ export default function OrdenTecnico() {
           <TecnicoMaterialesCard 
             orden={orden}
             repuestos={repuestos}
-            onRefresh={fetchOrden}
+            onRefresh={refreshSilent}
+            onMaterialesChange={updateMaterialesLocal}
           />
 
           {/* Fotos */}
           <TecnicoFotosCard 
             orden={orden}
-            onRefresh={fetchOrden}
+            onRefresh={refreshSilent}
+            onFotosChange={addFotosLocal}
           />
 
           {/* Mensajes */}
           <TecnicoMensajesCard 
             orden={orden}
             mensajes={mensajes}
-            onRefresh={fetchOrden}
+            onRefresh={refreshSilent}
+            onMensajeAdd={addMensajeLocal}
           />
 
           {/* Cierre Reparación */}
@@ -248,7 +294,7 @@ export default function OrdenTecnico() {
             subestadoActual={orden.subestado}
             motivoActual={orden.motivo_subestado}
             fechaRevision={orden.fecha_revision_subestado}
-            onUpdate={fetchOrden}
+            onSubestadoChange={updateOrdenPartial}
           />
         </div>
       </div>

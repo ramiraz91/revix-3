@@ -25,7 +25,7 @@ import {
 import { ordenesAPI, getUploadUrl } from '@/lib/api';
 import { toast } from 'sonner';
 
-export function TecnicoFotosCard({ orden, onRefresh }) {
+export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -37,6 +37,18 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
   const [cameraStream, setCameraStream] = useState(null);
   const [facingMode, setFacingMode] = useState('environment');
   const [cameraPhotoType, setCameraPhotoType] = useState('general');
+  
+  // Estado local de fotos para evitar recargar toda la página
+  const [localFotosAntes, setLocalFotosAntes] = useState(orden.fotos_antes || []);
+  const [localFotosDespues, setLocalFotosDespues] = useState(orden.fotos_despues || []);
+  const [localEvidenciasTecnico, setLocalEvidenciasTecnico] = useState(orden.evidencias_tecnico || []);
+
+  // Sincronizar cuando cambia la orden desde el padre
+  useEffect(() => {
+    setLocalFotosAntes(orden.fotos_antes || []);
+    setLocalFotosDespues(orden.fotos_despues || []);
+    setLocalEvidenciasTecnico(orden.evidencias_tecnico || []);
+  }, [orden.fotos_antes, orden.fotos_despues, orden.evidencias_tecnico]);
 
   // Cleanup camera on unmount
   useEffect(() => {
@@ -125,9 +137,21 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
       try {
         setUploading(true);
         const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        await ordenesAPI.subirEvidenciaTecnico(orden.id, file, cameraPhotoType);
+        const response = await ordenesAPI.subirEvidenciaTecnico(orden.id, file, cameraPhotoType);
         toast.success(`Foto ${cameraPhotoType !== 'general' ? `(${cameraPhotoType})` : ''} capturada y subida`);
-        onRefresh();
+        
+        // Actualizar estado local según el tipo
+        const nuevaFoto = response?.data?.filename || response?.data?.url || `foto_${Date.now()}.jpg`;
+        if (cameraPhotoType === 'antes') {
+          setLocalFotosAntes(prev => [...prev, nuevaFoto]);
+          if (onFotosChange) onFotosChange([nuevaFoto], 'antes');
+        } else if (cameraPhotoType === 'despues') {
+          setLocalFotosDespues(prev => [...prev, nuevaFoto]);
+          if (onFotosChange) onFotosChange([nuevaFoto], 'despues');
+        } else {
+          setLocalEvidenciasTecnico(prev => [...prev, nuevaFoto]);
+          if (onFotosChange) onFotosChange([nuevaFoto], 'general');
+        }
       } catch (error) {
         console.error('Error al subir foto:', error);
         toast.error('Error al subir la foto capturada');
@@ -149,9 +173,12 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
     try {
       setUploading(true);
       let successCount = 0;
+      const nuevasFotos = [];
       for (const file of files) {
         try {
-          await ordenesAPI.subirEvidenciaTecnico(orden.id, file);
+          const response = await ordenesAPI.subirEvidenciaTecnico(orden.id, file);
+          const nuevaFoto = response?.data?.filename || response?.data?.url || file.name;
+          nuevasFotos.push(nuevaFoto);
           successCount++;
         } catch (err) {
           console.error('Error subiendo archivo:', err);
@@ -159,7 +186,9 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
       }
       if (successCount > 0) {
         toast.success(`${successCount} foto${successCount > 1 ? 's' : ''} subida${successCount > 1 ? 's' : ''} correctamente`);
-        onRefresh();
+        // Actualizar estado local
+        setLocalEvidenciasTecnico(prev => [...prev, ...nuevasFotos]);
+        if (onFotosChange) onFotosChange(nuevasFotos, 'general');
       }
     } catch (error) {
       toast.error('Error al subir las fotos');
@@ -175,9 +204,12 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
     try {
       setUploading(true);
       let successCount = 0;
+      const nuevasFotos = [];
       for (const file of files) {
         try {
-          await ordenesAPI.subirEvidenciaTecnico(orden.id, file, tipo);
+          const response = await ordenesAPI.subirEvidenciaTecnico(orden.id, file, tipo);
+          const nuevaFoto = response?.data?.filename || response?.data?.url || file.name;
+          nuevasFotos.push(nuevaFoto);
           successCount++;
         } catch (err) {
           console.error('Error subiendo archivo:', err);
@@ -185,7 +217,13 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
       }
       if (successCount > 0) {
         toast.success(`${successCount} foto${successCount > 1 ? 's' : ''} "${tipo}" subida${successCount > 1 ? 's' : ''} correctamente`);
-        onRefresh();
+        // Actualizar estado local según el tipo
+        if (tipo === 'antes') {
+          setLocalFotosAntes(prev => [...prev, ...nuevasFotos]);
+        } else if (tipo === 'despues') {
+          setLocalFotosDespues(prev => [...prev, ...nuevasFotos]);
+        }
+        if (onFotosChange) onFotosChange(nuevasFotos, tipo);
       }
     } catch (error) {
       toast.error('Error al subir las fotos');
@@ -202,7 +240,7 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
 
   const todasLasFotos = [
     ...(orden.evidencias || []).map(f => ({ src: getUploadUrl(f), tipo: 'admin' })),
-    ...(orden.evidencias_tecnico || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico' }))
+    ...(localEvidenciasTecnico || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico' }))
   ];
 
   return (
@@ -220,19 +258,19 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
               <TabsTrigger value="antes" className="gap-2">
                 📷 ANTES
                 <Badge variant="outline" className="text-xs">
-                  {(orden.fotos_antes || []).length}
+                  {localFotosAntes.length}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger value="despues" className="gap-2">
                 ✅ DESPUÉS
                 <Badge variant="outline" className="text-xs">
-                  {(orden.fotos_despues || []).length}
+                  {localFotosDespues.length}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger value="general" className="gap-2">
                 📁 General
                 <Badge variant="outline" className="text-xs">
-                  {(orden.evidencias_tecnico || []).length}
+                  {localEvidenciasTecnico.length}
                 </Badge>
               </TabsTrigger>
             </TabsList>
@@ -274,14 +312,14 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
                     </Button>
                   </div>
                 </div>
-                {(orden.fotos_antes || []).length === 0 ? (
+                {localFotosAntes.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">
                     <Camera className="w-10 h-10 mx-auto mb-2 opacity-50" />
                     <p>Sin fotos del estado inicial</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {(orden.fotos_antes || []).map((foto, index) => (
+                    {localFotosAntes.map((foto, index) => (
                       <div 
                         key={index}
                         className="relative aspect-square rounded-lg border-2 border-amber-200 overflow-hidden cursor-pointer hover:opacity-90"
@@ -337,14 +375,14 @@ export function TecnicoFotosCard({ orden, onRefresh }) {
                     </Button>
                   </div>
                 </div>
-                {(orden.fotos_despues || []).length === 0 ? (
+                {localFotosDespues.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">
                     <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
                     <p>Sin fotos del resultado</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {(orden.fotos_despues || []).map((foto, index) => (
+                    {localFotosDespues.map((foto, index) => (
                       <div 
                         key={index}
                         className="relative aspect-square rounded-lg border-2 border-green-200 overflow-hidden cursor-pointer hover:opacity-90"

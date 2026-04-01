@@ -23,6 +23,7 @@ export function TecnicoAccionesCard({ orden, onRefresh }) {
       await ordenesAPI.cambiarEstado(orden.id, {
         nuevo_estado: 'en_taller',
         usuario: 'tecnico',
+        mensaje: 'Técnico inicia la reparación',
       });
       toast.success('Reparación iniciada — la orden está ahora "En Taller"');
       onRefresh();
@@ -40,6 +41,7 @@ export function TecnicoAccionesCard({ orden, onRefresh }) {
       await ordenesAPI.cambiarEstado(orden.id, {
         nuevo_estado: 'validacion',
         usuario: 'tecnico',
+        mensaje: 'Reparación completada - Pendiente de validación para envío',
       });
       toast.success('Reparación finalizada — Orden en validación para envío');
       onRefresh();
@@ -60,7 +62,7 @@ export function TecnicoAccionesCard({ orden, onRefresh }) {
       await ordenesAPI.cambiarEstado(orden.id, {
         nuevo_estado: 'irreparable',
         usuario: 'tecnico',
-        motivo: motivoIrreparable,
+        mensaje: motivoIrreparable,
       });
       await ordenesAPI.actualizar(orden.id, {
         diagnostico_tecnico: motivoIrreparable,

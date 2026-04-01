@@ -454,6 +454,7 @@ export default function OrdenDetalle() {
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: 'enviado',
         codigo_envio: codigoEnvioFinal.trim(),
+        mensaje: 'Orden finalizada y enviada al cliente',
         usuario: user?.email || 'admin'
       });
       console.log('Paso 2: Estado cambiado correctamente');

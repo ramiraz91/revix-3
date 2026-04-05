@@ -437,36 +437,76 @@ const OrdenPDF = forwardRef(function OrdenPDF(
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.5px' }}>
               <thead>
-                <tr style={{ borderBottom: '1.5px solid #ddd' }}>
-                  <th style={{ textAlign: 'left', padding: '1.5mm 0', fontWeight: '700' }}>SKU / Descripción</th>
-                  <th style={{ textAlign: 'left', padding: '1.5mm 2mm', width: '80px', fontWeight: '700' }}>Proveedor</th>
-                  <th style={{ textAlign: 'center', padding: '1.5mm 2mm', width: '40px', fontWeight: '700' }}>Cant.</th>
-                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '1.5mm 2mm', width: '60px', fontWeight: '700' }}>P. Unit.</th>}
-                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '1.5mm 2mm', width: '45px', fontWeight: '700' }}>Dto.</th>}
-                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '1.5mm 0', width: '60px', fontWeight: '700' }}>Subtotal</th>}
+                <tr style={{ borderBottom: '1.5px solid #ddd', backgroundColor: '#f8f8f8' }}>
+                  <th style={{ textAlign: 'left', padding: '2mm 2mm 2mm 0', width: '70px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>SKU</th>
+                  <th style={{ textAlign: 'left', padding: '2mm', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>Descripción</th>
+                  <th style={{ textAlign: 'left', padding: '2mm', width: '70px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>Proveedor</th>
+                  <th style={{ textAlign: 'center', padding: '2mm', width: '35px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>Cant.</th>
+                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '2mm', width: '55px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>P. Unit.</th>}
+                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '2mm', width: '40px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>Dto.</th>}
+                  {isFull && !isBlank && <th style={{ textAlign: 'right', padding: '2mm 0 2mm 2mm', width: '55px', fontWeight: '700', fontSize: '7px', textTransform: 'uppercase', color: '#555' }}>Subtotal</th>}
                 </tr>
               </thead>
               <tbody>
                 {(isBlank ? [{}, {}, {}] : materiales).map((m, i) => {
                   const st = (m.cantidad || 0) * (m.precio_unitario || 0);
                   const dto = m.descuento ? st * m.descuento / 100 : 0;
+                  const isEven = i % 2 === 0;
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td style={{ padding: '1.5mm 0' }}>
-                        {isBlank ? '________________________' : `${m.sku || ''} ${m.nombre || '—'}`.trim()}
+                    <tr key={i} style={{ borderBottom: '1px solid #eee', backgroundColor: isEven ? '#fff' : '#fafafa' }}>
+                      <td style={{ 
+                        padding: '2.5mm 2mm 2.5mm 0', 
+                        fontFamily: 'monospace', 
+                        fontSize: '7px',
+                        fontWeight: '600',
+                        color: '#0055FF',
+                        verticalAlign: 'top'
+                      }}>
+                        {isBlank ? '________' : (m.sku || '—')}
                       </td>
-                      <td style={{ padding: '1.5mm 2mm' }}>{isBlank ? '________' : (m.proveedor || '—')}</td>
-                      <td style={{ textAlign: 'center', padding: '1.5mm 2mm' }}>{isBlank ? '___' : (m.cantidad || 0)}</td>
+                      <td style={{ 
+                        padding: '2.5mm 2mm', 
+                        fontSize: '8px',
+                        lineHeight: '1.3',
+                        verticalAlign: 'top'
+                      }}>
+                        {isBlank ? '________________________' : (m.nombre || '—')}
+                        {m.tipo && !isBlank && (
+                          <span style={{ 
+                            display: 'inline-block', 
+                            marginLeft: '3mm', 
+                            fontSize: '6px', 
+                            padding: '0.5mm 1.5mm', 
+                            backgroundColor: m.tipo === 'original' ? '#dcfce7' : m.tipo === 'compatible' ? '#fef3c7' : '#f3f4f6',
+                            color: m.tipo === 'original' ? '#166534' : m.tipo === 'compatible' ? '#92400e' : '#374151',
+                            borderRadius: '1mm',
+                            fontWeight: '500',
+                            textTransform: 'uppercase'
+                          }}>
+                            {m.tipo}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '2.5mm 2mm', fontSize: '7px', color: '#666', verticalAlign: 'top' }}>
+                        {isBlank ? '________' : (m.proveedor || '—')}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '2.5mm 2mm', fontWeight: '600', verticalAlign: 'top' }}>
+                        {isBlank ? '__' : (m.cantidad || 0)}
+                      </td>
                       {isFull && !isBlank && (
-                        <td style={{ textAlign: 'right', padding: '1.5mm 2mm' }}>{(m.precio_unitario || 0).toFixed(2)} €</td>
+                        <td style={{ textAlign: 'right', padding: '2.5mm 2mm', fontFamily: 'monospace', fontSize: '7px', verticalAlign: 'top' }}>
+                          {(m.precio_unitario || 0).toFixed(2)} €
+                        </td>
                       )}
                       {isFull && !isBlank && (
-                        <td style={{ textAlign: 'right', padding: '1.5mm 2mm', color: m.descuento ? '#111' : '#ccc' }}>
+                        <td style={{ textAlign: 'right', padding: '2.5mm 2mm', color: m.descuento ? '#dc2626' : '#ccc', fontSize: '7px', verticalAlign: 'top' }}>
                           {m.descuento ? `-${m.descuento}%` : '—'}
                         </td>
                       )}
                       {isFull && !isBlank && (
-                        <td style={{ textAlign: 'right', padding: '1.5mm 0' }}>{(st - dto).toFixed(2)} €</td>
+                        <td style={{ textAlign: 'right', padding: '2.5mm 0 2.5mm 2mm', fontWeight: '600', fontFamily: 'monospace', fontSize: '7.5px', verticalAlign: 'top' }}>
+                          {(st - dto).toFixed(2)} €
+                        </td>
                       )}
                     </tr>
                   );

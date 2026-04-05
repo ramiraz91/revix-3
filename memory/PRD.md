@@ -54,7 +54,28 @@ Sistema CRM/ERP para taller de reparación de móviles con funcionalidades de:
 
 # CHANGELOG
 
-## 2026-04-01 (Sesión actual)
+## 2026-04-05 (Sesión actual)
+
+### Added - Formulario de Presupuesto Mejorado
+- **Campos de cliente ampliados**: Nombre, Apellidos, DNI/NIE, Email, Teléfono principal, Teléfono alternativo
+- **Dirección completa**: Calle, Código Postal, Ciudad, Provincia (para coordinar recogida)
+- **Encuesta "¿Cómo nos conociste?"**: Google, Aseguradora, Referido, Redes sociales, Publicidad, Cliente repetidor, Otro
+- **Más tipos de averías**: Face ID/Touch ID, Tapa trasera, Marco/Chasis, Otro
+- **Mensaje de confirmación mejorado** tras envío:
+  - Información sobre contacto en breve
+  - Recogida en 24-48 horas laborables
+  - Recogida y envío gratuitos
+  - El presupuesto no es definitivo hasta diagnóstico
+  - 6 meses de garantía
+- **Recuadro de información importante** antes de enviar
+- **Email de confirmación mejorado** al cliente con toda la info de recogida
+- **Email interno mejorado** con todos los datos del cliente y fuente de marketing
+
+### Files Modified
+- `frontend/src/pages/public/PublicPresupuesto.jsx`: Formulario completamente rediseñado
+- `backend/routes/web_publica_routes.py`: Modelo y endpoint actualizados para nuevos campos
+
+## 2026-04-01 (Sesión anterior)
 ### Fixed - Problema de despliegue de producción
 - **Error 520 en producción**: Resuelto eliminando archivos `.env` del repositorio Git que causaban conflicto con las System Keys de Emergent
 - **Scraper de Sumbroker**: Ahora busca credenciales en configuración `sumbroker` además de `agent_config`

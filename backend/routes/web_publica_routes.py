@@ -38,14 +38,30 @@ class ContactoForm(BaseModel):
 
 
 class PresupuestoForm(BaseModel):
+    # Dispositivo
     tipo_dispositivo: str
     marca: str
     modelo: str
     averias: List[str]
     descripcion: Optional[str] = None
+    # Cliente
     nombre: str
+    apellidos: Optional[str] = None
+    dni: Optional[str] = None
     email: str
     telefono: str
+    telefono_alternativo: Optional[str] = None
+    # Dirección
+    direccion: Optional[str] = None
+    codigo_postal: Optional[str] = None
+    ciudad: Optional[str] = None
+    provincia: Optional[str] = None
+    # Marketing
+    como_conociste: Optional[str] = None
+    como_conociste_otro: Optional[str] = None
+    # Notas
+    notas_adicionales: Optional[str] = None
+    acepta_condiciones: bool = False
 
 
 # ==================== CHATBOT IA (RESTRINGIDO - SOLO INFO REVIX) ====================
@@ -246,6 +262,14 @@ async def enviar_contacto(data: ContactoForm):
 async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
     """Guarda solicitud de presupuesto como Petición Exterior y notifica"""
     
+    # Determinar fuente de marketing
+    fuente_marketing = data.como_conociste or "web"
+    if data.como_conociste == "otro" and data.como_conociste_otro:
+        fuente_marketing = f"otro: {data.como_conociste_otro}"
+    
+    # Nombre completo
+    nombre_completo = f"{data.nombre} {data.apellidos or ''}".strip()
+    
     # Crear petición exterior
     peticion_id = str(uuid.uuid4())
     numero_peticion = f"PET-{datetime.now().strftime('%Y%m%d')}-{peticion_id[:4].upper()}"
@@ -254,16 +278,22 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
     peticion = {
         "id": peticion_id,
         "numero": numero_peticion,
-        "nombre": data.nombre.strip(),
+        "nombre": nombre_completo,
+        "apellidos": data.apellidos,
+        "dni": data.dni,
         "email": data.email.lower().strip(),
         "telefono": data.telefono.strip(),
+        "telefono_alternativo": data.telefono_alternativo,
         "dispositivo": f"{data.marca} {data.modelo}".strip(),
         "problema": f"{averias_texto}. {data.descripcion or ''}".strip(),
         "tipo_pieza": "sin_preferencia",
-        "direccion": None,
-        "codigo_postal": None,
-        "ciudad": None,
+        "direccion": data.direccion,
+        "codigo_postal": data.codigo_postal,
+        "ciudad": data.ciudad,
+        "provincia": data.provincia,
         "comentarios": f"Tipo: {data.tipo_dispositivo}",
+        "como_conociste": fuente_marketing,
+        "notas_adicionales": data.notas_adicionales,
         "origen": "web",
         "estado": "pendiente",
         "notas_internas": "",
@@ -289,9 +319,18 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
         "modelo": data.modelo,
         "averias": data.averias,
         "descripcion": data.descripcion,
-        "nombre": data.nombre,
+        "nombre": nombre_completo,
+        "apellidos": data.apellidos,
+        "dni": data.dni,
         "email": data.email,
         "telefono": data.telefono,
+        "telefono_alternativo": data.telefono_alternativo,
+        "direccion": data.direccion,
+        "codigo_postal": data.codigo_postal,
+        "ciudad": data.ciudad,
+        "provincia": data.provincia,
+        "como_conociste": fuente_marketing,
+        "notas_adicionales": data.notas_adicionales,
         "estado": "nuevo",
         "peticion_exterior_id": peticion_id,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -302,10 +341,16 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
     try:
         from services.email_service import send_email
         nombre_corto = data.nombre.split()[0] if data.nombre else "cliente"
+        
+        # Dirección formateada
+        direccion_texto = ""
+        if data.direccion:
+            direccion_texto = f"<p style='margin: 8px 0;'><strong>📍 Dirección de recogida:</strong><br/>{data.direccion}<br/>{data.codigo_postal or ''} {data.ciudad or ''} ({data.provincia or ''})</p>"
+        
         send_email(
             to=data.email,
-            subject="¡Hemos recibido tu petición! — Revix.es",
-            titulo=f"¡Hola {nombre_corto}! 👋",
+            subject="¡Solicitud de presupuesto recibida! — Revix.es",
+            titulo=f"¡Hola {nombre_corto}!",
             contenido=f"""
                 <p style="font-size: 16px;">¡Ya hemos recibido tu solicitud de presupuesto!</p>
                 
@@ -314,19 +359,33 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
                         <strong>📱 Dispositivo:</strong> {data.marca} {data.modelo}<br/>
                         <strong>🔧 Problema:</strong> {averias_texto}
                     </p>
+                    {direccion_texto}
                 </div>
                 
-                <p style="font-size: 15px;">
-                    En breve recibirás una <strong>llamada de un técnico especializado</strong> para tu caso. 
-                    Te explicaremos todo el proceso y resolveremos cualquier duda.
-                </p>
+                <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: 600; color: #92400e;">⏰ ¿Qué pasa ahora?</p>
+                    <ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px;">
+                        <li style="margin-bottom: 8px;"><strong>Te contactaremos en breve</strong> para confirmar los detalles</li>
+                        <li style="margin-bottom: 8px;">La <strong>recogida se realiza en 24-48 horas</strong> laborables</li>
+                        <li style="margin-bottom: 8px;">La recogida y el envío de vuelta son <strong>totalmente gratuitos</strong></li>
+                        <li style="margin-bottom: 8px;">El presupuesto inicial es orientativo. El <strong>presupuesto definitivo</strong> se confirmará tras el diagnóstico del dispositivo</li>
+                        <li style="margin-bottom: 0;">Si no aceptas el presupuesto definitivo, te devolvemos el dispositivo sin coste</li>
+                    </ul>
+                </div>
                 
-                <p style="font-size: 14px; color: #64748b; font-style: italic;">
-                    Ten paciencia, ¡somos muy rápidos pero a veces nos hacemos de rogar! 😄
-                </p>
+                <div style="background: #ecfdf5; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: #065f46;">
+                        🛡️ <strong>Garantía de 6 meses</strong> en todas nuestras reparaciones. 
+                        Trabajamos con técnicos certificados y piezas de calidad.
+                    </p>
+                </div>
                 
                 <p style="font-size: 15px; margin-top: 24px;">
                     <strong>¡Gracias por confiar en Revix.es!</strong>
+                </p>
+                
+                <p style="font-size: 13px; color: #64748b;">
+                    ¿Tienes alguna pregunta? Responde a este email o escríbenos a help@revix.es
                 </p>
             """,
             link_url="https://revix.es/consulta",
@@ -338,6 +397,17 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
     # Email de notificación interna
     try:
         from services.email_service import send_email
+        
+        # Formatear fuente de marketing para el email interno
+        fuente_label = {
+            "google": "Google / Buscador",
+            "aseguradora": "Compañía aseguradora",
+            "referido": "Recomendación",
+            "redes_sociales": "Redes sociales",
+            "publicidad": "Publicidad online",
+            "repetidor": "Cliente repetidor"
+        }.get(data.como_conociste, fuente_marketing)
+        
         send_email(
             to="help@revix.es",
             subject=f"🔔 Nueva petición: {data.marca} {data.modelo} - {numero_peticion}",
@@ -348,9 +418,17 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
                 <p><strong>Averías:</strong> {averias_texto}</p>
                 <p><strong>Descripción:</strong> {data.descripcion or 'No indicada'}</p>
                 <hr>
-                <p><strong>Cliente:</strong> {data.nombre}</p>
+                <p><strong>Cliente:</strong> {nombre_completo}</p>
+                <p><strong>DNI:</strong> {data.dni or 'No indicado'}</p>
                 <p><strong>Email:</strong> {data.email}</p>
                 <p><strong>Teléfono:</strong> <a href="tel:{data.telefono}">{data.telefono}</a></p>
+                <p><strong>Tel. alternativo:</strong> {data.telefono_alternativo or 'No indicado'}</p>
+                <hr>
+                <p><strong>Dirección:</strong> {data.direccion or 'No indicada'}</p>
+                <p><strong>CP:</strong> {data.codigo_postal or '-'} | <strong>Ciudad:</strong> {data.ciudad or '-'} | <strong>Provincia:</strong> {data.provincia or '-'}</p>
+                <hr>
+                <p><strong>🎯 ¿Cómo nos conoció?</strong> {fuente_label}</p>
+                <p><strong>Notas:</strong> {data.notas_adicionales or 'Ninguna'}</p>
             """,
             link_url="https://revix.es/crm/peticiones-exteriores",
             link_text="Ver en CRM"
@@ -361,5 +439,5 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
     return {
         "success": True, 
         "id": numero_peticion, 
-        "message": "¡Solicitud recibida! En breve recibirás una llamada de nuestro equipo."
+        "message": "¡Solicitud recibida! Te contactaremos en breve para coordinar la recogida."
     }

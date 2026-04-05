@@ -6,6 +6,7 @@ The portal at distribuidor.sumbroker.es is a KnockoutJS SPA consuming this API.
 Only budget-related administrative queries go through this client.
 All operational CRM changes are internal.
 """
+import asyncio
 import httpx
 import logging
 import os
@@ -339,41 +340,73 @@ class SumbrokerClient:
             }
         return {}
 
-    async def download_doc(self, download_link: str) -> Optional[bytes]:
-        """Download a document/photo from Sumbroker using auth token."""
+    async def download_doc(self, download_link: str, max_retries: int = 3) -> Optional[bytes]:
+        """Download a document/photo from Sumbroker using auth token with retries."""
         if not self._token:
             if not await self.authenticate():
                 return None
-        try:
-            headers = {"Authorization": f"Bearer {self._token}",
-                       "Accept": "*/*"}
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                resp = await client.get(download_link, headers=headers)
-                if resp.status_code == 200:
-                    return resp.content
-                logger.error("download_doc error %s: %s", resp.status_code, download_link)
-                return None
-        except Exception as e:
-            logger.error("download_doc exception: %s", e)
-            return None
+        
+        for attempt in range(max_retries):
+            try:
+                headers = {"Authorization": f"Bearer {self._token}",
+                           "Accept": "*/*"}
+                async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=15.0), follow_redirects=True) as client:
+                    resp = await client.get(download_link, headers=headers)
+                    if resp.status_code == 200:
+                        return resp.content
+                    elif resp.status_code == 401:
+                        # Token expirado, re-autenticar
+                        logger.warning("Token expirado, reautenticando...")
+                        if await self.authenticate():
+                            continue
+                        return None
+                    elif resp.status_code == 404:
+                        logger.warning("download_doc: archivo no encontrado (404): %s", download_link)
+                        return None
+                    else:
+                        logger.error("download_doc error %s: %s", resp.status_code, download_link)
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2)
+                            continue
+                        return None
+            except httpx.TimeoutException:
+                logger.warning("download_doc timeout (intento %d/%d): %s", attempt+1, max_retries, download_link)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+            except Exception as e:
+                logger.error("download_doc exception (intento %d/%d): %s - %s", attempt+1, max_retries, download_link, e)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+        return None
 
     async def download_and_save_photos(self, docs: list[dict], codigo: str) -> list[str]:
         """Download photos and save to uploads dir. Returns list of saved filenames."""
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         saved = []
+        errores = []
+        
         for doc in docs:
             if not doc.get("download_link"):
                 continue
-            content = await self.download_doc(doc["download_link"])
-            if not content:
-                continue
-            ext = os.path.splitext(doc.get("name", "photo.jpg"))[1] or ".jpg"
-            filename = f"portal_{codigo}_{doc.get('doc_id', uuid.uuid4().hex[:6])}{ext}"
-            filepath = os.path.join(UPLOAD_DIR, filename)
-            async with aiofiles.open(filepath, "wb") as f:
-                await f.write(content)
-            saved.append(filename)
-            logger.info("Saved portal photo: %s (%d bytes)", filename, len(content))
+            try:
+                content = await self.download_doc(doc["download_link"])
+                if not content:
+                    errores.append(doc.get("name", "unknown"))
+                    continue
+                ext = os.path.splitext(doc.get("name", "photo.jpg"))[1] or ".jpg"
+                filename = f"portal_{codigo}_{doc.get('doc_id', uuid.uuid4().hex[:6])}{ext}"
+                filepath = os.path.join(UPLOAD_DIR, filename)
+                async with aiofiles.open(filepath, "wb") as f:
+                    await f.write(content)
+                saved.append(filename)
+                logger.info("Saved portal photo: %s (%d bytes)", filename, len(content))
+            except Exception as e:
+                logger.error("Error guardando foto %s: %s", doc.get("name", "unknown"), e)
+                errores.append(doc.get("name", "unknown"))
+        
+        if errores:
+            logger.warning("download_and_save_photos: %d OK, %d errores para código %s", len(saved), len(errores), codigo)
+        
         return saved
 
     # ── high-level extraction ───────────────────────────────

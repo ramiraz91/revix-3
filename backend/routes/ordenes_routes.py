@@ -2745,37 +2745,78 @@ async def descargar_fotos_zip(orden_id: str, user: dict = Depends(require_auth))
     
     # Crear ZIP en memoria
     zip_buffer = io.BytesIO()
-    async with httpx.AsyncClient() as client:
+    errores = []
+    fotos_ok = 0
+    
+    # Usar timeout más largo y reintentos
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for idx, (categoria, foto_ref) in enumerate(todas_fotos):
                 try:
                     # Determinar si es URL de Cloudinary o archivo local
                     if foto_ref.startswith('http'):
-                        # Es URL de Cloudinary - descargar
-                        response = await client.get(foto_ref, timeout=30.0)
-                        if response.status_code == 200:
+                        # Es URL de Cloudinary - descargar con reintentos
+                        content = None
+                        for intento in range(3):
+                            try:
+                                response = await client.get(foto_ref, follow_redirects=True)
+                                if response.status_code == 200:
+                                    content = response.content
+                                    break
+                                elif response.status_code == 404:
+                                    logger.warning(f"Foto no encontrada (404): {foto_ref}")
+                                    break
+                            except httpx.TimeoutException:
+                                if intento < 2:
+                                    await asyncio.sleep(1)
+                                    continue
+                                logger.error(f"Timeout descargando foto tras {intento+1} intentos: {foto_ref}")
+                            except Exception as e:
+                                logger.error(f"Error intento {intento+1} descargando {foto_ref}: {e}")
+                                if intento < 2:
+                                    await asyncio.sleep(1)
+                        
+                        if content:
                             # Extraer extensión de la URL
                             ext = foto_ref.split('.')[-1].split('?')[0] if '.' in foto_ref else 'jpg'
+                            ext = ext[:4]  # Limitar extensión a 4 caracteres
                             zip_filename = f"{categoria}_{idx+1}.{ext}"
-                            zip_file.writestr(zip_filename, response.content)
+                            zip_file.writestr(zip_filename, content)
+                            fotos_ok += 1
+                        else:
+                            errores.append(f"{categoria}_{idx+1}")
                     else:
                         # Es archivo local
                         file_path = UPLOAD_DIR / foto_ref
                         if file_path.exists():
                             zip_filename = f"{categoria}_{foto_ref}"
                             zip_file.write(file_path, zip_filename)
+                            fotos_ok += 1
+                        else:
+                            errores.append(f"local_{foto_ref}")
                 except Exception as e:
-                    logger.error(f"Error descargando foto {foto_ref}: {e}")
+                    logger.error(f"Error procesando foto {foto_ref}: {e}")
+                    errores.append(f"{categoria}_{idx+1}")
                     continue
+    
+    if fotos_ok == 0:
+        raise HTTPException(status_code=500, detail=f"No se pudo descargar ninguna foto. Errores: {errores[:5]}")
     
     zip_buffer.seek(0)
     
     numero_orden = orden.get('numero_orden', orden_id)
+    
+    # Log de resultados
+    if errores:
+        logger.warning(f"ZIP {numero_orden}: {fotos_ok} fotos OK, {len(errores)} errores: {errores[:5]}")
+    
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
         headers={
-            "Content-Disposition": f"attachment; filename={numero_orden}_fotos.zip"
+            "Content-Disposition": f"attachment; filename={numero_orden}_fotos.zip",
+            "X-Fotos-OK": str(fotos_ok),
+            "X-Fotos-Error": str(len(errores))
         }
     )
 
@@ -2809,21 +2850,51 @@ async def descargar_fotos_zip_por_tipo(orden_id: str, tipo: str, user: dict = De
         raise HTTPException(status_code=404, detail=f"No hay fotos de '{tipo}' para descargar")
 
     zip_buffer = io.BytesIO()
-    async with httpx.AsyncClient() as client:
+    errores = []
+    fotos_ok = 0
+    
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for idx, foto_ref in enumerate(fotos):
                 try:
                     if foto_ref.startswith('http'):
-                        response = await client.get(foto_ref, timeout=30.0)
-                        if response.status_code == 200:
+                        # Descargar con reintentos
+                        content = None
+                        for intento in range(3):
+                            try:
+                                response = await client.get(foto_ref, follow_redirects=True)
+                                if response.status_code == 200:
+                                    content = response.content
+                                    break
+                                elif response.status_code == 404:
+                                    break
+                            except httpx.TimeoutException:
+                                if intento < 2:
+                                    await asyncio.sleep(1)
+                            except Exception as e:
+                                if intento < 2:
+                                    await asyncio.sleep(1)
+                        
+                        if content:
                             ext = foto_ref.split('.')[-1].split('?')[0] if '.' in foto_ref else 'jpg'
-                            zip_file.writestr(f"{tipo}_{idx+1}.{ext}", response.content)
+                            ext = ext[:4]
+                            zip_file.writestr(f"{tipo}_{idx+1}.{ext}", content)
+                            fotos_ok += 1
+                        else:
+                            errores.append(idx+1)
                     else:
                         file_path = UPLOAD_DIR / foto_ref
                         if file_path.exists():
                             zip_file.write(file_path, f"{tipo}_{foto_ref}")
+                            fotos_ok += 1
+                        else:
+                            errores.append(idx+1)
                 except Exception as e:
                     logger.error(f"Error descargando foto {foto_ref}: {e}")
+                    errores.append(idx+1)
+
+    if fotos_ok == 0:
+        raise HTTPException(status_code=500, detail=f"No se pudo descargar ninguna foto de '{tipo}'")
 
     zip_buffer.seek(0)
     numero_orden = orden.get('numero_orden', orden_id)

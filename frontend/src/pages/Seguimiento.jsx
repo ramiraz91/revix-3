@@ -719,20 +719,33 @@ export default function Seguimiento() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                    {orden.fotos.map((foto, index) => (
-                      <div 
-                        key={index}
-                        className="aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => openPreview(foto)}
-                      >
-                        <img
-                          src={getUploadUrl(foto)}
-                          alt={`Foto ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ))}
+                    {orden.fotos.map((foto, index) => {
+                      const fotoUrl = getUploadUrl(foto);
+                      return (
+                        <div 
+                          key={index}
+                          className="aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 transition-opacity bg-slate-100"
+                          onClick={() => openPreview(foto)}
+                        >
+                          <img
+                            src={fotoUrl}
+                            alt={`Foto ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Ocultar imagen que no carga mostrando un placeholder
+                              e.target.onerror = null;
+                              e.target.src = '';
+                              e.target.parentElement.classList.add('hidden');
+                            }}
+                            loading="lazy"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Toca una foto para ampliarla
+                  </p>
                 </CardContent>
               </Card>
             )}

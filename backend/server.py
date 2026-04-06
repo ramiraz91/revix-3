@@ -1062,6 +1062,27 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
     except Exception:
         pass
 
+    # Consolidar todas las fuentes de fotos en un solo array
+    # Normalizar: las fotos pueden ser strings (URLs) o objetos {src, tipo}
+    todas_las_fotos = []
+    fotos_vistas = set()  # Para tracking de duplicados por URL
+    
+    for campo_fotos in ['fotos', 'evidencias', 'fotos_antes', 'fotos_despues', 'fotos_portal']:
+        fotos_campo = orden.get(campo_fotos, [])
+        if isinstance(fotos_campo, list):
+            for foto in fotos_campo:
+                # Extraer la URL real para comparar duplicados
+                if isinstance(foto, dict):
+                    url = foto.get('src', '')
+                else:
+                    url = foto if isinstance(foto, str) else ''
+                
+                if url and url not in fotos_vistas:
+                    fotos_vistas.add(url)
+                    todas_las_fotos.append(foto)
+    
+    fotos_unicas = todas_las_fotos
+
     return {
         "orden": {
             "numero_orden": orden['numero_orden'],
@@ -1076,7 +1097,7 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             "diagnostico_tecnico": orden.get('diagnostico_tecnico'),
             "numero_autorizacion": orden.get('numero_autorizacion'),
             "evidencias": orden.get('evidencias', []),
-            "fotos": orden.get('fotos', []),
+            "fotos": fotos_unicas,
             "descripcion_problema": orden.get('descripcion_problema', ''),
             "fechas": fechas,
             "cliente": {

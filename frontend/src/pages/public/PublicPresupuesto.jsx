@@ -34,6 +34,26 @@ const comoNosConociste = [
   { id: 'otro', label: 'Otro' },
 ];
 
+// Componente InputField movido FUERA del componente principal para evitar re-renders
+function InputField({ id, label, type = 'text', required = false, placeholder = '', colSpan = 1, value, onChange }) {
+  return (
+    <div className={colSpan === 2 ? 'md:col-span-2' : ''}>
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>
+        {label}{required && ' *'}
+      </label>
+      <input 
+        type={type} 
+        required={required} 
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0055FF] focus:border-transparent transition-all"
+        style={{ fontFamily: "'Inter', sans-serif" }} 
+      />
+    </div>
+  );
+}
+
 export default function PublicPresupuesto() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -65,6 +85,10 @@ export default function PublicPresupuesto() {
     acepta_condiciones: false,
   });
 
+  const handleChange = (field) => (e) => {
+    setForm(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
   const toggleAveria = (a) => {
     setForm(p => ({
       ...p,
@@ -89,23 +113,6 @@ export default function PublicPresupuesto() {
       setLoading(false);
     }
   };
-
-  const InputField = ({ id, label, type = 'text', required = false, placeholder = '', colSpan = 1 }) => (
-    <div className={colSpan === 2 ? 'md:col-span-2' : ''}>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {label}{required && ' *'}
-      </label>
-      <input 
-        type={type} 
-        required={required} 
-        placeholder={placeholder}
-        value={form[id] || ''}
-        onChange={(e) => setForm(p => ({ ...p, [id]: e.target.value }))}
-        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0055FF] focus:border-transparent transition-all"
-        style={{ fontFamily: "'Inter', sans-serif" }} 
-      />
-    </div>
-  );
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="bg-white text-[#0F172A]">

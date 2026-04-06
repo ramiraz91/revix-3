@@ -63,6 +63,7 @@ from modules.gls.routes import router as gls_router
 from routes.finanzas_routes import router as finanzas_router
 from routes.inventario_mejorado_routes import router as inventario_mejorado_router
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
+from routes.proveedores_routes import router as proveedores_router
 
 # ==================== APP SETUP ====================
 app = FastAPI(title="Mobile Repair CRM/ERP API")
@@ -125,6 +126,7 @@ api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
 api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
+api_router.include_router(proveedores_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
 @app.get("/api/debug-connection")
@@ -2128,39 +2130,53 @@ async def obtener_finanzas(
     for o in ordenes:
         estado = o.get('estado', '')
         
-        # Usar los campos precalculados, con fallback a cálculo manual si no existen
+        # === CALCULAR VALOR DE LA ORDEN ===
+        valor_orden = 0
+        coste_materiales = 0
+        
+        # 1. Usar campos precalculados si existen
         if o.get('presupuesto_total') is not None:
             try:
                 valor_orden = float(o.get('presupuesto_total', 0) or 0)
                 coste_materiales = float(o.get('coste_total', 0) or 0)
-                beneficio = float(o.get('beneficio_estimado', 0) or 0)
             except (TypeError, ValueError):
                 valor_orden = 0
                 coste_materiales = 0
-                beneficio = 0
-        else:
-            # Fallback: calcular manualmente para órdenes antiguas
-            materiales = o.get('materiales', [])
-            try:
-                precio_materiales = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
-                coste_materiales = sum(float(m.get('coste', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
-            except (TypeError, ValueError):
-                precio_materiales = 0
-                coste_materiales = 0
-            
-            presupuesto_enviado = o.get('presupuesto_enviado') or {}
+        
+        # 2. Si no hay presupuesto_total, buscar en datos_portal.price
+        if valor_orden <= 0:
             datos_portal = o.get('datos_portal') or {}
             try:
-                precio_presupuesto = float(presupuesto_enviado.get('precio', 0) or 0)
+                precio_portal = datos_portal.get('price') or datos_portal.get('claim_real_value') or 0
+                valor_orden = float(precio_portal) if precio_portal else 0
             except (TypeError, ValueError):
-                precio_presupuesto = 0
-            if precio_presupuesto <= 0:
-                try:
-                    precio_presupuesto = float(datos_portal.get('price', 0) or 0)
-                except (TypeError, ValueError):
-                    precio_presupuesto = 0
-            valor_orden = precio_presupuesto if precio_presupuesto > 0 else precio_materiales
-            beneficio = valor_orden - coste_materiales
+                valor_orden = 0
+        
+        # 3. Buscar en presupuesto_enviado
+        if valor_orden <= 0:
+            presupuesto_enviado = o.get('presupuesto_enviado') or {}
+            try:
+                valor_orden = float(presupuesto_enviado.get('precio', 0) or 0)
+            except (TypeError, ValueError):
+                valor_orden = 0
+        
+        # 4. Fallback a suma de materiales
+        if valor_orden <= 0:
+            materiales = o.get('materiales', [])
+            try:
+                valor_orden = sum(float(m.get('precio_unitario', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+            except (TypeError, ValueError):
+                valor_orden = 0
+        
+        # Calcular coste de materiales si no está precalculado
+        if coste_materiales <= 0:
+            materiales = o.get('materiales', [])
+            try:
+                coste_materiales = sum(float(m.get('coste', 0) or 0) * int(m.get('cantidad', 1) or 1) for m in materiales)
+            except (TypeError, ValueError):
+                coste_materiales = 0
+        
+        beneficio = valor_orden - coste_materiales
         
         dispositivo = o.get('dispositivo') or {}
         orden_data = {
@@ -2249,9 +2265,9 @@ async def obtener_finanzas(
     ritmo_diario = (total_facturado + total_pendiente + total_en_proceso) / dias_transcurridos if dias_transcurridos > 0 else 0
     proyeccion_periodo = ritmo_diario * dias_totales
     
-    # Ticket medio
-    ordenes_con_valor = [o for o in ordenes if (o.get('presupuesto_enviado') or {}).get('precio', 0) > 0 or sum(m.get('precio_unitario', 0) for m in o.get('materiales', []))]
-    ticket_medio = (total_facturado + total_pendiente + total_en_proceso) / len(ordenes_con_valor) if ordenes_con_valor else 0
+    # Ticket medio - calculado sobre todas las órdenes del período
+    total_valor_periodo = total_facturado + total_pendiente + total_en_proceso + total_por_recibir
+    ticket_medio = total_valor_periodo / len(ordenes) if ordenes else 0
     
     # === COMPARATIVA CON PERÍODO ANTERIOR ===
     duracion_periodo = fin - inicio

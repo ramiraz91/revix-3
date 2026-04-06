@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { 
   BarChart3, TrendingUp, Clock, Users, Trophy, PieChart, DollarSign, 
   Wallet, CreditCard, TrendingDown, ArrowUpRight, ArrowDownRight,
-  Calendar, RefreshCw, FileText, Target, Calculator, AlertCircle
+  Calendar as CalendarIcon, RefreshCw, FileText, Target, Calculator, AlertCircle
 } from 'lucide-react';
 import API from '@/lib/api';
 

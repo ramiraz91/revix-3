@@ -69,6 +69,7 @@ import ISOModule from "@/pages/ISOModule";
 import PeticionesExteriores from "@/pages/PeticionesExteriores";
 import FAQsAdmin from "@/pages/FAQsAdmin";
 import AgentARIA from "@/pages/AgentARIA";
+import CatalogoProveedores from "@/pages/CatalogoProveedores";
 
 // Public website pages
 import PublicLayout from "@/components/public/PublicLayout";
@@ -175,6 +176,7 @@ function AppRoutes() {
       <Route path="/buscar-siniestro" element={<LegacyCRMRedirect />} />
       <Route path="/peticiones-exteriores" element={<LegacyCRMRedirect />} />
       <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
+      <Route path="/catalogo-proveedores" element={<LegacyCRMRedirect />} />
       
       {/* ===== CRM (www.revix.es/crm) ===== */}
       <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />
@@ -220,6 +222,11 @@ function AppRoutes() {
         <Route path="proveedores" element={
           <ProtectedRoute adminOnly>
             <Proveedores />
+          </ProtectedRoute>
+        } />
+        <Route path="catalogo-proveedores" element={
+          <ProtectedRoute adminOnly>
+            <CatalogoProveedores />
           </ProtectedRoute>
         } />
         <Route path="compras" element={

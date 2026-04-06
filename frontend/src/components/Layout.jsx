@@ -33,7 +33,7 @@ import {
   Bot,
   FileText
 } from 'lucide-react';
-import { PackagePlus } from 'lucide-react';
+import { PackagePlus, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -293,6 +293,7 @@ export default function Layout() {
                 <NavItem path="/clientes" icon={Users} label="Clientes" />
                 <NavItem path="/peticiones-exteriores" icon={PhoneIncoming} label="Peticiones Ext." />
                 <NavItem path="/inventario" icon={Package} label="Inventario" />
+                <NavItem path="/catalogo-proveedores" icon={Store} label="Catálogo Proveedores" />
                 <NavItem path="/proveedores" icon={Truck} label="Proveedores" />
                 <NavItem path="/compras" icon={FileText} label="Compras" />
                 <NavItem path="/ordenes-compra" icon={ShoppingCart} label="Órdenes Compra" />

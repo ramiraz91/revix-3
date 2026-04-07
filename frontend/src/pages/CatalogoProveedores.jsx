@@ -107,7 +107,7 @@ export default function CatalogoProveedores() {
     try {
       const res = await API.post('/catalogo-proveedores/buscar', {
         query: searchQuery,
-        marca: searchMarca || null,
+        marca: searchMarca && searchMarca !== 'todas' ? searchMarca : null,
         proveedores: selectedProveedores.length > 0 ? selectedProveedores : null,
         solo_disponibles: true,
         ordenar_por: ordenarPor
@@ -219,7 +219,7 @@ export default function CatalogoProveedores() {
                           <SelectValue placeholder="Todas" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Todas</SelectItem>
+                          <SelectItem value="todas">Todas</SelectItem>
                           <SelectItem value="Apple">Apple</SelectItem>
                           <SelectItem value="Samsung">Samsung</SelectItem>
                           <SelectItem value="Xiaomi">Xiaomi</SelectItem>

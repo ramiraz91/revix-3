@@ -35,7 +35,7 @@ class GestorProveedores:
     
     async def cargar_credenciales(self):
         """Cargar credenciales de proveedores desde la base de datos."""
-        if not self.db:
+        if self.db is None:
             logger.warning("GestorProveedores: No hay conexión a BD")
             return
         

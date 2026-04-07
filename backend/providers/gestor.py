@@ -229,10 +229,25 @@ class GestorProveedores:
 gestor_proveedores: Optional[GestorProveedores] = None
 
 
-async def get_gestor_proveedores(db=None) -> GestorProveedores:
+async def get_gestor_proveedores(database=None) -> GestorProveedores:
     """Obtener instancia del gestor de proveedores."""
     global gestor_proveedores
+    
+    # Si no se pasa db, intentar obtenerla de config
+    if database is None:
+        try:
+            from config import db as config_db
+            database = config_db
+        except ImportError:
+            pass
+    
+    # Si el gestor no existe o la BD cambió, recrear
     if gestor_proveedores is None:
-        gestor_proveedores = GestorProveedores(db)
+        gestor_proveedores = GestorProveedores(database)
         await gestor_proveedores.cargar_credenciales()
+    elif database is not None and gestor_proveedores.db is None:
+        # Si el gestor existe pero no tiene BD, actualizar
+        gestor_proveedores.db = database
+        await gestor_proveedores.cargar_credenciales()
+    
     return gestor_proveedores

@@ -185,82 +185,102 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPIs principales */}
+      {/* KPIs principales - Clicables */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
         {/* Total órdenes */}
-        <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <ClipboardList className="w-5 h-5 text-white" />
-              <span className="text-2xl font-bold text-white">{kpis?.total_ordenes || 0}</span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1 font-medium">Total Órdenes</p>
-          </CardContent>
-        </Card>
+        <Link to="/crm/ordenes">
+          <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <ClipboardList className="w-5 h-5 text-white" />
+                <span className="text-2xl font-bold text-white">{kpis?.total_ordenes || 0}</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 font-medium">Total Órdenes</p>
+            </CardContent>
+          </Card>
+        </Link>
         
         {/* Enviados */}
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <Send className="w-5 h-5 text-emerald-600" />
-              <span className="text-2xl font-bold text-emerald-700">{kpis?.total_enviados || 0}</span>
-            </div>
-            <p className="text-xs text-emerald-600 mt-1 font-medium">Enviados</p>
-          </CardContent>
-        </Card>
+        <Link to="/crm/ordenes?estado=enviado">
+          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Send className="w-5 h-5 text-emerald-600" />
+                <span className="text-2xl font-bold text-emerald-700">{kpis?.total_enviados || 0}</span>
+              </div>
+              <p className="text-xs text-emerald-600 mt-1 font-medium">Enviados</p>
+            </CardContent>
+          </Card>
+        </Link>
         
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <Wrench className="w-5 h-5 text-purple-600" />
-              <span className="text-2xl font-bold text-purple-700">{kpis?.total_en_taller || 0}</span>
-            </div>
-            <p className="text-xs text-purple-600 mt-1 font-medium">En Taller</p>
-          </CardContent>
-        </Card>
+        {/* En Taller */}
+        <Link to="/crm/ordenes?estado=en_taller">
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Wrench className="w-5 h-5 text-purple-600" />
+                <span className="text-2xl font-bold text-purple-700">{kpis?.total_en_taller || 0}</span>
+              </div>
+              <p className="text-xs text-purple-600 mt-1 font-medium">En Taller</p>
+            </CardContent>
+          </Card>
+        </Link>
         
-        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <Inbox className="w-5 h-5 text-yellow-600" />
-              <span className="text-2xl font-bold text-yellow-700">{kpis?.total_pendientes_recibir || 0}</span>
-            </div>
-            <p className="text-xs text-yellow-600 mt-1 font-medium">Por Recibir</p>
-          </CardContent>
-        </Card>
+        {/* Pendientes Recibir */}
+        <Link to="/crm/ordenes?estado=pendiente_recibir">
+          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Inbox className="w-5 h-5 text-yellow-600" />
+                <span className="text-2xl font-bold text-yellow-700">{kpis?.total_pendientes_recibir || 0}</span>
+              </div>
+              <p className="text-xs text-yellow-600 mt-1 font-medium">Por Recibir</p>
+            </CardContent>
+          </Card>
+        </Link>
         
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <PackageCheck className="w-5 h-5 text-green-600" />
-              <span className="text-2xl font-bold text-green-700">{kpis?.total_reparados || 0}</span>
-            </div>
-            <p className="text-xs text-green-600 mt-1 font-medium">Reparados</p>
-          </CardContent>
-        </Card>
+        {/* Reparados */}
+        <Link to="/crm/ordenes?estado=reparado">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <PackageCheck className="w-5 h-5 text-green-600" />
+                <span className="text-2xl font-bold text-green-700">{kpis?.total_reparados || 0}</span>
+              </div>
+              <p className="text-xs text-green-600 mt-1 font-medium">Reparados</p>
+            </CardContent>
+          </Card>
+        </Link>
         
-        <Card className={`bg-gradient-to-br ${kpis?.con_demora > 0 ? 'from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200' : 'from-slate-50 to-slate-100 border-slate-200'}`}>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <AlertCircle className={`w-5 h-5 ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-400'}`} />
-              <span className={`text-2xl font-bold ${kpis?.con_demora > 0 ? 'text-red-700' : 'text-slate-500'}`}>
-                {kpis?.con_demora || 0}
-              </span>
-            </div>
-            <p className={`text-xs mt-1 font-medium ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-500'}`}>Con Demora</p>
-          </CardContent>
-        </Card>
+        {/* Con Demora */}
+        <Link to="/crm/ordenes?filtro=demora">
+          <Card className={`bg-gradient-to-br ${kpis?.con_demora > 0 ? 'from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200' : 'from-slate-50 to-slate-100 border-slate-200'} hover:scale-105 transition-transform cursor-pointer`}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <AlertCircle className={`w-5 h-5 ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+                <span className={`text-2xl font-bold ${kpis?.con_demora > 0 ? 'text-red-700' : 'text-slate-500'}`}>
+                  {kpis?.con_demora || 0}
+                </span>
+              </div>
+              <p className={`text-xs mt-1 font-medium ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-500'}`}>Con Demora</p>
+            </CardContent>
+          </Card>
+        </Link>
         
-        <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border-rose-200">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <Shield className="w-5 h-5 text-rose-600" />
-              <span className="text-2xl font-bold text-rose-700">{kpis?.garantias_activas || 0}</span>
-            </div>
-            <p className="text-xs text-rose-600 mt-1 font-medium">Garantías</p>
-          </CardContent>
-        </Card>
+        {/* Garantías */}
+        <Link to="/crm/ordenes?estado=garantia">
+          <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border-rose-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Shield className="w-5 h-5 text-rose-600" />
+                <span className="text-2xl font-bold text-rose-700">{kpis?.garantias_activas || 0}</span>
+              </div>
+              <p className="text-xs text-rose-600 mt-1 font-medium">Garantías</p>
+            </CardContent>
+          </Card>
+        </Link>
         
+        {/* Cambios Hoy - No clicable, solo info */}
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
@@ -271,6 +291,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
         
+        {/* Cambios Ayer - No clicable, solo info */}
         <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200">
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
@@ -280,6 +301,7 @@ export default function Dashboard() {
             <p className="text-xs text-slate-500 mt-1 font-medium">Cambios Ayer</p>
           </CardContent>
         </Card>
+      </div>
       </div>
 
       {/* Contenido principal - 2 columnas */}

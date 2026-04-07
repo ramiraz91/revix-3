@@ -970,6 +970,258 @@ async def obtener_ordenes_compra_urgentes(user: dict = Depends(require_admin)):
         oc['orden_trabajo'] = {"numero_orden": orden_trabajo.get('numero_orden', 'N/A') if orden_trabajo else 'N/A', "dispositivo": orden_trabajo.get('dispositivo', {}).get('modelo', 'N/A') if orden_trabajo else 'N/A'}
     return {"total_pendientes": len([o for o in ordenes if o['estado'] == 'pendiente']), "ordenes": ordenes}
 
+
+@api_router.get("/dashboard/operativo")
+async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
+    """
+    Dashboard operativo completo con:
+    - Órdenes en taller por subestado
+    - Órdenes con demora (4+ días sin cambio)
+    - Últimos reparados
+    - Últimos enviados
+    - Órdenes por recibir
+    - Actividad reciente (cambios hoy/ayer)
+    - KPIs de tiempo y eficiencia
+    """
+    now = datetime.now(timezone.utc)
+    hoy = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    ayer = hoy - timedelta(days=1)
+    hace_4_dias = now - timedelta(days=4)
+    hace_7_dias = now - timedelta(days=7)
+    hace_30_dias = now - timedelta(days=30)
+    
+    # Estados considerados "en taller" (trabajo activo)
+    ESTADOS_EN_TALLER = ["recibida", "en_taller", "re_presupuestar", "validacion"]
+    ESTADOS_PENDIENTES = ["pendiente_recibir"]
+    ESTADOS_FINALIZADOS = ["reparado", "enviado"]
+    
+    # Pipeline principal para obtener todas las métricas
+    pipeline = [
+        {
+            "$facet": {
+                # Órdenes en taller por estado
+                "en_taller_por_estado": [
+                    {"$match": {"estado": {"$in": ESTADOS_EN_TALLER}}},
+                    {"$group": {"_id": "$estado", "count": {"$sum": 1}}}
+                ],
+                
+                # Órdenes pendientes de recibir
+                "pendientes_recibir": [
+                    {"$match": {"estado": "pendiente_recibir"}},
+                    {"$sort": {"created_at": -1}},
+                    {"$limit": 10},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "dispositivo": 1,
+                        "created_at": 1, "agencia_envio": 1, "codigo_recogida_entrada": 1
+                    }}
+                ],
+                
+                # Órdenes con demora (4+ días sin cambio de estado)
+                "con_demora": [
+                    {"$match": {
+                        "estado": {"$in": ESTADOS_EN_TALLER},
+                        "updated_at": {"$lte": hace_4_dias.isoformat()}
+                    }},
+                    {"$sort": {"updated_at": 1}},
+                    {"$limit": 15},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "estado": 1,
+                        "dispositivo": 1, "created_at": 1, "updated_at": 1
+                    }}
+                ],
+                
+                # Últimos reparados (últimos 10)
+                "ultimos_reparados": [
+                    {"$match": {"estado": "reparado"}},
+                    {"$sort": {"updated_at": -1}},
+                    {"$limit": 10},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "dispositivo": 1,
+                        "updated_at": 1, "created_at": 1
+                    }}
+                ],
+                
+                # Últimos enviados (últimos 10)
+                "ultimos_enviados": [
+                    {"$match": {"estado": "enviado"}},
+                    {"$sort": {"updated_at": -1}},
+                    {"$limit": 10},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "dispositivo": 1,
+                        "updated_at": 1, "agencia_envio": 1, "codigo_seguimiento_salida": 1
+                    }}
+                ],
+                
+                # Cambios de hoy
+                "cambios_hoy": [
+                    {"$match": {"updated_at": {"$gte": hoy.isoformat()}}},
+                    {"$count": "total"}
+                ],
+                
+                # Cambios de ayer
+                "cambios_ayer": [
+                    {"$match": {
+                        "updated_at": {"$gte": ayer.isoformat(), "$lt": hoy.isoformat()}
+                    }},
+                    {"$count": "total"}
+                ],
+                
+                # Totales por estado (para gráfico)
+                "totales_por_estado": [
+                    {"$group": {"_id": "$estado", "count": {"$sum": 1}}}
+                ],
+                
+                # Métricas de tiempo (órdenes completadas últimos 30 días)
+                "metricas_tiempo": [
+                    {"$match": {
+                        "estado": "enviado",
+                        "updated_at": {"$gte": hace_30_dias.isoformat()},
+                        "historial_estados": {"$exists": True, "$ne": []}
+                    }},
+                    {"$limit": 100},
+                    {"$project": {
+                        "_id": 0,
+                        "created_at": 1,
+                        "updated_at": 1,
+                        "historial_estados": 1
+                    }}
+                ],
+                
+                # Órdenes creadas últimos 7 días por día
+                "ordenes_semana": [
+                    {"$match": {"created_at": {"$gte": hace_7_dias.isoformat()}}},
+                    {"$addFields": {"fecha": {"$substr": ["$created_at", 0, 10]}}},
+                    {"$group": {"_id": "$fecha", "total": {"$sum": 1}}},
+                    {"$sort": {"_id": 1}}
+                ],
+                
+                # Total en taller
+                "total_en_taller": [
+                    {"$match": {"estado": {"$in": ESTADOS_EN_TALLER}}},
+                    {"$count": "total"}
+                ],
+                
+                # Total pendientes
+                "total_pendientes": [
+                    {"$match": {"estado": {"$in": ESTADOS_PENDIENTES}}},
+                    {"$count": "total"}
+                ],
+                
+                # Total reparados (listos para enviar)
+                "total_reparados": [
+                    {"$match": {"estado": "reparado"}},
+                    {"$count": "total"}
+                ],
+                
+                # Garantías activas
+                "garantias_activas": [
+                    {"$match": {"estado": "garantia"}},
+                    {"$count": "total"}
+                ]
+            }
+        }
+    ]
+    
+    result = await db.ordenes.aggregate(pipeline).to_list(1)
+    data = result[0] if result else {}
+    
+    # Procesar subestados en taller
+    en_taller_estados = {}
+    total_en_taller = 0
+    for item in data.get("en_taller_por_estado", []):
+        estado = item["_id"]
+        count = item["count"]
+        en_taller_estados[estado] = count
+        total_en_taller += count
+    
+    # Procesar totales por estado
+    totales_estado = {}
+    for item in data.get("totales_por_estado", []):
+        totales_estado[item["_id"] or "desconocido"] = item["count"]
+    
+    # Calcular tiempos promedio
+    tiempos = data.get("metricas_tiempo", [])
+    tiempos_reparacion = []
+    for orden in tiempos:
+        try:
+            created = datetime.fromisoformat(orden["created_at"].replace("Z", "+00:00"))
+            updated = datetime.fromisoformat(orden["updated_at"].replace("Z", "+00:00"))
+            diff_horas = (updated - created).total_seconds() / 3600
+            tiempos_reparacion.append(diff_horas)
+        except:
+            pass
+    
+    promedio_horas = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0
+    promedio_dias = promedio_horas / 24
+    
+    # Helper para extraer conteo seguro
+    def safe_count(key):
+        lst = data.get(key, [])
+        return lst[0].get("total", 0) if lst else 0
+    
+    # Calcular días de demora para órdenes con demora
+    ordenes_demora = data.get("con_demora", [])
+    for orden in ordenes_demora:
+        try:
+            updated = datetime.fromisoformat(orden.get("updated_at", "").replace("Z", "+00:00"))
+            dias_sin_cambio = (now - updated).days
+            orden["dias_demora"] = dias_sin_cambio
+        except:
+            orden["dias_demora"] = 0
+    
+    return {
+        # KPIs principales
+        "kpis": {
+            "total_en_taller": total_en_taller,
+            "total_pendientes_recibir": safe_count("total_pendientes"),
+            "total_reparados": safe_count("total_reparados"),
+            "garantias_activas": safe_count("garantias_activas"),
+            "con_demora": len(ordenes_demora),
+            "cambios_hoy": safe_count("cambios_hoy"),
+            "cambios_ayer": safe_count("cambios_ayer")
+        },
+        
+        # Desglose de órdenes en taller
+        "en_taller": {
+            "total": total_en_taller,
+            "por_estado": en_taller_estados,
+            "detalle": {
+                "recibidas": en_taller_estados.get("recibida", 0),
+                "en_reparacion": en_taller_estados.get("en_taller", 0),
+                "re_presupuestar": en_taller_estados.get("re_presupuestar", 0),
+                "validacion": en_taller_estados.get("validacion", 0)
+            }
+        },
+        
+        # Listas de órdenes
+        "ordenes": {
+            "pendientes_recibir": data.get("pendientes_recibir", []),
+            "con_demora": ordenes_demora,
+            "ultimos_reparados": data.get("ultimos_reparados", []),
+            "ultimos_enviados": data.get("ultimos_enviados", [])
+        },
+        
+        # Métricas de tiempo
+        "tiempos": {
+            "promedio_total_horas": round(promedio_horas, 1),
+            "promedio_total_dias": round(promedio_dias, 1),
+            "ordenes_analizadas": len(tiempos_reparacion)
+        },
+        
+        # Datos para gráficos
+        "graficos": {
+            "por_estado": totales_estado,
+            "ordenes_semana": [
+                {"fecha": item["_id"], "total": item["total"]} 
+                for item in data.get("ordenes_semana", [])
+            ]
+        },
+        
+        # Timestamp
+        "generado_at": now.isoformat()
+    }
+
+
 # ==================== SEGUIMIENTO PÚBLICO ====================
 
 @api_router.post("/seguimiento/verificar")

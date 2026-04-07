@@ -14,699 +14,565 @@ import {
   Send,
   Search,
   QrCode,
-  Lock,
   TrendingUp,
   TrendingDown,
   Timer,
   Shield,
-  Download,
-  Upload,
   BarChart3,
-  PieChart,
-  Plus,
-  ShoppingCart
+  Activity,
+  Calendar,
+  RefreshCw,
+  ChevronRight,
+  AlertCircle,
+  PackageCheck,
+  Inbox,
+  History
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
-  PieChart as RechartsPie,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer
 } from 'recharts';
-import { dashboardAPI, ordenesAPI, exportarAPI } from '@/lib/api';
+import API from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
 
 const statusLabels = {
-  pendiente_recibir: { label: 'Pendiente Recibir', icon: Clock, color: 'bg-yellow-500', chartColor: '#eab308' },
-  recibida: { label: 'Recibida', icon: CheckCircle2, color: 'bg-blue-500', chartColor: '#3b82f6' },
-  en_taller: { label: 'En Taller', icon: Wrench, color: 'bg-purple-500', chartColor: '#8b5cf6' },
-  re_presupuestar: { label: 'Re-presupuestar', icon: AlertTriangle, color: 'bg-orange-500', chartColor: '#f97316' },
-  reparado: { label: 'Reparado', icon: CheckCircle2, color: 'bg-green-500', chartColor: '#22c55e' },
-  validacion: { label: 'Validación', icon: ClipboardList, color: 'bg-indigo-500', chartColor: '#6366f1' },
-  enviado: { label: 'Enviado', icon: Send, color: 'bg-emerald-500', chartColor: '#10b981' },
-  garantia: { label: 'Garantía', icon: Shield, color: 'bg-red-500', chartColor: '#ef4444' },
-  cancelado: { label: 'Cancelado', icon: AlertTriangle, color: 'bg-gray-500', chartColor: '#6b7280' },
+  pendiente_recibir: { label: 'Pendiente Recibir', color: 'bg-yellow-500', textColor: 'text-yellow-600' },
+  recibida: { label: 'Recibida', color: 'bg-blue-500', textColor: 'text-blue-600' },
+  en_taller: { label: 'En Taller', color: 'bg-purple-500', textColor: 'text-purple-600' },
+  re_presupuestar: { label: 'Re-presupuestar', color: 'bg-orange-500', textColor: 'text-orange-600' },
+  reparado: { label: 'Reparado', color: 'bg-green-500', textColor: 'text-green-600' },
+  validacion: { label: 'Validación', color: 'bg-indigo-500', textColor: 'text-indigo-600' },
+  enviado: { label: 'Enviado', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
+  garantia: { label: 'Garantía', color: 'bg-red-500', textColor: 'text-red-600' },
+  cancelado: { label: 'Cancelado', color: 'bg-gray-500', textColor: 'text-gray-600' },
 };
-
-const COLORS = ['#3b82f6', '#22c55e', '#eab308', '#8b5cf6', '#f97316', '#10b981', '#ef4444', '#6b7280'];
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const scannerInputRef = useRef(null);
   const { isAdmin, isTecnico, isMaster } = useAuth();
   
-  const [stats, setStats] = useState(null);
-  const [metricas, setMetricas] = useState(null);
-  const [alertasStock, setAlertasStock] = useState(null);
-  const [ordenesRecientes, setOrdenesRecientes] = useState([]);
-  const [ordenesCompraUrgentes, setOrdenesCompraUrgentes] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('resumen');
+  const [refreshing, setRefreshing] = useState(false);
   
   // Scanner states
   const [scannerValue, setScannerValue] = useState('');
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [statsRes, ordenesRes] = await Promise.all([
-          dashboardAPI.stats(),
-          ordenesAPI.listarPaginado({ page: 1, page_size: 5 })
-        ]);
-        setStats(statsRes.data);
-        setOrdenesRecientes(ordenesRes.data.data || []);
-        
-        // Cargar métricas avanzadas, alertas de stock y órdenes de compra urgentes (solo admin)
-        if (isAdmin()) {
-          const [metricasRes, alertasRes, ocUrgentesRes] = await Promise.all([
-            dashboardAPI.metricasAvanzadas(),
-            dashboardAPI.alertasStock(),
-            dashboardAPI.ordenesCompraUrgentes()
-          ]);
-          setMetricas(metricasRes.data);
-          setAlertasStock(alertasRes.data);
-          setOrdenesCompraUrgentes(ocUrgentesRes.data);
-        }
-      } catch (error) {
-        toast.error('Error al cargar el dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchData();
+    // Auto-refresh cada 5 minutos
+    const interval = setInterval(fetchData, 300000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Scanner functions
-  // Regla: primera vez (pendiente_recibir) → marcar recibido; el resto → buscar y abrir
-  // NUEVO: Detecta códigos de barras GLS y los procesa automáticamente
+  const fetchData = async (showRefreshing = false) => {
+    try {
+      if (showRefreshing) setRefreshing(true);
+      else setLoading(true);
+      
+      const res = await API.get('/dashboard/operativo');
+      setData(res.data);
+    } catch (err) {
+      console.error('Error cargando dashboard:', err);
+      toast.error('Error al cargar el dashboard');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => fetchData(true);
+
+  // Scanner logic
   const handleScannerSubmit = async (e) => {
     e.preventDefault();
-    if (!scannerValue.trim()) return;
+    if (!scannerValue.trim() || processing) return;
     
     setProcessing(true);
     try {
-      // Detectar si es código de barras GLS (numérico de 10-20 dígitos)
-      const esCodigoGLS = /^\d{10,20}$/.test(scannerValue.trim());
+      const searchValue = scannerValue.trim().toUpperCase();
+      const res = await API.get(`/ordenes/buscar?q=${encodeURIComponent(searchValue)}`);
       
-      if (esCodigoGLS && !isTecnico()) {
-        // Usar endpoint específico de escaneo GLS (sin prefijo /ordenes)
-        try {
-          const response = await api.post('/scan-gls', {
-            codigo_barras: scannerValue.trim(),
-            usuario_email: 'admin',
-            mensaje: 'Paquete recibido vía escaneo de código de barras GLS'
-          });
-          
-          if (response.data.success) {
-            toast.success(response.data.message);
-            navigate(`/crm/ordenes/${response.data.orden_id}`);
-            return;
-          } else {
-            // La orden existe pero no se puede marcar como recibida
-            toast.info(response.data.message);
-            navigate(`/crm/ordenes/${response.data.orden_id}`);
-            return;
-          }
-        } catch (glsError) {
-          // Si 404, continuar con búsqueda normal (puede ser otro tipo de código)
-          if (glsError.response?.status !== 404) {
-            const detail = glsError.response?.data?.detail;
-            toast.error(typeof detail === 'string' ? detail : 'Error al procesar código GLS');
-            return;
-          }
-        }
-      }
-      
-      // Búsqueda normal por número de orden u otros campos
-      const ordenes = await ordenesAPI.listarPaginado({ search: scannerValue.trim(), page_size: 1 });
-      
-      if (!ordenes.data.data || ordenes.data.data.length === 0) {
-        toast.error('Orden no encontrada');
-        return;
-      }
-      
-      const orden = ordenes.data.data[0];
-      
-      // Auto-detect: si está pendiente_recibir y el usuario es admin → marcar recibido
-      if (orden.estado === 'pendiente_recibir' && !isTecnico()) {
-        try {
-          const response = await ordenesAPI.escanear(orden.id, {
-            tipo_escaneo: 'recepcion',
-            usuario: 'admin'
-          });
-          toast.success(`Orden ${orden.numero_orden} marcada como RECIBIDA`);
-        } catch (scanError) {
-          const detail = scanError.response?.data?.detail;
-          toast.error(typeof detail === 'string' ? detail : 'Error al marcar como recibida');
-        }
+      if (res.data.ordenes && res.data.ordenes.length === 1) {
+        navigate(`/crm/ordenes/${res.data.ordenes[0].id}`);
+      } else if (res.data.ordenes && res.data.ordenes.length > 1) {
+        navigate(`/crm/ordenes?buscar=${encodeURIComponent(searchValue)}`);
       } else {
-        toast.success(`Orden ${orden.numero_orden} encontrada`);
+        toast.error('No se encontró ninguna orden');
       }
-      
-      navigate(`/crm/ordenes/${orden.id}`);
-    } catch (error) {
-      let msg = 'Error al procesar el escaneo';
-      if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : msg;
-      }
-      toast.error(msg);
+    } catch (err) {
+      toast.error('Error al buscar');
     } finally {
       setProcessing(false);
       setScannerValue('');
     }
   };
 
-  // Export functions
-  const handleExportar = async (tipo) => {
-    try {
-      let response;
-      switch (tipo) {
-        case 'clientes':
-          response = await exportarAPI.clientes();
-          break;
-        case 'ordenes':
-          response = await exportarAPI.ordenes();
-          break;
-        case 'inventario':
-          response = await exportarAPI.inventario();
-          break;
-        default:
-          return;
-      }
-      
-      const ws = XLSX.utils.json_to_sheet(response.data.data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, tipo.charAt(0).toUpperCase() + tipo.slice(1));
-      XLSX.writeFile(wb, `${tipo}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
-      toast.success(`${tipo} exportados correctamente`);
-    } catch (error) {
-      toast.error('Error al exportar');
-    }
+  const calcularDiasDesde = (fecha) => {
+    if (!fecha) return '-';
+    const ahora = new Date();
+    const fechaOrden = new Date(fecha);
+    const diff = Math.floor((ahora - fechaOrden) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const formatFecha = (fecha) => {
+    if (!fecha) return '-';
+    return new Date(fecha).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 bg-slate-200 rounded w-1/3" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-200 rounded-xl" />)}
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  // Prepare chart data
-  const pieChartData = metricas?.ordenes_por_estado?.map(item => ({
-    name: statusLabels[item.estado]?.label || item.estado,
-    value: item.cantidad,
-    color: statusLabels[item.estado]?.chartColor || '#6b7280'
-  })) || [];
+  const { kpis, en_taller, ordenes, tiempos, graficos } = data || {};
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header con escáner */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Bienvenido al panel de control</p>
+          <h1 className="text-2xl font-bold">Dashboard Operativo</h1>
+          <p className="text-muted-foreground text-sm">
+            Control diario del taller • Actualizado: {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
         
-        <div className="flex gap-2 flex-wrap">
-          {/* BOTÓN NUEVA ORDEN - SIEMPRE VISIBLE Y PROMINENTE */}
-          <Button 
-            onClick={() => navigate('/ordenes/nueva')} 
-            className="bg-green-600 hover:bg-green-700 gap-2"
-            data-testid="nueva-orden-btn"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Orden
-          </Button>
+        <div className="flex items-center gap-3">
+          <form onSubmit={handleScannerSubmit} className="flex gap-2">
+            <div className="relative">
+              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                ref={scannerInputRef}
+                placeholder="Escanear código..."
+                value={scannerValue}
+                onChange={(e) => setScannerValue(e.target.value)}
+                className="pl-9 w-48"
+              />
+            </div>
+            <Button type="submit" disabled={processing} size="sm">
+              <Search className="w-4 h-4" />
+            </Button>
+          </form>
           
-          {isAdmin() && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => handleExportar('clientes')}>
-                <Download className="w-4 h-4 mr-2" />
-                Clientes
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleExportar('ordenes')}>
-                <Download className="w-4 h-4 mr-2" />
-                Órdenes
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleExportar('inventario')}>
-                <Download className="w-4 h-4 mr-2" />
-                Inventario
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
         </div>
       </div>
 
-      {/* ÓRDENES DE COMPRA URGENTES - BOTÓN EN STATS */}
-
-      {/* Scanner Card (Compacto) */}
-      <Card className="border border-primary/20">
-        <CardContent className="py-3 px-4">
-          <form onSubmit={handleScannerSubmit} className="flex items-center gap-3">
-            <QrCode className="w-5 h-5 text-primary flex-shrink-0" />
-            <Input
-              ref={scannerInputRef}
-              placeholder="Escanea o introduce código de orden..."
-              value={scannerValue}
-              onChange={(e) => setScannerValue(e.target.value)}
-              className="h-9 font-mono text-sm"
-              data-testid="scanner-input"
-            />
-            <Button type="submit" disabled={processing} size="sm" className="h-9 px-4" data-testid="scanner-submit">
-              {processing ? 'Procesando...' : 'Escanear'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Stats Cards */}
-      <div className={`grid gap-4 ${isTecnico() ? 'grid-cols-2' : isMaster() ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-3'}`}>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
+      {/* KPIs principales */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
+          <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Órdenes</p>
-                <p className="text-3xl font-bold">{stats?.total_ordenes || 0}</p>
-              </div>
-              <ClipboardList className="w-10 h-10 text-primary/20" />
+              <Wrench className="w-5 h-5 text-purple-600" />
+              <span className="text-2xl font-bold text-purple-700">{kpis?.total_en_taller || 0}</span>
             </div>
+            <p className="text-xs text-purple-600 mt-1 font-medium">En Taller</p>
           </CardContent>
         </Card>
-        {isMaster() && (
-          <>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/clientes')}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Clientes</p>
-                    <p className="text-3xl font-bold">{stats?.total_clientes || 0}</p>
-                  </div>
-                  <Users className="w-10 h-10 text-primary/20" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/inventario')}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Repuestos</p>
-                    <p className="text-3xl font-bold">{stats?.total_repuestos || 0}</p>
-                  </div>
-                  <Package className="w-10 h-10 text-primary/20" />
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-        <Card 
-          className={`hover:shadow-md transition-shadow cursor-pointer ${stats?.notificaciones_pendientes > 0 ? 'border-orange-500' : ''}`}
-          onClick={() => navigate('/notificaciones')}
-        >
-          <CardContent className="pt-6">
+        
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
+          <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Notificaciones</p>
-                <p className="text-3xl font-bold">{stats?.notificaciones_pendientes || 0}</p>
-              </div>
-              <Bell className={`w-10 h-10 ${stats?.notificaciones_pendientes > 0 ? 'text-orange-500' : 'text-primary/20'}`} />
+              <Inbox className="w-5 h-5 text-yellow-600" />
+              <span className="text-2xl font-bold text-yellow-700">{kpis?.total_pendientes_recibir || 0}</span>
             </div>
+            <p className="text-xs text-yellow-600 mt-1 font-medium">Por Recibir</p>
           </CardContent>
         </Card>
-        {isAdmin() && (
-          <Card 
-            className={`hover:shadow-md transition-shadow cursor-pointer ${
-              ordenesCompraUrgentes?.total_pendientes > 0 ? 'border-red-500' : ''
-            }`}
-            onClick={() => navigate('/ordenes-compra')}
-            data-testid="ordenes-compra-card"
-          >
-            <CardContent className="pt-6">
+        
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <PackageCheck className="w-5 h-5 text-green-600" />
+              <span className="text-2xl font-bold text-green-700">{kpis?.total_reparados || 0}</span>
+            </div>
+            <p className="text-xs text-green-600 mt-1 font-medium">Reparados</p>
+          </CardContent>
+        </Card>
+        
+        <Card className={`bg-gradient-to-br ${kpis?.con_demora > 0 ? 'from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200' : 'from-slate-50 to-slate-100 border-slate-200'}`}>
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <AlertCircle className={`w-5 h-5 ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+              <span className={`text-2xl font-bold ${kpis?.con_demora > 0 ? 'text-red-700' : 'text-slate-500'}`}>
+                {kpis?.con_demora || 0}
+              </span>
+            </div>
+            <p className={`text-xs mt-1 font-medium ${kpis?.con_demora > 0 ? 'text-red-600' : 'text-slate-500'}`}>Con Demora</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border-rose-200">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <Shield className="w-5 h-5 text-rose-600" />
+              <span className="text-2xl font-bold text-rose-700">{kpis?.garantias_activas || 0}</span>
+            </div>
+            <p className="text-xs text-rose-600 mt-1 font-medium">Garantías</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <Activity className="w-5 h-5 text-blue-600" />
+              <span className="text-2xl font-bold text-blue-700">{kpis?.cambios_hoy || 0}</span>
+            </div>
+            <p className="text-xs text-blue-600 mt-1 font-medium">Cambios Hoy</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <History className="w-5 h-5 text-slate-500" />
+              <span className="text-2xl font-bold text-slate-600">{kpis?.cambios_ayer || 0}</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Cambios Ayer</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Contenido principal - 2 columnas */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Columna izquierda - Estados en taller y métricas */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Estados en taller */}
+          <Card>
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Compras Pend.</p>
-                  <p className="text-3xl font-bold">{ordenesCompraUrgentes?.total_pendientes || 0}</p>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-purple-600" />
+                    Órdenes en Taller
+                  </CardTitle>
+                  <CardDescription>Desglose por subestado</CardDescription>
                 </div>
-                <ShoppingCart className={`w-10 h-10 ${
-                  ordenesCompraUrgentes?.total_pendientes > 0 ? 'text-red-500' : 'text-primary/20'
-                }`} />
+                <Badge variant="secondary" className="text-lg px-3 py-1">
+                  {en_taller?.total || 0}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-sm font-medium">Recibidas</span>
+                  </div>
+                  <span className="text-3xl font-bold text-blue-700">{en_taller?.detalle?.recibidas || 0}</span>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500" />
+                    <span className="text-sm font-medium">En Reparación</span>
+                  </div>
+                  <span className="text-3xl font-bold text-purple-700">{en_taller?.detalle?.en_reparacion || 0}</span>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-orange-500" />
+                    <span className="text-sm font-medium">Re-presupuestar</span>
+                  </div>
+                  <span className="text-3xl font-bold text-orange-700">{en_taller?.detalle?.re_presupuestar || 0}</span>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-950 border border-indigo-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                    <span className="text-sm font-medium">Validación</span>
+                  </div>
+                  <span className="text-3xl font-bold text-indigo-700">{en_taller?.detalle?.validacion || 0}</span>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
 
-      {/* Admin-only content */}
-      {isAdmin() && metricas && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="resumen">Resumen</TabsTrigger>
-            <TabsTrigger value="ordenes">Órdenes</TabsTrigger>
-            <TabsTrigger value="tiempos">Tiempos</TabsTrigger>
-            <TabsTrigger value="stock">Stock</TabsTrigger>
-          </TabsList>
-
-          {/* Tab: Resumen */}
-          <TabsContent value="resumen" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* KPIs */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Éxito</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-green-500" />
-                    <span className="text-3xl font-bold text-green-600">{metricas.ratios.ratio_completado}%</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {metricas.ratios.completadas} de {metricas.ratios.total} órdenes completadas
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Cancelación</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5 text-red-500" />
-                    <span className="text-3xl font-bold text-red-600">{metricas.ratios.ratio_cancelacion}%</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {metricas.ratios.canceladas} órdenes canceladas
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Garantías</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-orange-500" />
-                    <span className="text-3xl font-bold text-orange-600">{metricas.ratios.garantias}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Órdenes de garantía activas
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Pie Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="w-5 h-5" />
-                  Distribución por Estado
+          {/* Órdenes con demora */}
+          {ordenes?.con_demora?.length > 0 && (
+            <Card className="border-red-200 bg-red-50/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+                  <AlertCircle className="w-5 h-5" />
+                  Órdenes con Demora (+4 días)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPie>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {pieChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </RechartsPie>
-                  </ResponsiveContainer>
+                <div className="space-y-2">
+                  {ordenes.con_demora.slice(0, 5).map((orden) => (
+                    <Link
+                      key={orden.id}
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-900 border hover:border-red-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className={statusLabels[orden.estado]?.textColor}>
+                          {statusLabels[orden.estado]?.label || orden.estado}
+                        </Badge>
+                        <div>
+                          <p className="font-medium text-sm">{orden.numero_orden}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {orden.dispositivo?.modelo || 'Sin modelo'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="destructive" className="text-xs">
+                          {orden.dias_demora} días
+                        </Badge>
+                      </div>
+                    </Link>
+                  ))}
+                  {ordenes.con_demora.length > 5 && (
+                    <Link to="/crm/ordenes?filtro=demora" className="flex items-center justify-center gap-2 p-2 text-sm text-red-600 hover:text-red-700">
+                      Ver todas ({ordenes.con_demora.length})
+                      <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Tab: Órdenes */}
-          <TabsContent value="ordenes" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Órdenes por Día (Últimos 30 días)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metricas.ordenes_por_dia}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="fecha" 
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(value) => value.slice(5)}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="ordenes" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Últimos 7 días</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">{metricas.comparativa.ultimos_7_dias}</p>
-                  <p className="text-sm text-muted-foreground">órdenes creadas</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Últimos 30 días</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">{metricas.comparativa.total_30_dias}</p>
-                  <p className="text-sm text-muted-foreground">órdenes creadas</p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Tab: Tiempos */}
-          <TabsContent value="tiempos" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Timer className="w-5 h-5 text-blue-500" />
-                    Tiempo Promedio de Reparación
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">{metricas.tiempos.promedio_reparacion_horas} h</p>
-                  <p className="text-sm text-muted-foreground">
-                    ≈ {metricas.tiempos.promedio_reparacion_dias} días
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Desde inicio hasta fin de reparación
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-l-4 border-l-green-500">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-green-500" />
-                    Tiempo Promedio Total
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">{metricas.tiempos.promedio_total_horas} h</p>
-                  <p className="text-sm text-muted-foreground">
-                    ≈ {metricas.tiempos.promedio_total_dias} días
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Desde creación hasta envío
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Top Repuestos */}
-            {metricas.top_repuestos.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Repuestos Más Utilizados</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {metricas.top_repuestos.map((rep, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-muted-foreground">#{idx + 1}</span>
-                          <span>{rep.nombre}</span>
-                        </div>
-                        <Badge variant="secondary">{rep.cantidad} uds</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Tab: Stock */}
-          <TabsContent value="stock" className="space-y-4">
-            {alertasStock && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className={alertasStock.total_critico > 0 ? 'border-red-500 bg-red-50' : ''}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Stock Crítico</p>
-                          <p className="text-3xl font-bold text-red-600">{alertasStock.total_critico}</p>
-                        </div>
-                        <AlertTriangle className="w-10 h-10 text-red-500" />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">Repuestos sin stock</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className={alertasStock.total_bajo > 0 ? 'border-orange-500 bg-orange-50' : ''}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Stock Bajo</p>
-                          <p className="text-3xl font-bold text-orange-600">{alertasStock.total_bajo}</p>
-                        </div>
-                        <Package className="w-10 h-10 text-orange-500" />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">Por debajo del mínimo</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {alertasStock.alertas.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-orange-500" />
-                        Alertas de Stock
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {alertasStock.alertas.map((alerta, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`flex items-center justify-between p-3 rounded-lg ${
-                              alerta.nivel === 'critico' ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'
-                            }`}
-                          >
-                            <div>
-                              <p className="font-medium">{alerta.nombre}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Stock: {alerta.stock} / Mínimo: {alerta.stock_minimo}
-                              </p>
-                            </div>
-                            <Badge variant={alerta.nivel === 'critico' ? 'destructive' : 'warning'}>
-                              {alerta.nivel === 'critico' ? 'SIN STOCK' : 'BAJO'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {/* Recent Orders */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Órdenes Recientes</CardTitle>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/ordenes">
-              Ver todas <ArrowRight className="w-4 h-4 ml-2" />
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {ordenesRecientes.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No hay órdenes recientes</p>
-          ) : (
-            <div className="space-y-3">
-              {ordenesRecientes.map((orden) => {
-                const StatusIcon = statusLabels[orden.estado]?.icon || Clock;
-                return (
-                  <Link
-                    key={orden.id}
-                    to={`/ordenes/${orden.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full ${statusLabels[orden.estado]?.color || 'bg-gray-500'} flex items-center justify-center text-white`}>
-                        <StatusIcon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{orden.numero_orden}</p>
-                        <p className="text-sm text-muted-foreground">{orden.dispositivo?.modelo}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {orden.bloqueada && <Lock className="w-4 h-4 text-orange-500" />}
-                      {orden.es_garantia && <Shield className="w-4 h-4 text-red-500" />}
-                      <Badge variant="outline">{statusLabels[orden.estado]?.label || orden.estado}</Badge>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
           )}
-        </CardContent>
-      </Card>
+
+          {/* Gráfico de órdenes de la semana */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-primary" />
+                Órdenes esta Semana
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={graficos?.ordenes_semana || []}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis 
+                      dataKey="fecha" 
+                      tickFormatter={(val) => new Date(val).toLocaleDateString('es-ES', { weekday: 'short' })}
+                      fontSize={12}
+                    />
+                    <YAxis fontSize={12} />
+                    <Tooltip 
+                      labelFormatter={(val) => new Date(val).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
+                    />
+                    <Bar dataKey="total" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Métricas de tiempo */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Timer className="w-5 h-5 text-primary" />
+                Métricas de Tiempo
+              </CardTitle>
+              <CardDescription>Basado en las últimas {tiempos?.ordenes_analizadas || 0} órdenes completadas</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground mb-1">Tiempo Promedio Total</p>
+                  <p className="text-3xl font-bold">{tiempos?.promedio_total_dias?.toFixed(1) || 0}</p>
+                  <p className="text-sm text-muted-foreground">días</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground mb-1">En horas</p>
+                  <p className="text-3xl font-bold">{tiempos?.promedio_total_horas?.toFixed(0) || 0}</p>
+                  <p className="text-sm text-muted-foreground">horas</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Columna derecha - Listas */}
+        <div className="space-y-6">
+          {/* Pendientes de recibir */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Inbox className="w-4 h-4 text-yellow-600" />
+                  Pendientes de Recibir
+                </CardTitle>
+                <Badge variant="outline">{ordenes?.pendientes_recibir?.length || 0}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordenes?.pendientes_recibir?.length > 0 ? (
+                <div className="space-y-2">
+                  {ordenes.pendientes_recibir.slice(0, 5).map((orden) => (
+                    <Link
+                      key={orden.id}
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{orden.numero_orden}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {orden.dispositivo?.modelo || 'Sin modelo'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">{orden.agencia_envio || '-'}</p>
+                        <p className="text-xs font-mono">{orden.codigo_recogida_entrada?.slice(0, 10) || '-'}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Sin órdenes pendientes</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Últimos reparados */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  Últimos Reparados
+                </CardTitle>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  {kpis?.total_reparados || 0}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordenes?.ultimos_reparados?.length > 0 ? (
+                <div className="space-y-2">
+                  {ordenes.ultimos_reparados.slice(0, 5).map((orden) => (
+                    <Link
+                      key={orden.id}
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{orden.numero_orden}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {orden.dispositivo?.modelo || 'Sin modelo'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">{formatFecha(orden.updated_at)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Sin órdenes reparadas</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Últimos enviados */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Send className="w-4 h-4 text-emerald-600" />
+                  Últimos Enviados
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordenes?.ultimos_enviados?.length > 0 ? (
+                <div className="space-y-2">
+                  {ordenes.ultimos_enviados.slice(0, 5).map((orden) => (
+                    <Link
+                      key={orden.id}
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{orden.numero_orden}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {orden.dispositivo?.modelo || 'Sin modelo'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">{orden.agencia_envio || '-'}</p>
+                        <p className="text-xs">{formatFecha(orden.updated_at)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Sin envíos recientes</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Accesos rápidos */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Accesos Rápidos</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" asChild className="justify-start">
+                  <Link to="/crm/ordenes/nueva">
+                    <ClipboardList className="w-4 h-4 mr-2" />
+                    Nueva Orden
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild className="justify-start">
+                  <Link to="/crm/clientes">
+                    <Users className="w-4 h-4 mr-2" />
+                    Clientes
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild className="justify-start">
+                  <Link to="/crm/inventario">
+                    <Package className="w-4 h-4 mr-2" />
+                    Inventario
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild className="justify-start">
+                  <Link to="/crm/envios">
+                    <Truck className="w-4 h-4 mr-2" />
+                    Envíos
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

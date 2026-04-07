@@ -1117,6 +1117,17 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
                 "garantias_activas": [
                     {"$match": {"estado": "garantia"}},
                     {"$count": "total"}
+                ],
+                
+                # Total general de órdenes
+                "total_general": [
+                    {"$count": "total"}
+                ],
+                
+                # Total enviados
+                "total_enviados": [
+                    {"$match": {"estado": "enviado"}},
+                    {"$count": "total"}
                 ]
             }
         }
@@ -1172,6 +1183,8 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
     return {
         # KPIs principales
         "kpis": {
+            "total_ordenes": safe_count("total_general"),
+            "total_enviados": safe_count("total_enviados"),
             "total_en_taller": total_en_taller,
             "total_pendientes_recibir": safe_count("total_pendientes"),
             "total_reparados": safe_count("total_reparados"),

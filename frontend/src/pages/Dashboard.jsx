@@ -186,7 +186,29 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs principales */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
+        {/* Total órdenes */}
+        <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <ClipboardList className="w-5 h-5 text-white" />
+              <span className="text-2xl font-bold text-white">{kpis?.total_ordenes || 0}</span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1 font-medium">Total Órdenes</p>
+          </CardContent>
+        </Card>
+        
+        {/* Enviados */}
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <Send className="w-5 h-5 text-emerald-600" />
+              <span className="text-2xl font-bold text-emerald-700">{kpis?.total_enviados || 0}</span>
+            </div>
+            <p className="text-xs text-emerald-600 mt-1 font-medium">Enviados</p>
+          </CardContent>
+        </Card>
+        
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">

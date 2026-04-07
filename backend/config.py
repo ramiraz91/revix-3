@@ -15,9 +15,8 @@ import sys
 # ── Cargar variables de entorno ───────────────────────────────────────────────
 ROOT_DIR = Path(__file__).parent
 from dotenv import load_dotenv
-# override=True para que .env tenga prioridad en PREVIEW
-# En producción, las System Keys de Emergent se inyectan DESPUÉS del arranque
-load_dotenv(ROOT_DIR / '.env', override=True)
+# override=False para NO sobrescribir variables de entorno de Kubernetes/System Keys
+load_dotenv(ROOT_DIR / '.env', override=False)
 
 # ── Base de datos: usar SIEMPRE database.py como fuente única ─────────────────
 from database import (

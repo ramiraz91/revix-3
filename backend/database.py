@@ -15,9 +15,8 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from dotenv import load_dotenv
 
-# Cargar .env con override=True para que tenga prioridad en PREVIEW
-# En producción (Deploy), las System Keys de Emergent se inyectan correctamente
-load_dotenv(override=True)
+# Cargar .env solo si las variables no están ya definidas (Kubernetes/System Keys las definen)
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 

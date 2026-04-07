@@ -1212,9 +1212,11 @@ async def importar_presupuesto_a_crm(codigo: str, user: dict = Depends(require_a
         docs = data.get("docs", [])
         fotos_guardadas = []
         if docs:
-            fotos_guardadas = await client.download_and_save_photos(docs, codigo)
+            # Ahora retorna URLs de Cloudinary directamente
+            fotos_guardadas = await client.download_and_save_photos(docs, codigo, numero_orden)
             if fotos_guardadas:
-                fotos_orden = [{"src": f"/api/uploads/{f}", "tipo": "portal"} for f in fotos_guardadas]
+                # Las URLs ya son de Cloudinary, guardarlas directamente
+                fotos_orden = [{"src": url, "tipo": "portal"} for url in fotos_guardadas]
                 await db.ordenes.update_one(
                     {"id": orden_id},
                     {"$set": {"fotos": fotos_orden}}

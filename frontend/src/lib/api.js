@@ -542,9 +542,9 @@ export const insuramaAPI = {
 
 // ==================== INTELIGENCIA DE PRECIOS ====================
 export const inteligenciaPreciosAPI = {
-  // Dashboard
-  getDashboard: async () => {
-    const response = await API_SLOW.get('/inteligencia-precios/dashboard');
+  // Dashboard con filtros de período
+  getDashboard: async (queryString = '') => {
+    const response = await API_SLOW.get(`/inteligencia-precios/dashboard${queryString}`);
     return response.data;
   },
   

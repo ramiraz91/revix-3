@@ -127,13 +127,38 @@ def normalizar_tipo_reparacion(tipo: Optional[str]) -> str:
 # ==================== ANALYTICS / DASHBOARD ====================
 
 @router.get("/dashboard")
-async def obtener_dashboard(user: dict = Depends(require_admin)):
+async def obtener_dashboard(
+    periodo: str = "todo",  # todo, semana, mes, trimestre, año, custom
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    user: dict = Depends(require_admin)
+):
     """Obtiene todos los datos para el dashboard de inteligencia - MEJORADO con métricas reales del CRM"""
     try:
         # Fechas para filtros
         ahora = datetime.now(timezone.utc)
         hace_30_dias = (ahora - timedelta(days=30)).isoformat()
         hace_90_dias = (ahora - timedelta(days=90)).isoformat()
+        
+        # Determinar rango de fechas según período
+        filtro_fecha = {}
+        if fecha_inicio and fecha_fin:
+            filtro_fecha = {"created_at": {"$gte": fecha_inicio, "$lte": fecha_fin}}
+        elif periodo == "semana":
+            inicio = ahora - timedelta(days=ahora.weekday())
+            inicio = inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+            filtro_fecha = {"created_at": {"$gte": inicio.isoformat()}}
+        elif periodo == "mes":
+            inicio = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            filtro_fecha = {"created_at": {"$gte": inicio.isoformat()}}
+        elif periodo == "trimestre":
+            trimestre_mes = ((ahora.month - 1) // 3) * 3 + 1
+            inicio = ahora.replace(month=trimestre_mes, day=1, hour=0, minute=0, second=0, microsecond=0)
+            filtro_fecha = {"created_at": {"$gte": inicio.isoformat()}}
+        elif periodo == "año":
+            inicio = ahora.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            filtro_fecha = {"created_at": {"$gte": inicio.isoformat()}}
+        # else: periodo == "todo" - sin filtro de fecha
         
         # =============== MÉTRICAS REALES DEL CRM (ÓRDENES INSURAMA) ===============
         
@@ -145,6 +170,10 @@ async def obtener_dashboard(user: dict = Depends(require_admin)):
                 {"datos_portal": {"$exists": True, "$ne": None}}
             ]
         }
+        
+        # Combinar con filtro de fecha si existe
+        if filtro_fecha:
+            filtro_insurama = {"$and": [filtro_insurama, filtro_fecha]}
         
         # Total de órdenes de Insurama
         total_ordenes_insurama = await db.ordenes.count_documents(filtro_insurama)

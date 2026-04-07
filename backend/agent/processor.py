@@ -453,8 +453,8 @@ async def scrape_portal_data(codigo: str) -> Optional[dict]:
 
 # ==================== ORDER CREATION ====================
 
-async def download_portal_photos(codigo: str, docs: list[dict]) -> list[str]:
-    """Download photos from portal and save locally. Returns list of filenames."""
+async def download_portal_photos(codigo: str, docs: list[dict], numero_orden: str = None) -> list[str]:
+    """Download photos from portal and upload to Cloudinary. Returns list of Cloudinary URLs."""
     config = await db.configuracion.find_one({"tipo": "agent_config"}, {"_id": 0})
     if not config:
         return []
@@ -472,7 +472,7 @@ async def download_portal_photos(codigo: str, docs: list[dict]) -> list[str]:
     try:
         from agent.scraper import SumbrokerClient
         client = SumbrokerClient(login=portal_user, password=portal_pass)
-        saved = await client.download_and_save_photos(docs, codigo)
+        saved = await client.download_and_save_photos(docs, codigo, numero_orden)
         await log_agent("fotos_descargadas", "ok", "info", codigo=codigo,
                         detalles={"total": len(saved), "archivos": saved})
         return saved
@@ -573,13 +573,7 @@ async def create_orden_from_pre_registro(pre_reg: dict,
                   dp.get('damage_type_text') or \
                   pre_reg.get('email_subject', '')
 
-    # ── Download photos from provider ───────────────────────
-    portal_photos = []
-    docs = dp.get('docs', [])
-    if docs:
-        portal_photos = await download_portal_photos(codigo, docs)
-
-    # ── Create the work order ───────────────────────────────
+    # ── Create the work order first ───────────────────────────
     orden = OrdenTrabajo(
         cliente_id=cliente_id,
         dispositivo={
@@ -602,7 +596,14 @@ async def create_orden_from_pre_registro(pre_reg: dict,
         "fecha": datetime.now(timezone.utc).isoformat(),
         "usuario": "agente_email",
     }]
-    # Attach portal photos as evidencias
+    
+    # ── Download photos from provider (now with numero_orden) ───────────────────────
+    portal_photos = []
+    docs = dp.get('docs', [])
+    if docs:
+        portal_photos = await download_portal_photos(codigo, docs, orden.numero_orden)
+    
+    # Attach portal photos as evidencias (now Cloudinary URLs)
     orden.evidencias = portal_photos
 
     doc = orden.model_dump()

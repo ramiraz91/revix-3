@@ -379,9 +379,10 @@ class SumbrokerClient:
                     await asyncio.sleep(2)
         return None
 
-    async def download_and_save_photos(self, docs: list[dict], codigo: str) -> list[str]:
-        """Download photos and save to uploads dir. Returns list of saved filenames."""
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
+    async def download_and_save_photos(self, docs: list[dict], codigo: str, numero_orden: str = None) -> list[str]:
+        """Download photos and upload to Cloudinary. Returns list of Cloudinary URLs."""
+        from services.cloudinary_service import upload_bytes_to_cloudinary
+        
         saved = []
         errores = []
         
@@ -393,13 +394,29 @@ class SumbrokerClient:
                 if not content:
                     errores.append(doc.get("name", "unknown"))
                     continue
-                ext = os.path.splitext(doc.get("name", "photo.jpg"))[1] or ".jpg"
-                filename = f"portal_{codigo}_{doc.get('doc_id', uuid.uuid4().hex[:6])}{ext}"
-                filepath = os.path.join(UPLOAD_DIR, filename)
-                async with aiofiles.open(filepath, "wb") as f:
-                    await f.write(content)
-                saved.append(filename)
-                logger.info("Saved portal photo: %s (%d bytes)", filename, len(content))
+                
+                # Subir a Cloudinary en lugar de guardar localmente
+                result = upload_bytes_to_cloudinary(
+                    content=content,
+                    numero_orden=numero_orden or codigo,
+                    tipo="portal",
+                    filename=doc.get("name", "photo.jpg")
+                )
+                
+                if result.get("success"):
+                    saved.append(result["url"])
+                    logger.info("Uploaded portal photo to Cloudinary: %s (%d bytes)", result["url"], len(content))
+                else:
+                    # Fallback: guardar localmente si Cloudinary falla
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    ext = os.path.splitext(doc.get("name", "photo.jpg"))[1] or ".jpg"
+                    filename = f"portal_{codigo}_{doc.get('doc_id', uuid.uuid4().hex[:6])}{ext}"
+                    filepath = os.path.join(UPLOAD_DIR, filename)
+                    async with aiofiles.open(filepath, "wb") as f:
+                        await f.write(content)
+                    saved.append(f"/api/uploads/{filename}")
+                    logger.warning("Cloudinary failed, saved locally: %s - Error: %s", filename, result.get("error"))
+                    
             except Exception as e:
                 logger.error("Error guardando foto %s: %s", doc.get("name", "unknown"), e)
                 errores.append(doc.get("name", "unknown"))

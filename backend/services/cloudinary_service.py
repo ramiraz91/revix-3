@@ -176,3 +176,60 @@ def extract_public_id(url: str) -> Optional[str]:
     except:
         pass
     return None
+
+
+def upload_bytes_to_cloudinary(
+    content: bytes,
+    numero_orden: str,
+    tipo: str = "portal",
+    filename: str = None
+) -> dict:
+    """
+    Sube bytes directamente a Cloudinary (para fotos del portal/scraper).
+    
+    Args:
+        content: Bytes de la imagen
+        numero_orden: Número de orden para organizar carpetas
+        tipo: Tipo de foto (portal, antes, despues)
+        filename: Nombre original del archivo (para generar unique id)
+    
+    Returns:
+        dict con url, public_id, y metadata
+    """
+    try:
+        # Generar nombre único
+        unique_id = str(uuid.uuid4())[:8]
+        public_id = f"{tipo}_{unique_id}"
+        
+        # Organizar en carpetas: revix/ordenes/{numero_orden}/{tipo}/
+        folder = f"revix/ordenes/{numero_orden}/{tipo}"
+        
+        # Subir a Cloudinary
+        result = cloudinary.uploader.upload(
+            content,
+            folder=folder,
+            public_id=public_id,
+            resource_type="image",
+            overwrite=False,
+            invalidate=False,
+            transformation=[
+                {"quality": "auto:good", "fetch_format": "auto"}
+            ]
+        )
+        
+        return {
+            "success": True,
+            "url": result["secure_url"],
+            "public_id": result["public_id"],
+            "width": result.get("width"),
+            "height": result.get("height"),
+            "format": result.get("format"),
+            "bytes": result.get("bytes"),
+            "created_at": result.get("created_at")
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }

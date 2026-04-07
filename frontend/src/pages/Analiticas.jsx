@@ -48,6 +48,11 @@ export default function Analiticas() {
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
   const [periodo, setPeriodo] = useState('mes');
   const [activeTab, setActiveTab] = useState('facturacion');
+  
+  // Fechas personalizadas
+  const [fechaInicio, setFechaInicio] = useState(null);
+  const [fechaFin, setFechaFin] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -55,7 +60,7 @@ export default function Analiticas() {
 
   useEffect(() => {
     fetchFinanzas();
-  }, [periodo]);
+  }, [periodo, fechaInicio, fechaFin]);
 
   const fetchData = async () => {
     try {
@@ -71,12 +76,35 @@ export default function Analiticas() {
   const fetchFinanzas = async () => {
     try {
       setLoadingFinanzas(true);
-      const res = await API.get(`/master/finanzas?periodo=${periodo}`);
+      let url = `/master/finanzas?periodo=${periodo}`;
+      
+      // Si hay fechas personalizadas, añadirlas
+      if (periodo === 'custom' && fechaInicio && fechaFin) {
+        url = `/master/finanzas?periodo=custom&fecha_inicio=${fechaInicio.toISOString()}&fecha_fin=${fechaFin.toISOString()}`;
+      }
+      
+      const res = await API.get(url);
       setFinanzas(res.data);
     } catch (err) {
       console.error('Error cargando finanzas:', err);
     } finally {
       setLoadingFinanzas(false);
+    }
+  };
+  
+  const handlePeriodoChange = (value) => {
+    setPeriodo(value);
+    if (value === 'custom') {
+      setShowDatePicker(true);
+      // Establecer fechas por defecto (último mes)
+      const hoy = new Date();
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      setFechaInicio(inicioMes);
+      setFechaFin(hoy);
+    } else {
+      setShowDatePicker(false);
+      setFechaInicio(null);
+      setFechaFin(null);
     }
   };
 
@@ -128,10 +156,10 @@ export default function Analiticas() {
         {/* TAB FACTURACIÓN */}
         <TabsContent value="facturacion" className="space-y-6">
           {/* Selector de período */}
-          <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-            <Calendar className="w-5 h-5 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/50 rounded-lg">
+            <CalendarIcon className="w-5 h-5 text-muted-foreground" />
             <span className="text-sm font-medium">Período:</span>
-            <Select value={periodo} onValueChange={setPeriodo}>
+            <Select value={periodo} onValueChange={handlePeriodoChange}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -140,10 +168,53 @@ export default function Analiticas() {
                 <SelectItem value="mes">Este Mes</SelectItem>
                 <SelectItem value="trimestre">Este Trimestre</SelectItem>
                 <SelectItem value="año">Este Año</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Date pickers para período personalizado */}
+            {periodo === 'custom' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[140px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fechaInicio ? format(fechaInicio, 'dd/MM/yyyy', { locale: es }) : 'Desde'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fechaInicio}
+                      onSelect={setFechaInicio}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-muted-foreground">→</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[140px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fechaFin ? format(fechaFin, 'dd/MM/yyyy', { locale: es }) : 'Hasta'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fechaFin}
+                      onSelect={setFechaFin}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            
             {finanzas?.periodo && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground ml-auto">
                 {new Date(finanzas.periodo.inicio).toLocaleDateString('es-ES')} - {new Date(finanzas.periodo.fin).toLocaleDateString('es-ES')}
                 ({finanzas.periodo.dias_transcurridos} días)
               </span>

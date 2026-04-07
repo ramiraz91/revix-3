@@ -17,13 +17,21 @@ import {
   ArrowDown,
   Minus,
   Smartphone,
-  Wrench
+  Wrench,
+  Calendar,
+  Download,
+  FileText
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   Table,
   TableBody,
@@ -38,21 +46,103 @@ import { toast } from 'sonner';
 export default function InteligenciaDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState('mes');
+  const [fechaInicio, setFechaInicio] = useState(null);
+  const [fechaFin, setFechaFin] = useState(null);
+  const [generandoInforme, setGenerandoInforme] = useState(false);
 
   useEffect(() => {
     cargarDashboard();
-  }, []);
+  }, [periodo, fechaInicio, fechaFin]);
 
   const cargarDashboard = async () => {
     try {
       setLoading(true);
-      const data = await inteligenciaPreciosAPI.getDashboard();
+      let queryParams = `?periodo=${periodo}`;
+      if (periodo === 'custom' && fechaInicio && fechaFin) {
+        queryParams = `?periodo=custom&fecha_inicio=${fechaInicio.toISOString()}&fecha_fin=${fechaFin.toISOString()}`;
+      }
+      const data = await inteligenciaPreciosAPI.getDashboard(queryParams);
       setDashboard(data);
     } catch (error) {
       console.error('Error cargando dashboard:', error);
       toast.error('Error al cargar dashboard de inteligencia');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handlePeriodoChange = (value) => {
+    setPeriodo(value);
+    if (value === 'custom') {
+      const hoy = new Date();
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      setFechaInicio(inicioMes);
+      setFechaFin(hoy);
+    } else {
+      setFechaInicio(null);
+      setFechaFin(null);
+    }
+  };
+  
+  const generarInforme = async () => {
+    if (!dashboard) return;
+    
+    setGenerandoInforme(true);
+    try {
+      const periodoTexto = periodo === 'custom' && fechaInicio && fechaFin
+        ? `${format(fechaInicio, 'dd/MM/yyyy')} - ${format(fechaFin, 'dd/MM/yyyy')}`
+        : periodo === 'semana' ? 'Esta Semana'
+        : periodo === 'mes' ? 'Este Mes'
+        : periodo === 'trimestre' ? 'Este Trimestre'
+        : periodo === 'año' ? 'Este Año'
+        : 'Todo el período';
+      
+      const { negocio, kpis, top_competidores, dispositivos_rentables, tipos_reparacion } = dashboard;
+      
+      // Generar CSV con los datos
+      let csv = 'INFORME DE MÉTRICAS INSURAMA\n';
+      csv += `Período: ${periodoTexto}\n`;
+      csv += `Generado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}\n\n`;
+      
+      csv += '=== MÉTRICAS DEL NEGOCIO ===\n';
+      csv += `Total Órdenes,${negocio?.total_ordenes_insurama || 0}\n`;
+      csv += `Órdenes últimos 30d,${negocio?.ordenes_30d || 0}\n`;
+      csv += `Ratio Aceptación,${negocio?.ratio_aceptacion || 0}%\n`;
+      csv += `Ticket Medio,${negocio?.ticket_medio || 0}€\n`;
+      csv += `Total Ingresos,${negocio?.total_ingresos || 0}€\n`;
+      csv += `Total Gastos,${negocio?.total_gastos || 0}€\n`;
+      csv += `Beneficio,${negocio?.beneficio || 0}€\n`;
+      csv += `Margen,${negocio?.margen_porcentaje || 0}%\n\n`;
+      
+      csv += '=== ANÁLISIS DE COMPETENCIA ===\n';
+      csv += `Tasa de Éxito,${kpis?.tasa_exito || 0}%\n`;
+      csv += `Posición Media,${kpis?.posicion_media || '-'}\n`;
+      csv += `Total Análisis,${kpis?.total_analisis || 0}\n\n`;
+      
+      if (top_competidores?.length > 0) {
+        csv += '=== TOP COMPETIDORES ===\n';
+        csv += 'Nombre,Apariciones,Gana,Precio Medio\n';
+        top_competidores.forEach(c => {
+          csv += `${c.nombre},${c.apariciones},${c.ganador_count || 0},${c.precio_medio || 0}€\n`;
+        });
+      }
+      
+      // Descargar archivo
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `informe_insurama_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success('Informe generado correctamente');
+    } catch (error) {
+      console.error('Error generando informe:', error);
+      toast.error('Error al generar informe');
+    } finally {
+      setGenerandoInforme(false);
     }
   };
 
@@ -82,6 +172,82 @@ export default function InteligenciaDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* FILTROS Y ACCIONES */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-4">
+          <Calendar className="w-5 h-5 text-muted-foreground" />
+          <span className="text-sm font-medium">Período:</span>
+          <Select value={periodo} onValueChange={handlePeriodoChange}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todo">Todo</SelectItem>
+              <SelectItem value="semana">Esta Semana</SelectItem>
+              <SelectItem value="mes">Este Mes</SelectItem>
+              <SelectItem value="trimestre">Este Trimestre</SelectItem>
+              <SelectItem value="año">Este Año</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {periodo === 'custom' && (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {fechaInicio ? format(fechaInicio, 'dd/MM/yyyy', { locale: es }) : 'Desde'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={fechaInicio}
+                    onSelect={setFechaInicio}
+                    initialFocus
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-muted-foreground">→</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {fechaFin ? format(fechaFin, 'dd/MM/yyyy', { locale: es }) : 'Hasta'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={fechaFin}
+                    onSelect={setFechaFin}
+                    initialFocus
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={cargarDashboard} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+          <Button variant="default" size="sm" onClick={generarInforme} disabled={generandoInforme || !dashboard}>
+            {generandoInforme ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Generar Informe
+          </Button>
+        </div>
+      </div>
+      
       {/* NUEVAS MÉTRICAS DEL NEGOCIO */}
       <div>
         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">

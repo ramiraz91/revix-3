@@ -30,6 +30,20 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ## What's Been Implemented (Latest First)
 
+### 2026-04-07 - Dashboard Operativo Rediseñado
+- **Nuevo Dashboard**: Totalmente rediseñado con métricas operativas reales (Total Órdenes, Enviados, En Taller, Por Recibir, Reparados, Con Demora, Garantías, Cambios Hoy/Ayer)
+- **Tarjetas Clicables**: Las tarjetas de KPIs ahora navegan directamente a vistas filtradas (`/crm/ordenes?estado=X`)
+- **Desglose En Taller**: Visualización de subestados (Recibidas, En Reparación, Re-presupuestar, Validación)
+- **Órdenes con Demora**: Lista de órdenes con más de 4 días sin movimiento
+- **Gráfico Semanal**: Visualización de órdenes de la semana con Recharts
+- **Métricas de Tiempo**: Promedio de días/horas de reparación
+- **Fix**: Corregido `</div>` extra que rompía el layout
+- **Files**: `Dashboard.jsx`, `server.py`
+
+### 2026-04-07 - Eliminación Catálogo Proveedores
+- **Eliminado**: Toda la arquitectura de scrapers de proveedores a petición del usuario
+- **Razón**: El usuario no necesita esta funcionalidad y causaba confusión en la base de datos
+
 ### 2026-04-07 - Fix: Gestión de Compras con IA
 - **Issue**: Error `float() argument must be a string or a real number, not 'NoneType'` al procesar facturas con IA
 - **Causa**: Gemini devolvía `null` para campos numéricos y `float(None)` fallaba
@@ -59,13 +73,14 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ## Prioritized Backlog
 
+### P0 - Crítico
+- [ ] Error 520 en Producción (Deploy) - Requiere que el usuario presione "Deploy" en el panel de Emergent
+
 ### P1 - Alto
-- [ ] Completar implementación de Scrapers de Proveedores (lógica real de extracción BeautifulSoup)
-- [ ] Polling automático semanal de precios de proveedores
+- [ ] Validar importación de órdenes Insurama con nueva lógica de Cloudinary
 
 ### P2 - Medio
-- [ ] Error al importar presupuesto de Insurama al CRM (mensaje de error tras guardar)
-- [ ] Error "Error al cargar detalle" en módulo Insurama
+- [ ] El checklist de control de calidad (QC) no se muestra en la impresión final de la orden (`OrdenDetalle.jsx`)
 - [ ] Google Business Profile + Gemini Flash integration
 - [ ] Flujo de gestión de incidencias
 - [ ] Acortar SKUs generados en inventario

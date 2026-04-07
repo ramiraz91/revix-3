@@ -302,7 +302,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      </div>
 
       {/* Contenido principal - 2 columnas */}
       <div className="grid lg:grid-cols-3 gap-6">

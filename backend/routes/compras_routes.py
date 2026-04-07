@@ -83,6 +83,24 @@ class LoteCompra(BaseModel):
 
 # ==================== UTILIDADES ====================
 
+def safe_float(value, default=0.0) -> float:
+    """Convierte un valor a float de forma segura, devolviendo default si falla"""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(value, default=1) -> int:
+    """Convierte un valor a int de forma segura, devolviendo default si falla"""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
 def generar_codigo_lote() -> str:
     """Genera código de trazabilidad único: TRZ-AAAA-MMDD-NNN"""
     ahora = datetime.now(timezone.utc)
@@ -191,14 +209,14 @@ Responde SOLO con el JSON, sin texto adicional."""
         productos = []
         for i, p in enumerate(data.get("productos", [])):
             productos.append(ProductoFactura(
-                linea=p.get("linea", i + 1),
-                descripcion=p.get("descripcion", ""),
+                linea=p.get("linea", i + 1) if p.get("linea") is not None else i + 1,
+                descripcion=p.get("descripcion") or "",
                 codigo_referencia=p.get("codigo_referencia"),
                 ean=p.get("ean"),
-                cantidad=int(p.get("cantidad", 1)),
-                precio_unitario=float(p.get("precio_unitario", 0)),
-                precio_total=float(p.get("precio_total", 0)),
-                iva=float(p.get("iva", 21))
+                cantidad=safe_int(p.get("cantidad"), 1),
+                precio_unitario=safe_float(p.get("precio_unitario"), 0),
+                precio_total=safe_float(p.get("precio_total"), 0),
+                iva=safe_float(p.get("iva"), 21)
             ))
         
         return FacturaExtraida(
@@ -206,11 +224,11 @@ Responde SOLO con el JSON, sin texto adicional."""
             proveedor_cif=data.get("proveedor_cif"),
             numero_factura=data.get("numero_factura"),
             fecha_factura=data.get("fecha_factura"),
-            base_imponible=float(data.get("base_imponible", 0)),
-            total_iva=float(data.get("total_iva", 0)),
-            total_factura=float(data.get("total_factura", 0)),
+            base_imponible=safe_float(data.get("base_imponible"), 0),
+            total_iva=safe_float(data.get("total_iva"), 0),
+            total_factura=safe_float(data.get("total_factura"), 0),
             productos=productos,
-            confianza_extraccion=float(data.get("confianza_extraccion", 50)),
+            confianza_extraccion=safe_float(data.get("confianza_extraccion"), 50),
             notas_extraccion=data.get("notas_extraccion")
         )
         
@@ -380,10 +398,10 @@ async def confirmar_compra(
         
         if accion == "añadir_stock" and repuesto_id:
             # Actualizar stock existente
-            cantidad = producto.get("cantidad", 1)
+            cantidad = safe_int(producto.get("cantidad"), 1)
             
             update_fields = {
-                "precio_compra": producto.get("precio_unitario", 0),
+                "precio_compra": safe_float(producto.get("precio_unitario"), 0),
                 "ultimo_proveedor_id": compra.proveedor_id,
                 "ultima_compra": ahora.isoformat(),
                 "updated_at": ahora.isoformat()
@@ -424,18 +442,19 @@ async def confirmar_compra(
             
             ean_factura = producto.get("ean")
             ref_factura = producto.get("codigo_referencia")
+            precio_unitario = safe_float(producto.get("precio_unitario"), 0)
             
             nuevo_repuesto = {
                 "id": nuevo_repuesto_id,
-                "nombre": producto.get("descripcion", "Sin nombre"),
+                "nombre": producto.get("descripcion") or "Sin nombre",
                 "categoria": categoria,
                 "sku": sku,
                 "sku_proveedor": ref_factura or "",
                 "ean": ean_factura or None,
                 "codigo_barras": ean_factura or ref_factura or "",
-                "precio_compra": producto.get("precio_unitario", 0),
-                "precio_venta": round(producto.get("precio_unitario", 0) * 1.5, 2),
-                "stock": producto.get("cantidad", 1),
+                "precio_compra": precio_unitario,
+                "precio_venta": round(precio_unitario * 1.5, 2),
+                "stock": safe_int(producto.get("cantidad"), 1),
                 "stock_minimo": 5,
                 "proveedor_id": compra.proveedor_id,
                 "ultimo_proveedor_id": compra.proveedor_id,

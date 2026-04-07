@@ -177,6 +177,7 @@ function AppRoutes() {
       <Route path="/peticiones-exteriores" element={<LegacyCRMRedirect />} />
       <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
       <Route path="/catalogo-proveedores" element={<LegacyCRMRedirect />} />
+      <Route path="/compras" element={<LegacyCRMRedirect />} />
       
       {/* ===== CRM (www.revix.es/crm) ===== */}
       <Route path="/crm/login" element={user ? <Navigate to="/crm/dashboard" replace /> : <Login />} />

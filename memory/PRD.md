@@ -24,50 +24,36 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 - **Storage**: Cloudinary (imágenes)
 - **Email**: Resend
 - **Logistics**: GLS API
+- **AI/LLM**: Gemini 2.5 Flash (vía Emergent LLM Key)
 
 ---
 
 ## What's Been Implemented (Latest First)
 
+### 2026-04-07 - Fix: Gestión de Compras con IA
+- **Issue**: Error `float() argument must be a string or a real number, not 'NoneType'` al procesar facturas con IA
+- **Causa**: Gemini devolvía `null` para campos numéricos y `float(None)` fallaba
+- **Solución**: Funciones `safe_float()` y `safe_int()` para conversiones seguras
+- **Adicional**: Corregida ruta `/compras` que no estaba registrada (ahora `/crm/compras`)
+- **Files**: `compras_routes.py`, `App.js`, `Layout.jsx`
+
 ### 2026-04-07 - Fotos Cloudinary + Analíticas + Métricas Insurama
-- **Fotos del Portal a Cloudinary**: Las fotos descargadas del portal de aseguradoras ahora se suben automáticamente a Cloudinary en lugar de guardarse localmente. Evita pérdida de datos.
-- **Analíticas con Fechas Personalizadas**: Selector de período (Semana, Mes, Trimestre, Año, Personalizado) con DatePicker
-- **Métricas Insurama con Filtros e Informes**: 
-  - Filtros por período en el dashboard de Insurama
-  - Botón "Generar Informe" que descarga CSV con métricas completas
-- **Files Modified**: 
-  - `cloudinary_service.py` (nueva función `upload_bytes_to_cloudinary`)
-  - `scraper.py` (ahora sube a Cloudinary)
-  - `insurama_routes.py`, `processor.py` (integración Cloudinary)
-  - `server.py`, `Seguimiento.jsx` (consolidación de fotos)
-  - `Analiticas.jsx` (DatePicker personalizado)
-  - `InteligenciaDashboard.jsx` (filtros y generación de informes)
-  - `inteligencia_precios_routes.py` (parámetros de período)
+- **Fotos del Portal a Cloudinary**: Las fotos descargadas del portal de aseguradoras ahora se suben automáticamente a Cloudinary
+- **Analíticas con Fechas Personalizadas**: Selector de período con DatePicker personalizado
+- **Métricas Insurama con Filtros e Informes**: Filtros por período + botón "Generar Informe" (CSV)
+- **Files**: `cloudinary_service.py`, `scraper.py`, `insurama_routes.py`, `processor.py`, `server.py`, `Seguimiento.jsx`, `Analiticas.jsx`, `InteligenciaDashboard.jsx`, `inteligencia_precios_routes.py`
 
 ### 2026-04-06 - Fix: Fotos en Seguimiento Público
-- **Issue**: Las fotos no cargaban en `/web/consulta` (seguimiento de usuario)
-- **Causa**: Solo se devolvía el campo `fotos` (vacío), ignorando `evidencias`, `fotos_antes`, `fotos_despues`
-- **Solución**: Backend consolida todas las fuentes de fotos + manejo de errores en frontend
+- Backend consolida todas las fuentes de fotos
+- Frontend maneja errores de carga (oculta imágenes que no existen)
 
 ### 2026-04-05 - Formulario Público de Presupuesto Ampliado
 - Añadidos campos: DNI, dirección, código postal, ciudad, provincia, "¿cómo nos conociste?"
-- Textos legales personalizables
-- Fix de pérdida de foco en inputs (componente InputField movido fuera del render)
+- Fix de pérdida de foco en inputs
 
 ### 2026-04-04 - Sistema de Scrapers de Proveedores (En Progreso)
 - Arquitectura base creada en `/backend/providers/`
-- Scrapers: Mobilax, Utopya, SpainSellers
-- Frontend: `CatalogoProveedores.jsx`
 - **Estado**: Esqueleto funcional, falta implementación real de extracción
-
-### 2026-04-03 - Mejoras Dashboard Insurama
-- Botón eliminar permanentemente
-- Polling optimizado (4h)
-- Separación SKU/Nombre en `OrdenPDF.jsx`
-
-### 2026-04-02 - Resolución Error 520 en Producción
-- Configuración correcta de System Keys (JWT_SECRET)
-- Bloqueo de seguridad en `database.py` para forzar conexión a Atlas
 
 ---
 
@@ -90,37 +76,32 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 ---
 
 ## Key API Endpoints
-- `POST /api/seguimiento/verificar` - Verificar seguimiento público (ACTUALIZADO - consolida fotos)
+- `POST /api/compras/analizar-factura` - Sube factura PDF y extrae datos con IA (CORREGIDO)
+- `POST /api/compras/confirmar` - Confirma compra y crea materiales en inventario (CORREGIDO)
+- `POST /api/seguimiento/verificar` - Verificar seguimiento público
 - `GET /api/master/finanzas?periodo=X&fecha_inicio=Y&fecha_fin=Z` - Analíticas financieras
 - `GET /api/inteligencia-precios/dashboard?periodo=X` - Dashboard Insurama con filtros
-- `GET /api/dashboard/stats` - Estadísticas del dashboard
-- `GET /api/ordenes/metricas-avanzadas` - Métricas de órdenes
-- `POST /api/insurama/presupuesto/{codigo}/importar` - Importar presupuesto
-- `POST /api/web-publica/presupuesto` - Formulario público
 
 ## Key Files
+- `/app/backend/routes/compras_routes.py` - Gestión de compras con IA
 - `/app/backend/server.py` - Servidor principal FastAPI
 - `/app/backend/database.py` - Conexión MongoDB (con fallback seguro)
 - `/app/backend/services/cloudinary_service.py` - Servicio de subida de imágenes
-- `/app/backend/agent/scraper.py` - Scraper de Sumbroker
-- `/app/backend/routes/inteligencia_precios_routes.py` - Métricas Insurama
-- `/app/frontend/src/pages/Seguimiento.jsx` - Portal de seguimiento público
-- `/app/frontend/src/pages/Analiticas.jsx` - Dashboard de analíticas
-- `/app/frontend/src/components/insurama/InteligenciaDashboard.jsx` - Dashboard Insurama
-- `/app/frontend/src/pages/public/PublicPresupuesto.jsx` - Formulario público
-- `/app/backend/providers/` - Sistema de scrapers de proveedores
+- `/app/frontend/src/pages/Compras.jsx` - UI de gestión de compras
+- `/app/frontend/src/components/Layout.jsx` - Navegación del CRM
 
 ## Credentials (Test)
 - `master@revix.es` / `RevixMaster2026!`
 
 ## Critical Notes
-- **NO modificar conexión a base de datos** - El fallback de seguridad en `database.py` está diseñado para evitar errores de configuración
+- **NO modificar conexión a base de datos** - El fallback de seguridad en `database.py` fuerza Atlas
 - **NO hacer commit de .env** - Usar System Keys en panel de Emergent
 - **Bloqueos temporales en memoria** - Reiniciar backend si hay "Demasiados intentos"
-- **Fotos del portal** - Ahora se suben a Cloudinary automáticamente para evitar pérdida de datos
+- **Fotos del portal** - Ahora se suben a Cloudinary automáticamente
+- **Gestión de Compras** - Usa funciones `safe_float/safe_int` para evitar errores de conversión
 
 ## 3rd Party Integrations
-- Emergent LLM Key (para funciones IA)
+- Emergent LLM Key (Gemini 2.5 Flash para extracción de facturas)
 - Cloudinary (almacenamiento de imágenes)
 - Resend (emails transaccionales)
 - GLS (logística)

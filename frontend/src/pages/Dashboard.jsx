@@ -108,14 +108,22 @@ export default function Dashboard() {
       const res = await API.get(`/ordenes/buscar?q=${encodeURIComponent(searchValue)}`);
       
       if (res.data.ordenes && res.data.ordenes.length === 1) {
+        // Mostrar toast según la acción realizada
+        if (res.data.accion === 'recibida') {
+          toast.success(res.data.mensaje || 'Orden marcada como RECIBIDA');
+        } else {
+          toast.info(res.data.mensaje || 'Abriendo orden...');
+        }
         navigate(`/crm/ordenes/${res.data.ordenes[0].id}`);
       } else if (res.data.ordenes && res.data.ordenes.length > 1) {
+        toast.info(`Se encontraron ${res.data.ordenes.length} órdenes`);
         navigate(`/crm/ordenes?buscar=${encodeURIComponent(searchValue)}`);
       } else {
         toast.error('No se encontró ninguna orden');
       }
     } catch (err) {
-      toast.error('Error al buscar');
+      console.error('Error al buscar:', err);
+      toast.error(err.response?.data?.detail || 'Error al buscar');
     } finally {
       setProcessing(false);
       setScannerValue('');

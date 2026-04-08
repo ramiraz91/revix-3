@@ -940,6 +940,107 @@ async def listar_ordenes_v2(
     }
 
 
+# ==================== ESCANEO INTELIGENTE DASHBOARD ====================
+
+@router.get("/ordenes/buscar")
+async def buscar_orden_escaner(q: str, user: dict = Depends(require_auth)):
+    """
+    Busca órdenes por código/número para el escáner del Dashboard.
+    - Si encuentra exactamente 1 orden en estado pendiente_recibir, la marca como recibida
+    - Si la orden está en otro estado, solo devuelve los datos para navegación
+    - Devuelve lista de órdenes si hay múltiples coincidencias
+    """
+    if not q or not q.strip():
+        raise HTTPException(400, "Se requiere un término de búsqueda")
+    
+    codigo = q.strip().upper()
+    
+    # Buscar por múltiples campos
+    query = {"$or": [
+        {"id": codigo},
+        {"numero_orden": {"$regex": codigo, "$options": "i"}},
+        {"numero_autorizacion": {"$regex": codigo, "$options": "i"}},
+        {"codigo_recogida_entrada": {"$regex": codigo, "$options": "i"}},
+        {"gls_envios.codbarras": codigo},
+        {"dispositivo.imei": {"$regex": codigo, "$options": "i"}},
+    ]}
+    
+    ordenes = await db.ordenes.find(query, {"_id": 0}).to_list(50)
+    
+    if not ordenes:
+        return {"ordenes": [], "accion": None, "mensaje": "No se encontraron órdenes"}
+    
+    # Si hay exactamente una orden
+    if len(ordenes) == 1:
+        orden = ordenes[0]
+        
+        # Si está pendiente de recibir, marcarla como recibida automáticamente
+        if orden.get("estado") == OrderStatus.PENDIENTE_RECIBIR.value:
+            now = datetime.now(timezone.utc)
+            nuevo_estado = OrderStatus.RECIBIDA.value
+            
+            historial = orden.get('historial_estados', [])
+            historial.append({
+                "estado": nuevo_estado,
+                "fecha": now.isoformat(),
+                "usuario": user.get("email", "scanner")
+            })
+            
+            update_data = {
+                "estado": nuevo_estado,
+                "historial_estados": historial,
+                "fecha_recibida_centro": now.isoformat(),
+                "updated_at": now.isoformat()
+            }
+            
+            await db.ordenes.update_one({"id": orden["id"]}, {"$set": update_data})
+            
+            # Notificar
+            try:
+                cliente = await db.clientes.find_one({"id": orden.get('cliente_id')}, {"_id": 0})
+                if cliente:
+                    orden_act = orden.copy()
+                    orden_act['estado'] = nuevo_estado
+                    await send_order_notification(orden_act, cliente, "status_change")
+            except Exception as e:
+                logger.error(f"Error enviando notificación por escaneo dashboard: {e}")
+            
+            return {
+                "ordenes": [{
+                    "id": orden["id"],
+                    "numero_orden": orden.get("numero_orden"),
+                    "estado": nuevo_estado,
+                    "dispositivo": orden.get("dispositivo")
+                }],
+                "accion": "recibida",
+                "mensaje": f"Orden {orden.get('numero_orden')} marcada como RECIBIDA"
+            }
+        
+        # Si no está pendiente, solo devolver para navegación
+        return {
+            "ordenes": [{
+                "id": orden["id"],
+                "numero_orden": orden.get("numero_orden"),
+                "estado": orden.get("estado"),
+                "dispositivo": orden.get("dispositivo")
+            }],
+            "accion": "navegacion",
+            "mensaje": f"Abriendo orden {orden.get('numero_orden')}"
+        }
+    
+    # Si hay múltiples órdenes, devolver lista
+    return {
+        "ordenes": [{
+            "id": o["id"],
+            "numero_orden": o.get("numero_orden"),
+            "estado": o.get("estado"),
+            "dispositivo": o.get("dispositivo")
+        } for o in ordenes],
+        "accion": "multiple",
+        "mensaje": f"Se encontraron {len(ordenes)} órdenes"
+    }
+
+
 @router.get("/ordenes", response_model=List[OrdenTrabajo])
 async def listar_ordenes(estado: Optional[str] = None, cliente_id: Optional[str] = None, search: Optional[str] = None, telefono: Optional[str] = None, autorizacion: Optional[str] = None, fecha_desde: Optional[str] = None, fecha_hasta: Optional[str] = None, solo_garantias: Optional[bool] = None):
     query = {}

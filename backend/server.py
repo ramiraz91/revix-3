@@ -2657,7 +2657,7 @@ async def ia_mejorar_texto(request: IARequest, user: dict = Depends(require_auth
     if not EMERGENT_LLM_KEY or not LlmChat:
         raise HTTPException(status_code=500, detail="LLM no configurado")
     try:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"mejorar-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un asistente de redacción para un servicio técnico de reparación de móviles. Mejora textos haciéndolos más claros y profesionales. IMPORTANTE: Escribe en texto plano, sin markdown, sin asteriscos, sin negritas. Responde SOLO con el texto mejorado en español.").with_model("gemini", "gemini-3-flash-preview")
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"mejorar-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un asistente de redacción para un servicio técnico de reparación de móviles. Mejora textos haciéndolos más claros y profesionales. IMPORTANTE: Escribe en texto plano, sin markdown, sin asteriscos, sin negritas. Responde SOLO con el texto mejorado en español.").with_model("gemini", "gemini-2.5-flash")
         prompt = f"Mejora el siguiente texto:\n\n{request.texto}"
         if request.contexto:
             prompt = f"Contexto: {request.contexto}\n\n{prompt}"
@@ -2677,7 +2677,7 @@ async def ia_mejorar_diagnostico(request: MejorarDiagnosticoRequest, user: dict 
             ctx += f"Dispositivo: {request.modelo_dispositivo}\n"
         if request.sintomas:
             ctx += f"Síntomas: {request.sintomas}\n"
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"diag-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un técnico experto en reparación de móviles. Mejora diagnósticos para que sean claros y comprensibles. IMPORTANTE: Texto plano, sin markdown. Responde SOLO con el diagnóstico mejorado en español.").with_model("gemini", "gemini-3-flash-preview")
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"diag-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un técnico experto en reparación de móviles. Mejora diagnósticos para que sean claros y comprensibles. IMPORTANTE: Texto plano, sin markdown. Responde SOLO con el diagnóstico mejorado en español.").with_model("gemini", "gemini-2.5-flash")
         response = await chat.send_message(UserMessage(text=f"{ctx}\nDIAGNÓSTICO ORIGINAL:\n{request.diagnostico}\n\nMejora este diagnóstico:"))
         return {"diagnostico_mejorado": response, "original": request.diagnostico}
     except Exception as e:
@@ -2722,7 +2722,7 @@ FORMATO: Responde siempre en español, texto plano sin markdown.
 Historial de conversación:
 """ + ctx
         
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"consulta-{user['user_id']}-{request.session_id}", system_message=system_prompt).with_model("gemini", "gemini-3-flash-preview")
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"consulta-{user['user_id']}-{request.session_id}", system_message=system_prompt).with_model("gemini", "gemini-2.5-flash")
         response = await chat.send_message(UserMessage(text=request.mensaje))
         now = datetime.now(timezone.utc).isoformat()
         await db.ia_chat_history.insert_many([{"session_id": request.session_id, "user_id": user['user_id'], "role": "user", "content": request.mensaje, "created_at": now}, {"session_id": request.session_id, "user_id": user['user_id'], "role": "assistant", "content": response, "created_at": now}])
@@ -2745,7 +2745,7 @@ async def ia_diagnostico(modelo: str, sintomas: str, user: dict = Depends(requir
     if not EMERGENT_LLM_KEY or not LlmChat:
         raise HTTPException(status_code=500, detail="LLM no configurado")
     try:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"diagnostico-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un técnico experto en reparación de móviles. Proporciona diagnósticos basados en síntomas. FORMATO: Texto plano, sin markdown. Español.").with_model("gemini", "gemini-3-flash-preview")
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"diagnostico-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un técnico experto en reparación de móviles. Proporciona diagnósticos basados en síntomas. FORMATO: Texto plano, sin markdown. Español.").with_model("gemini", "gemini-2.5-flash")
         response = await chat.send_message(UserMessage(text=f"Dispositivo: {modelo}\nSíntomas: {sintomas}\n\nProporciona diagnóstico."))
         return {"diagnostico": response, "modelo": modelo, "sintomas": sintomas}
     except Exception as e:

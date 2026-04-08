@@ -212,7 +212,7 @@ export default function Scanner() {
 
   const handleViewOrder = () => {
     if (lastScanned?.id) {
-      navigate(`/ordenes/${lastScanned.id}`);
+      navigate(`/crm/ordenes/${lastScanned.id}`);
     }
   };
 

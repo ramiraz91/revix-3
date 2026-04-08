@@ -1161,11 +1161,21 @@ async def registrar_cpi_nist(orden_id: str, payload: CPINistRequest, user: dict 
 
 @router.get("/ordenes/{orden_ref}", response_model=OrdenTrabajo)
 async def obtener_orden(orden_ref: str):
+    # Limpiar el código de caracteres especiales
+    codigo = orden_ref.strip().upper()
+    
+    # Buscar por múltiples campos
     orden = await db.ordenes.find_one({"id": orden_ref}, {"_id": 0})
     if not orden:
-        orden = await db.ordenes.find_one({"numero_orden": orden_ref}, {"_id": 0})
+        orden = await db.ordenes.find_one({"numero_orden": {"$regex": f"^{codigo}$", "$options": "i"}}, {"_id": 0})
     if not orden:
-        orden = await db.ordenes.find_one({"numero_autorizacion": orden_ref}, {"_id": 0})
+        orden = await db.ordenes.find_one({"numero_autorizacion": {"$regex": f"^{codigo}$", "$options": "i"}}, {"_id": 0})
+    if not orden:
+        orden = await db.ordenes.find_one({"codigo_recogida_entrada": codigo}, {"_id": 0})
+    if not orden:
+        orden = await db.ordenes.find_one({"gls_envios.codbarras": codigo}, {"_id": 0})
+    if not orden:
+        orden = await db.ordenes.find_one({"dispositivo.imei": codigo}, {"_id": 0})
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     return _normalizar_orden_doc(orden)

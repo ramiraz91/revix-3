@@ -115,11 +115,15 @@ export default function Notificaciones() {
     if (!notificacion.leida) {
       try {
         await notificacionesAPI.marcarLeida(notificacion.id);
+        // Actualización silenciosa del estado local
+        setNotificaciones(prev => 
+          prev.map(n => n.id === notificacion.id ? { ...n, leida: true } : n)
+        );
         window.dispatchEvent(new Event('notificaciones-updated'));
       } catch (e) { /* silent */ }
     }
     if (notificacion.orden_id) {
-      navigate(`/ordenes/${notificacion.orden_id}`);
+      navigate(`/crm/ordenes/${notificacion.orden_id}`);
     }
   };
 
@@ -127,7 +131,10 @@ export default function Notificaciones() {
     e.stopPropagation();
     try {
       await notificacionesAPI.marcarLeida(id);
-      fetchNotificaciones();
+      // Actualización silenciosa del estado local
+      setNotificaciones(prev => 
+        prev.map(n => n.id === id ? { ...n, leida: true } : n)
+      );
       window.dispatchEvent(new Event('notificaciones-updated'));
     } catch (error) {
       toast.error('Error al marcar como leída');
@@ -138,8 +145,9 @@ export default function Notificaciones() {
     e.stopPropagation();
     try {
       await notificacionesAPI.eliminar(id);
+      // Actualización silenciosa del estado local
+      setNotificaciones(prev => prev.filter(n => n.id !== id));
       toast.success('Notificación eliminada');
-      fetchNotificaciones();
       window.dispatchEvent(new Event('notificaciones-updated'));
     } catch (error) {
       toast.error('Error al eliminar notificación');
@@ -150,11 +158,13 @@ export default function Notificaciones() {
     if (selectedIds.size === 0) return;
     
     try {
-      const res = await notificacionesAPI.eliminarMasivo(Array.from(selectedIds));
+      const idsArray = Array.from(selectedIds);
+      const res = await notificacionesAPI.eliminarMasivo(idsArray);
+      // Actualización silenciosa del estado local
+      setNotificaciones(prev => prev.filter(n => !selectedIds.has(n.id)));
       toast.success(`${res.data.eliminadas} notificaciones eliminadas`);
       setSelectedIds(new Set());
       setSelectionMode(false);
-      fetchNotificaciones();
       window.dispatchEvent(new Event('notificaciones-updated'));
     } catch (error) {
       toast.error('Error al eliminar notificaciones');
@@ -165,11 +175,15 @@ export default function Notificaciones() {
     if (selectedIds.size === 0) return;
     
     try {
-      const res = await notificacionesAPI.marcarLeidasMasivo(Array.from(selectedIds));
+      const idsArray = Array.from(selectedIds);
+      const res = await notificacionesAPI.marcarLeidasMasivo(idsArray);
+      // Actualización silenciosa del estado local
+      setNotificaciones(prev => 
+        prev.map(n => selectedIds.has(n.id) ? { ...n, leida: true } : n)
+      );
       toast.success(`${res.data.modificadas} notificaciones marcadas como leídas`);
       setSelectedIds(new Set());
       setSelectionMode(false);
-      fetchNotificaciones();
       window.dispatchEvent(new Event('notificaciones-updated'));
     } catch (error) {
       toast.error('Error al marcar notificaciones');

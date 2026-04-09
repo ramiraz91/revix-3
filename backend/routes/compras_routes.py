@@ -16,7 +16,7 @@ import os
 import base64
 from config import db, logger, UPLOAD_DIR, EMERGENT_LLM_KEY
 
-router = APIRouter(prefix="/compras", tags=["compras"])
+router = APIRouter(prefix="/compras", tags=["compras"], redirect_slashes=False)
 
 # Dependencias de autenticación
 import sys
@@ -518,7 +518,7 @@ async def confirmar_compra(
     }
 
 
-@router.get("/")
+@router.get("")
 async def listar_compras(
     page: int = 1,
     page_size: int = 20,

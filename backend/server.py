@@ -65,7 +65,7 @@ from routes.inventario_mejorado_routes import router as inventario_mejorado_rout
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
 
 # ==================== APP SETUP ====================
-app = FastAPI(title="Mobile Repair CRM/ERP API")
+app = FastAPI(title="Mobile Repair CRM/ERP API", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

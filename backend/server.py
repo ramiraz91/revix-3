@@ -1084,18 +1084,19 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
                     {"$group": {"_id": "$estado", "count": {"$sum": 1}}}
                 ],
                 
-                # Métricas de tiempo (órdenes completadas últimos 30 días)
+                # Métricas de tiempo (órdenes completadas - incluir también reparadas)
                 "metricas_tiempo": [
                     {"$match": {
-                        "estado": "enviado",
-                        "updated_at": {"$gte": hace_30_dias.isoformat()},
+                        "estado": {"$in": ["enviado", "reparado"]},
                         "historial_estados": {"$exists": True, "$ne": []}
                     }},
-                    {"$limit": 100},
+                    {"$sort": {"updated_at": -1}},
+                    {"$limit": 500},
                     {"$project": {
                         "_id": 0,
                         "created_at": 1,
                         "updated_at": 1,
+                        "fecha_recibida_centro": 1,
                         "historial_estados": 1
                     }}
                 ],
@@ -1163,38 +1164,60 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
     for item in data.get("totales_por_estado", []):
         totales_estado[item["_id"] or "desconocido"] = item["count"]
     
-    # Calcular tiempos promedio de reparación CORRECTAMENTE
-    # El tiempo de reparación = desde "recibida" hasta "reparado" en el historial
+    # Calcular tiempos promedio de reparación
+    # Si está enviada/reparada, fue procesada en el taller
     tiempos = data.get("metricas_tiempo", [])
     tiempos_reparacion = []
     for orden in tiempos:
         try:
             historial = orden.get("historial_estados", [])
-            fecha_recibida = None
+            fecha_inicio = None
             fecha_reparado = None
+            fecha_pendiente = None
             
+            # Recorrer historial para encontrar fechas
             for h in historial:
                 estado = h.get("estado")
                 fecha_str = h.get("fecha", "")
                 if not fecha_str:
                     continue
-                    
-                # Buscar primera fecha de "recibida" (cuando llega al taller)
-                if estado == "recibida" and not fecha_recibida:
-                    fecha_recibida = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
                 
-                # Buscar primera fecha de "reparado"
+                try:
+                    fecha_parsed = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+                except:
+                    continue
+                
+                # Guardar fecha de pendiente_recibir (última antes de trabajo)
+                if estado == "pendiente_recibir":
+                    fecha_pendiente = fecha_parsed
+                
+                # Fecha de inicio = primer estado de trabajo
+                if not fecha_inicio and estado in ["recibida", "en_taller", "en_reparacion", "re_presupuestar", "validacion"]:
+                    fecha_inicio = fecha_parsed
+                
+                # Fecha de reparado (primera ocurrencia)
                 if estado == "reparado" and not fecha_reparado:
-                    fecha_reparado = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+                    fecha_reparado = fecha_parsed
             
-            # Solo calcular si tenemos ambas fechas
-            if fecha_recibida and fecha_reparado:
-                diff_horas = (fecha_reparado - fecha_recibida).total_seconds() / 3600
-                # Solo incluir si es positivo y razonable (menos de 30 días = 720 horas)
-                if 0 < diff_horas < 720:
+            # Alternativas para fecha_inicio:
+            # 1. fecha_recibida_centro
+            if not fecha_inicio and orden.get("fecha_recibida_centro"):
+                try:
+                    fecha_inicio = datetime.fromisoformat(orden["fecha_recibida_centro"].replace("Z", "+00:00"))
+                except:
+                    pass
+            
+            # 2. Si va directo pendiente_recibir → reparado, usar pendiente_recibir
+            # (El tiempo desde que llegó hasta que se reparó)
+            if not fecha_inicio and fecha_pendiente and fecha_reparado:
+                fecha_inicio = fecha_pendiente
+            
+            # Calcular diferencia
+            if fecha_inicio and fecha_reparado:
+                diff_horas = (fecha_reparado - fecha_inicio).total_seconds() / 3600
+                if 0 < diff_horas < 720:  # Máximo 30 días, mínimo 0
                     tiempos_reparacion.append(diff_horas)
         except Exception as e:
-            logger.error(f"Error calculando tiempo de reparación: {e}")
             pass
     
     promedio_horas = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0

@@ -67,6 +67,21 @@ from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
 # ==================== APP SETUP ====================
 app = FastAPI(title="Mobile Repair CRM/ERP API")
 
+# Middleware para forzar HTTPS en redirects
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # Si es un redirect (307, 308), forzar HTTPS en la Location
+        if response.status_code in (307, 308) and "location" in response.headers:
+            location = response.headers["location"]
+            if location.startswith("http://"):
+                response.headers["location"] = location.replace("http://", "https://", 1)
+        return response
+
+app.add_middleware(HTTPSRedirectMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -76,8 +91,6 @@ app.add_middleware(
 )
 
 # Security headers middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)

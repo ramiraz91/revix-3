@@ -14,6 +14,126 @@ router = APIRouter(tags=["admin"])
 
 # ==================== AUDITORÍA ====================
 
+@router.get("/control-cambios")
+async def obtener_control_cambios(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    tipo_cambio: Optional[str] = None,  # estado, subestado, material, cliente, orden, etc.
+    usuario: Optional[str] = None,
+    orden_id: Optional[str] = None,
+    limit: int = 200,
+    skip: int = 0,
+    user: dict = Depends(require_master)
+):
+    """
+    Control de cambios COMPLETO para Master.
+    Muestra todos los cambios del sistema con detalle de quién, qué, cuándo.
+    """
+    # Buscar en audit_logs
+    query_audit = {}
+    conditions = []
+    
+    if fecha_desde:
+        conditions.append({"created_at": {"$gte": fecha_desde}})
+    if fecha_hasta:
+        conditions.append({"created_at": {"$lte": fecha_hasta}})
+    if usuario:
+        conditions.append({"$or": [
+            {"usuario_email": {"$regex": usuario, "$options": "i"}},
+            {"usuario_nombre": {"$regex": usuario, "$options": "i"}}
+        ]})
+    if orden_id:
+        conditions.append({"$or": [
+            {"entidad_id": orden_id},
+            {"orden_id": orden_id}
+        ]})
+    if tipo_cambio:
+        conditions.append({"accion": {"$regex": tipo_cambio, "$options": "i"}})
+    
+    if conditions:
+        query_audit = {"$and": conditions} if len(conditions) > 1 else conditions[0]
+    
+    # Obtener logs de auditoría
+    audit_logs = await db.audit_logs.find(query_audit, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    # También buscar en historial de estados de órdenes
+    pipeline_ordenes = [
+        {"$unwind": "$historial_estados"},
+        {"$project": {
+            "_id": 0,
+            "orden_id": "$id",
+            "numero_orden": 1,
+            "tipo": {"$literal": "cambio_estado"},
+            "estado_nuevo": "$historial_estados.estado",
+            "fecha": "$historial_estados.fecha",
+            "usuario": "$historial_estados.usuario",
+            "rol": "$historial_estados.rol",
+            "mensaje": "$historial_estados.mensaje"
+        }},
+        {"$sort": {"fecha": -1}},
+        {"$limit": limit}
+    ]
+    
+    historial_estados = await db.ordenes.aggregate(pipeline_ordenes).to_list(limit)
+    
+    # Combinar y formatear resultados
+    cambios = []
+    
+    # Formatear audit logs
+    for log in audit_logs:
+        cambios.append({
+            "id": log.get("id"),
+            "tipo": log.get("accion", "cambio"),
+            "entidad": log.get("entidad"),
+            "entidad_id": log.get("entidad_id"),
+            "descripcion": log.get("descripcion") or f"{log.get('accion')} en {log.get('entidad')}",
+            "usuario_email": log.get("usuario_email"),
+            "usuario_nombre": log.get("usuario_nombre"),
+            "rol": log.get("rol"),
+            "fecha": log.get("created_at"),
+            "detalles": log.get("cambios") or log.get("data"),
+            "fuente": "audit_log"
+        })
+    
+    # Formatear historial de estados
+    for h in historial_estados:
+        cambios.append({
+            "id": f"hist-{h.get('orden_id')}-{h.get('fecha', '')[:19]}",
+            "tipo": "cambio_estado",
+            "entidad": "orden",
+            "entidad_id": h.get("orden_id"),
+            "numero_orden": h.get("numero_orden"),
+            "descripcion": f"Estado cambiado a: {h.get('estado_nuevo')}",
+            "usuario_email": h.get("usuario"),
+            "usuario_nombre": h.get("usuario"),
+            "rol": h.get("rol"),
+            "fecha": h.get("fecha"),
+            "detalles": {"estado": h.get("estado_nuevo"), "mensaje": h.get("mensaje")},
+            "fuente": "historial_estados"
+        })
+    
+    # Ordenar por fecha
+    cambios.sort(key=lambda x: x.get("fecha", ""), reverse=True)
+    
+    # Obtener nombres de usuarios únicos
+    usuarios_emails = list(set([c.get("usuario_email") for c in cambios if c.get("usuario_email")]))
+    usuarios_db = await db.users.find({"email": {"$in": usuarios_emails}}, {"_id": 0, "email": 1, "nombre": 1}).to_list(100)
+    nombres_usuarios = {u.get("email"): u.get("nombre", u.get("email")) for u in usuarios_db}
+    
+    # Añadir nombres
+    for cambio in cambios:
+        email = cambio.get("usuario_email")
+        if email and email in nombres_usuarios:
+            cambio["usuario_nombre"] = nombres_usuarios[email]
+    
+    return {
+        "total": len(cambios),
+        "limit": limit,
+        "skip": skip,
+        "data": cambios[:limit]
+    }
+
+
 @router.get("/auditoria")
 async def listar_auditoria(
     entidad: Optional[str] = None,

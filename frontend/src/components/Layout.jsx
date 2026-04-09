@@ -31,7 +31,8 @@ import {
   ClipboardCheck,
   HelpCircle,
   Bot,
-  FileText
+  FileText,
+  History
 } from 'lucide-react';
 import { PackagePlus, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -327,12 +328,19 @@ export default function Layout() {
           )}
           
           {/* Administración - Master only */}
+          {/* Sección Admin (Admin + Master) */}
+          {isAdmin() && (
+            <SidebarGroup label="Herramientas Admin">
+              <NavItem path="/agente-aria" icon={Bot} label="ARIA (IA)" badge="Nuevo" />
+            </SidebarGroup>
+          )}
+          
           {isMaster() && (
             <SidebarGroup label="Administración">
+              <NavItem path="/control-cambios" icon={History} label="Control Cambios" />
               <NavItem path="/analiticas" icon={BarChart3} label="Analíticas" />
               <NavItem path="/iso" icon={ClipboardCheck} label="ISO / WISE" />
               <NavItem path="/faqs-admin" icon={HelpCircle} label="FAQs Web" />
-              <NavItem path="/agente-aria" icon={Bot} label="ARIA (IA)" badge="Nuevo" />
               <NavItem path="/usuarios" icon={UserCog} label="Usuarios" />
               <NavItem path="/empresa" icon={Building2} label="Empresa" />
               <NavItem path="/configuracion" icon={Settings} label="Configuración" />

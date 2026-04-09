@@ -44,6 +44,7 @@ import Seguimiento from "@/pages/Seguimiento";
 import Configuracion from "@/pages/Configuracion";
 import EmpresaConfig from "@/pages/EmpresaConfig";
 import PanelMaster from "@/pages/PanelMaster";
+import ControlCambios from "@/pages/ControlCambios";
 import Restos from "@/pages/Restos";
 import Usuarios from "@/pages/Usuarios";
 import Calendario from "@/pages/Calendario";
@@ -285,6 +286,11 @@ function AppRoutes() {
         <Route path="master" element={
           <ProtectedRoute masterOnly>
             <PanelMaster />
+          </ProtectedRoute>
+        } />
+        <Route path="control-cambios" element={
+          <ProtectedRoute masterOnly>
+            <ControlCambios />
           </ProtectedRoute>
         } />
         <Route path="analiticas" element={

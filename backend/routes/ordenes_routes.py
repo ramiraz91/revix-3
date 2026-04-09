@@ -1504,12 +1504,12 @@ def validar_transicion(estado_actual: str, nuevo_estado: str, es_admin: bool = F
     Returns:
         tuple: (es_valida, mensaje_error)
     """
-    # Master puede forzar transiciones a validacion y enviado desde cualquier estado
-    if es_master and nuevo_estado in ["validacion", "enviado"]:
+    # MASTER: Puede cambiar a CUALQUIER estado sin restricciones
+    if es_master:
         return True, ""
     
     # Admin puede forzar ciertas transiciones
-    if es_admin and nuevo_estado in ["cancelado", "re_presupuestar"]:
+    if es_admin and nuevo_estado in ["cancelado", "re_presupuestar", "validacion", "enviado"]:
         return True, ""
     
     transiciones_permitidas = TRANSICIONES_VALIDAS.get(estado_actual, [])
@@ -1527,7 +1527,9 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     Cambiar estado de una orden.
     
     REGLAS:
-    - Solo admin/master pueden cambiar estados (excepto transiciones técnicas específicas)
+    - MASTER: Puede cambiar a CUALQUIER estado sin restricciones
+    - Admin: Puede cambiar estados con algunas restricciones
+    - Técnico: Solo puede cambiar a estados de su flujo de trabajo
     - Mensaje es OBLIGATORIO
     - Se graba quién y cuándo en historial_estados
     """
@@ -1544,19 +1546,19 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     if not request.mensaje or not request.mensaje.strip():
         raise HTTPException(status_code=400, detail="El mensaje/motivo del cambio de estado es obligatorio")
 
-    # ─── RESTRICCIÓN: Solo admin/master pueden cambiar estados ───
-    # EXCEPCIÓN: Técnico puede marcar estados de su flujo de trabajo
-    ESTADOS_TECNICO_PERMITIDOS = {'en_taller', 'reparado', 'irreparable'}
-    
-    if es_tecnico:
-        # El técnico SOLO puede cambiar a estos estados específicos
+    # ─── MASTER: SIN RESTRICCIONES ───
+    if es_master:
+        # El Master puede cambiar a cualquier estado sin validaciones adicionales
+        pass
+    elif es_tecnico:
+        # ─── RESTRICCIÓN TÉCNICO ───
+        ESTADOS_TECNICO_PERMITIDOS = {'en_taller', 'reparado', 'irreparable'}
         if request.nuevo_estado.value not in ESTADOS_TECNICO_PERMITIDOS:
             raise HTTPException(
                 status_code=403,
                 detail=f"Como técnico, solo puedes cambiar a los estados: {', '.join(ESTADOS_TECNICO_PERMITIDOS)}. "
                        "Contacta a un administrador para otros cambios de estado."
             )
-        # Y solo desde estados válidos de su flujo de trabajo
         ESTADOS_ORIGEN_TECNICO = {'recibida', 'en_taller', 'cuarentena'}
         if estado_actual not in ESTADOS_ORIGEN_TECNICO:
             raise HTTPException(
@@ -1564,69 +1566,53 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
                 detail=f"Como técnico, no puedes cambiar el estado desde '{estado_actual}'. "
                        "Contacta a un administrador."
             )
+    elif es_admin:
+        # ─── ADMIN: Algunas restricciones, pero puede solicitar cambio ───
+        # Validar transición
+        transicion_valida, error_msg = validar_transicion(estado_actual, request.nuevo_estado.value, es_admin, es_master)
+        if not transicion_valida:
+            raise HTTPException(status_code=400, detail=error_msg)
 
-    # ─── Transiciones técnicas: verificación adicional ───
-    ESTADOS_SOLO_TECNICO = {'en_taller', 'reparado', 'irreparable'}
-    es_resolucion_cuarentena = (estado_actual == 'cuarentena' and request.nuevo_estado.value == 'recibida')
-    
-    # Si es estado técnico y NO es técnico (y tampoco master)
-    if request.nuevo_estado.value in ESTADOS_SOLO_TECNICO:
-        if es_master:
-            pass  # Master puede todo
-        elif not es_tecnico and not es_admin:
-            raise HTTPException(
-                status_code=403,
-                detail=f"La transición a '{request.nuevo_estado.value}' es una acción técnica."
-            )
-
-    # Validar transición de estado
-    transicion_valida, error_msg = validar_transicion(estado_actual, request.nuevo_estado.value, es_admin, es_master)
-    if not transicion_valida:
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-    if orden.get('bloqueada') and request.nuevo_estado not in [OrderStatus.RE_PRESUPUESTAR, OrderStatus.CANCELADO]:
-        raise HTTPException(status_code=400, detail="La orden está bloqueada pendiente de aprobación de materiales")
-    if request.nuevo_estado == OrderStatus.ENVIADO and not request.codigo_envio:
-        raise HTTPException(status_code=400, detail="Se requiere código de envío para marcar como enviado")
-
-    if request.nuevo_estado == OrderStatus.EN_TALLER:
-        if orden.get('ri_obligatoria') and not orden.get('ri_completada'):
-            raise HTTPException(
-                status_code=400,
-                detail="Completa la Receiving Inspection (RI) antes de iniciar reparación",
-            )
-        if not orden.get('recepcion_checklist_completo'):
-            raise HTTPException(
-                status_code=400,
-                detail="Completa el checklist de recepción antes de iniciar reparación (estado en_taller)",
-            )
-
-    # Cuando el admin envía, el QC se marca automáticamente como completado
-    # (el frontend lo hace antes de llamar a este endpoint)
-    
-    # Validar que todos los materiales estén validados antes de marcar como REPARADO
-    # Admin puede forzar con forzar_sin_validacion=True
-    if request.nuevo_estado == OrderStatus.REPARADO:
-        materiales = orden.get('materiales', [])
-        if materiales:
-            materiales_sin_validar = [m for m in materiales if not m.get('validado_tecnico')]
-            if materiales_sin_validar:
-                # Solo permitir forzar si es admin/master
-                puede_forzar = es_admin and request.forzar_sin_validacion
-                if not puede_forzar:
-                    nombres_pendientes = ", ".join([m.get('nombre', 'Material')[:30] for m in materiales_sin_validar[:3]])
-                    if len(materiales_sin_validar) > 3:
-                        nombres_pendientes += f" y {len(materiales_sin_validar) - 3} más"
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"No se puede marcar como REPARADO. Hay {len(materiales_sin_validar)} material(es) sin validar: {nombres_pendientes}. El técnico debe validar todos los materiales usados."
-                    )
+    # ─── Validaciones adicionales (excepto para Master) ───
+    if not es_master:
+        if orden.get('bloqueada') and request.nuevo_estado not in [OrderStatus.RE_PRESUPUESTAR, OrderStatus.CANCELADO]:
+            raise HTTPException(status_code=400, detail="La orden está bloqueada pendiente de aprobación de materiales")
+        
+        if request.nuevo_estado == OrderStatus.EN_TALLER:
+            if orden.get('ri_obligatoria') and not orden.get('ri_completada'):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Completa la Receiving Inspection (RI) antes de iniciar reparación",
+                )
+            if not orden.get('recepcion_checklist_completo'):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Completa el checklist de recepción antes de iniciar reparación (estado en_taller)",
+                )
+        
+        # Validar materiales antes de marcar como REPARADO
+        if request.nuevo_estado == OrderStatus.REPARADO:
+            materiales = orden.get('materiales', [])
+            if materiales:
+                materiales_sin_validar = [m for m in materiales if not m.get('validado_tecnico')]
+                if materiales_sin_validar:
+                    puede_forzar = es_admin and request.forzar_sin_validacion
+                    if not puede_forzar:
+                        nombres_pendientes = ", ".join([m.get('nombre', 'Material')[:30] for m in materiales_sin_validar[:3]])
+                        if len(materiales_sin_validar) > 3:
+                            nombres_pendientes += f" y {len(materiales_sin_validar) - 3} más"
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Valida los materiales antes de marcar como REPARADO: {nombres_pendientes}. "
+                                   "Usa el checkbox junto a cada material o marca 'forzar sin validación'."
+                        )
                 else:
                     # Registrar en historial que se forzó sin validación
                     logger.warning(f"Admin {user.get('email')} forzó cambio a REPARADO sin validar {len(materiales_sin_validar)} materiales en orden {orden.get('numero_orden')}")
         
         # Cuando el técnico marca como REPARADO, su trabajo termina.
         # El QC lo completará el admin al validar/enviar.
+    
     now = datetime.now(timezone.utc)
     historial = orden.get('historial_estados', [])
     

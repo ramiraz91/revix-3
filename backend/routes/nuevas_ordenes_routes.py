@@ -28,6 +28,7 @@ async def contar_nuevas_ordenes(user: dict = Depends(require_admin)):
     return {"count": count}
 
 
+@router.get("")
 @router.get("/")
 async def listar_nuevas_ordenes(user: dict = Depends(require_admin)):
     """Lista todas las nuevas órdenes pendientes de tramitar."""

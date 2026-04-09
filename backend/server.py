@@ -1163,16 +1163,38 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
     for item in data.get("totales_por_estado", []):
         totales_estado[item["_id"] or "desconocido"] = item["count"]
     
-    # Calcular tiempos promedio
+    # Calcular tiempos promedio de reparación CORRECTAMENTE
+    # El tiempo de reparación = desde "recibida" hasta "reparado" en el historial
     tiempos = data.get("metricas_tiempo", [])
     tiempos_reparacion = []
     for orden in tiempos:
         try:
-            created = datetime.fromisoformat(orden["created_at"].replace("Z", "+00:00"))
-            updated = datetime.fromisoformat(orden["updated_at"].replace("Z", "+00:00"))
-            diff_horas = (updated - created).total_seconds() / 3600
-            tiempos_reparacion.append(diff_horas)
-        except:
+            historial = orden.get("historial_estados", [])
+            fecha_recibida = None
+            fecha_reparado = None
+            
+            for h in historial:
+                estado = h.get("estado")
+                fecha_str = h.get("fecha", "")
+                if not fecha_str:
+                    continue
+                    
+                # Buscar primera fecha de "recibida" (cuando llega al taller)
+                if estado == "recibida" and not fecha_recibida:
+                    fecha_recibida = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+                
+                # Buscar primera fecha de "reparado"
+                if estado == "reparado" and not fecha_reparado:
+                    fecha_reparado = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+            
+            # Solo calcular si tenemos ambas fechas
+            if fecha_recibida and fecha_reparado:
+                diff_horas = (fecha_reparado - fecha_recibida).total_seconds() / 3600
+                # Solo incluir si es positivo y razonable (menos de 30 días = 720 horas)
+                if 0 < diff_horas < 720:
+                    tiempos_reparacion.append(diff_horas)
+        except Exception as e:
+            logger.error(f"Error calculando tiempo de reparación: {e}")
             pass
     
     promedio_horas = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0
@@ -1335,13 +1357,17 @@ async def obtener_dashboard_tecnico(user: dict = Depends(require_auth)):
             fecha_recibida = None
             fecha_reparado = None
             for h in historial:
+                fecha_str = h.get("fecha", "")
+                if not fecha_str:
+                    continue
                 if h.get("estado") == "recibida" and not fecha_recibida:
-                    fecha_recibida = datetime.fromisoformat(h["fecha"].replace("Z", "+00:00"))
-                if h.get("estado") == "reparado":
-                    fecha_reparado = datetime.fromisoformat(h["fecha"].replace("Z", "+00:00"))
+                    fecha_recibida = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+                if h.get("estado") == "reparado" and not fecha_reparado:
+                    fecha_reparado = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
             if fecha_recibida and fecha_reparado:
                 diff = (fecha_reparado - fecha_recibida).total_seconds() / 3600
-                if diff > 0:
+                # Solo incluir si es positivo y razonable (menos de 30 días = 720 horas)
+                if 0 < diff < 720:
                     tiempos_reparacion.append(diff)
         except:
             pass

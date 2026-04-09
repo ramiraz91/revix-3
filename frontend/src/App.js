@@ -194,8 +194,16 @@ function AppRoutes() {
       }>
         <Route index element={<Navigate to="/crm/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="nuevas-ordenes" element={<NuevasOrdenes />} />
-        <Route path="nuevas-ordenes/:id" element={<NuevaOrdenDetalle />} />
+        <Route path="nuevas-ordenes" element={
+          <ProtectedRoute adminOnly>
+            <NuevasOrdenes />
+          </ProtectedRoute>
+        } />
+        <Route path="nuevas-ordenes/:id" element={
+          <ProtectedRoute adminOnly>
+            <NuevaOrdenDetalle />
+          </ProtectedRoute>
+        } />
         <Route path="ordenes" element={<Ordenes />} />
         <Route path="ordenes/nueva" element={
           <ProtectedRoute adminOnly>
@@ -254,7 +262,11 @@ function AppRoutes() {
             <Usuarios />
           </ProtectedRoute>
         } />
-        <Route path="calendario" element={<Calendario />} />
+        <Route path="calendario" element={
+          <ProtectedRoute adminOnly>
+            <Calendario />
+          </ProtectedRoute>
+        } />
         <Route path="iso" element={
           <ProtectedRoute adminOnly>
             <ISOModule />
@@ -266,7 +278,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="incidencias" element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <Incidencias />
           </ProtectedRoute>
         } />

@@ -1248,6 +1248,130 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
     }
 
 
+# ==================== DASHBOARD TÉCNICO ====================
+
+@api_router.get("/dashboard/tecnico")
+async def obtener_dashboard_tecnico(user: dict = Depends(require_auth)):
+    """
+    Dashboard específico para técnicos con:
+    - Sus últimas órdenes reparadas
+    - Órdenes asignadas actualmente
+    - Métricas de tiempo personales
+    """
+    tecnico_email = user.get("email", "")
+    now = datetime.now(timezone.utc)
+    hace_30_dias = now - timedelta(days=30)
+    
+    # Pipeline para métricas del técnico
+    pipeline = [
+        {
+            "$facet": {
+                # Órdenes reparadas por este técnico (últimas 20)
+                "mis_reparados": [
+                    {"$match": {
+                        "tecnico_asignado": tecnico_email,
+                        "estado": {"$in": ["reparado", "enviado"]}
+                    }},
+                    {"$sort": {"updated_at": -1}},
+                    {"$limit": 20},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "dispositivo": 1,
+                        "estado": 1, "updated_at": 1, "created_at": 1,
+                        "historial_estados": 1
+                    }}
+                ],
+                
+                # Órdenes asignadas actualmente (en taller)
+                "mis_asignadas": [
+                    {"$match": {
+                        "tecnico_asignado": tecnico_email,
+                        "estado": {"$in": ["recibida", "en_taller", "re_presupuestar", "validacion"]}
+                    }},
+                    {"$sort": {"created_at": -1}},
+                    {"$project": {
+                        "_id": 0, "id": 1, "numero_orden": 1, "dispositivo": 1,
+                        "estado": 1, "updated_at": 1, "created_at": 1
+                    }}
+                ],
+                
+                # Total reparadas este mes
+                "total_reparadas_mes": [
+                    {"$match": {
+                        "tecnico_asignado": tecnico_email,
+                        "estado": {"$in": ["reparado", "enviado"]},
+                        "updated_at": {"$gte": hace_30_dias.isoformat()}
+                    }},
+                    {"$count": "total"}
+                ],
+                
+                # Métricas de tiempo (últimas 50 órdenes completadas)
+                "metricas_tiempo": [
+                    {"$match": {
+                        "tecnico_asignado": tecnico_email,
+                        "estado": {"$in": ["reparado", "enviado"]},
+                        "historial_estados": {"$exists": True, "$ne": []}
+                    }},
+                    {"$sort": {"updated_at": -1}},
+                    {"$limit": 50},
+                    {"$project": {
+                        "_id": 0,
+                        "created_at": 1,
+                        "updated_at": 1,
+                        "historial_estados": 1
+                    }}
+                ]
+            }
+        }
+    ]
+    
+    result = await db.ordenes.aggregate(pipeline).to_list(1)
+    data = result[0] if result else {}
+    
+    # Calcular tiempo promedio de reparación
+    tiempos_reparacion = []
+    for orden in data.get("metricas_tiempo", []):
+        try:
+            historial = orden.get("historial_estados", [])
+            fecha_recibida = None
+            fecha_reparado = None
+            for h in historial:
+                if h.get("estado") == "recibida" and not fecha_recibida:
+                    fecha_recibida = datetime.fromisoformat(h["fecha"].replace("Z", "+00:00"))
+                if h.get("estado") == "reparado":
+                    fecha_reparado = datetime.fromisoformat(h["fecha"].replace("Z", "+00:00"))
+            if fecha_recibida and fecha_reparado:
+                diff = (fecha_reparado - fecha_recibida).total_seconds() / 3600
+                if diff > 0:
+                    tiempos_reparacion.append(diff)
+        except:
+            pass
+    
+    promedio_horas = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0
+    promedio_dias = promedio_horas / 24
+    
+    def safe_count(key):
+        lst = data.get(key, [])
+        return lst[0].get("total", 0) if lst else 0
+    
+    return {
+        "tecnico": {
+            "email": tecnico_email,
+            "nombre": user.get("nombre", tecnico_email)
+        },
+        "kpis": {
+            "total_reparadas_mes": safe_count("total_reparadas_mes"),
+            "asignadas_actualmente": len(data.get("mis_asignadas", [])),
+            "promedio_horas": round(promedio_horas, 1),
+            "promedio_dias": round(promedio_dias, 1)
+        },
+        "ordenes": {
+            "asignadas": data.get("mis_asignadas", []),
+            "ultimos_reparados": data.get("mis_reparados", [])
+        },
+        "generado_at": now.isoformat()
+    }
+
+
 # ==================== SEGUIMIENTO PÚBLICO ====================
 
 @api_router.post("/seguimiento/verificar")

@@ -274,15 +274,15 @@ export default function Layout() {
 
         {/* Navigation - grouped & scrollable */}
         <nav className="px-2 py-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 170px)' }}>
-          {/* Principal - Todos los usuarios */}
+          {/* Principal - Contenido diferente para técnicos */}
           <SidebarGroup label="Principal" defaultOpen>
             <NavItem path="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem path="/nuevas-ordenes" icon={PackagePlus} label="Nuevas Órdenes" badge={nuevasOrdenesCount} />
+            {isAdmin() && <NavItem path="/nuevas-ordenes" icon={PackagePlus} label="Nuevas Órdenes" badge={nuevasOrdenesCount} />}
             <NavItem path="/ordenes" icon={ClipboardList} label="Órdenes de Trabajo" />
-            <NavItem path="/logistica" icon={Truck} label="Envíos y Recogidas" />
-            <NavItem path="/calendario" icon={Calendar} label="Calendario" />
+            {isAdmin() && <NavItem path="/logistica" icon={Truck} label="Envíos y Recogidas" />}
+            {isAdmin() && <NavItem path="/calendario" icon={Calendar} label="Calendario" />}
             <NavItem path="/scanner" icon={QrCode} label="Escáner QR" />
-            <NavItem path="/incidencias" icon={AlertTriangle} label="Incidencias" />
+            {isAdmin() && <NavItem path="/incidencias" icon={AlertTriangle} label="Incidencias" />}
             <NavItem path="/notificaciones" icon={Bell} label="Notificaciones" badge={notificacionesPendientes} />
           </SidebarGroup>
 

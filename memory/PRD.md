@@ -30,6 +30,19 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ## What's Been Implemented (Latest First)
 
+### 2026-04-09 - Dashboard y Permisos de Técnico
+- **Dashboard específico para técnicos**: "Mi Panel de Técnico" con KPIs personales (asignadas, reparadas 30 días, tiempo promedio)
+- **Menú lateral restringido**: Técnicos solo ven Dashboard, Órdenes de Trabajo, Escáner QR, Notificaciones
+- **Protección de rutas**: Técnicos no pueden acceder a Nuevas Órdenes, Clientes, Envíos, Calendario, Incidencias
+- **Endpoint `/dashboard/tecnico`**: Devuelve métricas personalizadas del técnico
+- **Files**: `Dashboard.jsx`, `Layout.jsx`, `App.js`, `server.py`
+
+### 2026-04-09 - Fix Mixed Content / Redirect HTTPS
+- **Problema**: FastAPI hacía redirect 307 a HTTP causando bloqueo de peticiones
+- **Solución**: Middleware `HTTPSRedirectMiddleware` que fuerza HTTPS en redirects
+- **Doble decorador**: `@router.get("")` y `@router.get("/")` en rutas problemáticas
+- **Files**: `server.py`, `compras_routes.py`, `nuevas_ordenes_routes.py`
+
 ### 2026-04-07 - Dashboard Operativo Rediseñado
 - **Nuevo Dashboard**: Totalmente rediseñado con métricas operativas reales (Total Órdenes, Enviados, En Taller, Por Recibir, Reparados, Con Demora, Garantías, Cambios Hoy/Ayer)
 - **Tarjetas Clicables**: Las tarjetas de KPIs ahora navegan directamente a vistas filtradas (`/crm/ordenes?estado=X`)

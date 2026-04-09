@@ -62,7 +62,7 @@ const statusLabels = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const scannerInputRef = useRef(null);
-  const { isAdmin, isTecnico, isMaster } = useAuth();
+  const { isAdmin, isTecnico, isMaster, user } = useAuth();
   
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +84,9 @@ export default function Dashboard() {
       if (showRefreshing) setRefreshing(true);
       else setLoading(true);
       
-      const res = await API.get('/dashboard/operativo');
+      // Usar endpoint diferente para técnicos
+      const endpoint = isTecnico() ? '/dashboard/tecnico' : '/dashboard/operativo';
+      const res = await API.get(endpoint);
       setData(res.data);
     } catch (err) {
       console.error('Error cargando dashboard:', err);
@@ -156,6 +158,185 @@ export default function Dashboard() {
     );
   }
 
+  // Dashboard específico para técnicos
+  if (isTecnico()) {
+    const { tecnico, kpis: tecnicoKpis, ordenes: tecnicoOrdenes } = data || {};
+    
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Mi Panel de Técnico</h1>
+            <p className="text-muted-foreground text-sm">
+              Bienvenido, {tecnico?.nombre || user?.nombre} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <form onSubmit={handleScannerSubmit} className="flex gap-2">
+              <div className="relative">
+                <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  ref={scannerInputRef}
+                  placeholder="Escanear código..."
+                  value={scannerValue}
+                  onChange={(e) => setScannerValue(e.target.value)}
+                  className="pl-9 w-48"
+                />
+              </div>
+              <Button type="submit" disabled={processing} size="sm">
+                <Search className="w-4 h-4" />
+              </Button>
+            </form>
+            
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+
+        {/* KPIs del técnico */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <ClipboardList className="w-5 h-5 text-blue-600" />
+                <span className="text-3xl font-bold text-blue-700">{tecnicoKpis?.asignadas_actualmente || 0}</span>
+              </div>
+              <p className="text-sm text-blue-600 mt-1 font-medium">Asignadas Ahora</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                <span className="text-3xl font-bold text-green-700">{tecnicoKpis?.total_reparadas_mes || 0}</span>
+              </div>
+              <p className="text-sm text-green-600 mt-1 font-medium">Reparadas (30 días)</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Timer className="w-5 h-5 text-purple-600" />
+                <span className="text-3xl font-bold text-purple-700">{tecnicoKpis?.promedio_horas || 0}h</span>
+              </div>
+              <p className="text-sm text-purple-600 mt-1 font-medium">Tiempo Promedio</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <Activity className="w-5 h-5 text-amber-600" />
+                <span className="text-3xl font-bold text-amber-700">{tecnicoKpis?.promedio_dias?.toFixed(1) || 0}d</span>
+              </div>
+              <p className="text-sm text-amber-600 mt-1 font-medium">Días Promedio</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Órdenes asignadas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-blue-600" />
+                Mis Órdenes Asignadas
+              </CardTitle>
+              <CardDescription>Órdenes que tienes que reparar</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tecnicoOrdenes?.asignadas?.length > 0 ? (
+                <div className="space-y-2">
+                  {tecnicoOrdenes.asignadas.map((orden) => (
+                    <Link 
+                      key={orden.id} 
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${statusLabels[orden.estado]?.color || 'bg-gray-400'}`} />
+                        <div>
+                          <p className="font-medium text-sm">{orden.numero_orden}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {orden.dispositivo?.marca} {orden.dispositivo?.modelo}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {statusLabels[orden.estado]?.label || orden.estado}
+                        </Badge>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No tienes órdenes asignadas</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Últimos reparados */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <History className="w-5 h-5 text-green-600" />
+                Mis Últimas Reparaciones
+              </CardTitle>
+              <CardDescription>Historial de tus reparaciones</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tecnicoOrdenes?.ultimos_reparados?.length > 0 ? (
+                <div className="space-y-2">
+                  {tecnicoOrdenes.ultimos_reparados.slice(0, 10).map((orden) => (
+                    <Link 
+                      key={orden.id} 
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <div>
+                          <p className="font-medium text-sm">{orden.numero_orden}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {orden.dispositivo?.marca} {orden.dispositivo?.modelo}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={orden.estado === 'enviado' ? 'default' : 'secondary'} className="text-xs">
+                          {statusLabels[orden.estado]?.label || orden.estado}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(orden.updated_at).toLocaleDateString('es-ES')}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Inbox className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Sin reparaciones recientes</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Dashboard para Admin/Master
   const { kpis, en_taller, ordenes, tiempos, graficos } = data || {};
 
   return (

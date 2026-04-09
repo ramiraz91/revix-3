@@ -1416,6 +1416,11 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
             await db.notificaciones.insert_one(notif_doc)
     
     await db.ordenes.update_one({"id": orden_id}, {"$set": data})
+    
+    # Recalcular totales si la orden tiene materiales
+    orden_actual = await db.ordenes.find_one({"id": orden_id}, {"_id": 0, "materiales": 1})
+    if orden_actual and orden_actual.get('materiales'):
+        await recalcular_totales_orden(orden_id)
 
     await registrar_evento_ot(
         ot_doc=existing,
@@ -2353,7 +2358,11 @@ async def aprobar_materiales(orden_id: str):
     for m in materiales:
         m['aprobado'] = True
     await db.ordenes.update_one({"id": orden_id}, {"$set": {"materiales": materiales, "requiere_aprobacion": False, "bloqueada": False, "updated_at": datetime.now(timezone.utc).isoformat()}})
-    return {"message": "Materiales aprobados y orden desbloqueada"}
+    
+    # Recalcular totales después de aprobar materiales
+    totales = await recalcular_totales_orden(orden_id)
+    
+    return {"message": "Materiales aprobados y orden desbloqueada", "totales": totales}
 
 # ==================== MENSAJES ====================
 

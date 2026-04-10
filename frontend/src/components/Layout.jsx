@@ -291,12 +291,12 @@ export default function Layout() {
             <>
               {/* Gestión */}
               <SidebarGroup label="Gestión">
-                <NavItem path="/crm/clientes" icon={Users} label="Clientes" />
-                <NavItem path="/crm/peticiones-exteriores" icon={PhoneIncoming} label="Peticiones Ext." />
-                <NavItem path="/crm/inventario" icon={Package} label="Inventario" />
-                <NavItem path="/crm/proveedores" icon={Truck} label="Proveedores" />
-                <NavItem path="/crm/compras" icon={FileText} label="Compras" />
-                <NavItem path="/crm/ordenes-compra" icon={ShoppingCart} label="Órdenes Compra" />
+                <NavItem path="/clientes" icon={Users} label="Clientes" />
+                <NavItem path="/peticiones-exteriores" icon={PhoneIncoming} label="Peticiones Ext." />
+                <NavItem path="/inventario" icon={Package} label="Inventario" />
+                <NavItem path="/proveedores" icon={Truck} label="Proveedores" />
+                <NavItem path="/compras" icon={FileText} label="Compras" />
+                <NavItem path="/ordenes-compra" icon={ShoppingCart} label="Órdenes Compra" />
               </SidebarGroup>
 
               {/* Operaciones */}

@@ -567,7 +567,8 @@ export default function Analiticas() {
                   <div className="p-2 bg-amber-100 rounded-lg"><Clock className="w-5 h-5 text-amber-600" /></div>
                   <div>
                     <p className="text-sm text-muted-foreground">T. Medio Reparación</p>
-                    <p className="text-2xl font-bold">{data.tiempo_medio_reparacion_horas}h</p>
+                    <p className="text-2xl font-bold">{data.tiempo_medio_reparacion_dias || Math.round((data.tiempo_medio_reparacion_horas || 0) / 24)} días</p>
+                    <p className="text-xs text-muted-foreground">({data.tiempo_medio_reparacion_horas}h) · {data.ordenes_con_tiempo || data.total_completadas} órdenes</p>
                   </div>
                 </div>
               </CardContent>

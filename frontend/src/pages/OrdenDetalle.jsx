@@ -83,6 +83,7 @@ import {
   GenerarEnvioModal,
   OrdenSubestadoCard,
 } from '@/components/orden';
+import { OrdenAsignarTecnico } from '@/components/orden/OrdenAsignarTecnico';
 
 
 const statusOrder = ['pendiente_recibir', 'recibida', 'cuarentena', 'en_taller', 'reparado', 'validacion', 'enviado'];
@@ -1645,6 +1646,15 @@ export default function OrdenDetalle() {
                 fechaRevision={orden.fecha_revision_subestado}
                 onSubestadoChange={updateOrdenPartial}
               />
+              
+              {/* Asignar Técnico - Solo Admin/Master */}
+              {isAdmin() && (
+                <OrdenAsignarTecnico
+                  ordenId={orden.id}
+                  tecnicoAsignado={orden.tecnico_asignado}
+                  onAsignar={(tecnico) => updateOrdenPartial({ tecnico_asignado: tecnico })}
+                />
+              )}
               
               {orden.notas && (
                 <Card>

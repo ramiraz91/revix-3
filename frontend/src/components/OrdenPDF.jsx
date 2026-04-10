@@ -370,7 +370,55 @@ const OrdenPDF = forwardRef(function OrdenPDF(
                 <span style={{ fontSize: '6px', color: '#666' }}>Fecha QC:</span>{' '}
                 {isBlank ? '_____' : fmtDT(orden?.fecha_fin_reparacion || orden?.updated_at)}
               </p>
+              {/* Notas de cierre técnico */}
+              {orden?.notas_cierre_tecnico && !isBlank && (
+                <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
+                  <span style={{ fontSize: '6px', color: '#666' }}>Notas de cierre técnico:</span>
+                  <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px', fontStyle: 'italic' }}>
+                    {orden.notas_cierre_tecnico}
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Trazabilidad de Baterías */}
+            {(orden?.bateria_reemplazada || orden?.bateria_estado || isBlank) && (
+              <div style={{ marginBottom: '2.5mm' }}>
+                <span style={S.label}>Trazabilidad de Baterías</span>
+                <div style={{ fontSize: '7.5px', lineHeight: '1.5', padding: '2mm', backgroundColor: '#fefce8', border: '1px solid #eab308', borderRadius: '2mm' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2mm' }}>
+                    <p style={{ margin: 0 }}>
+                      <span style={{ fontSize: '6px', color: '#666' }}>Batería reemplazada:</span><br/>
+                      <strong>{isBlank ? '_____' : (orden?.bateria_reemplazada ? '✓ Sí' : '✗ No')}</strong>
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <span style={{ fontSize: '6px', color: '#666' }}>Almac. temporal:</span><br/>
+                      <strong>{isBlank ? '_____' : (orden?.bateria_almacenamiento_temporal ? '✓ Aplicado' : '—')}</strong>
+                    </p>
+                  </div>
+                  {orden?.bateria_reemplazada && !isBlank && (
+                    <div style={{ marginTop: '1.5mm', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2mm' }}>
+                      <p style={{ margin: 0 }}>
+                        <span style={{ fontSize: '6px', color: '#666' }}>Residuo pendiente:</span>{' '}
+                        {orden?.bateria_residuo_pendiente ? '⚠️ Sí' : '✓ No'}
+                      </p>
+                      {orden?.bateria_gestor_autorizado && (
+                        <p style={{ margin: 0 }}>
+                          <span style={{ fontSize: '6px', color: '#666' }}>Gestor:</span>{' '}
+                          {orden.bateria_gestor_autorizado}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {orden?.bateria_fecha_entrega_gestor && !isBlank && (
+                    <p style={{ margin: '1mm 0 0 0', fontSize: '6.5px' }}>
+                      <span style={{ color: '#666' }}>Fecha entrega gestor:</span>{' '}
+                      {fmtDate(orden.bateria_fecha_entrega_gestor)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Logística */}
             {(orden?.agencia_envio || orden?.codigo_recogida_entrada || orden?.codigo_recogida_salida || isBlank) && (

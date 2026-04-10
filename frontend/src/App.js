@@ -17,6 +17,10 @@ function WebRedirect() {
 // Redirige rutas CRM antiguas sin prefijo /crm → /crm/*
 function LegacyCRMRedirect() {
   const location = useLocation();
+  // Evitar doble /crm si la ruta ya empieza con /crm
+  if (location.pathname.startsWith('/crm')) {
+    return <Navigate to={`${location.pathname}${location.search}`} replace />;
+  }
   return <Navigate to={`/crm${location.pathname}${location.search}`} replace />;
 }
 

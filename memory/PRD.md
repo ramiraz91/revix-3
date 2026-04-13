@@ -30,6 +30,16 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ## What's Been Implemented (Latest First)
 
+### 2026-04-13 - Botón Refrescar Datos Insurama + Mejoras UI
+- **Nuevo endpoint** `POST /api/insurama/orden/{orden_id}/refrescar`: Refresca datos desde Sumbroker
+- **Datos actualizados**: Cliente (nombre, dirección, ciudad, localidad, población, CP, provincia) + Dispositivo (marca, modelo, IMEI, color, daños)
+- **Panel Insurama mejorado**: Botón "Refrescar datos" con animación, muestra última sincronización
+- **Tarjeta Cliente mejorada**: Ahora muestra ubicación formateada (📍 CP + Ciudad + Provincia)
+- **Fix Bug doble /crm/crm/**: Corregido en `App.js` (LegacyCRMRedirect) y `Layout.jsx` (NavItems)
+- **Métricas Dashboard corregidas**: Ahora usan 100% de órdenes enviadas (80) en vez de muestra parcial (56)
+- **QC Checklist en PDF**: Añadida trazabilidad de baterías y notas de cierre técnico
+- **Files**: `insurama_routes.py`, `OrdenInsuramaPanel.jsx`, `OrdenClienteCard.jsx`, `OrdenPDF.jsx`, `App.js`, `Layout.jsx`, `server.py`
+
 ### 2026-04-09 - Dashboard y Permisos de Técnico
 - **Dashboard específico para técnicos**: "Mi Panel de Técnico" con KPIs personales (asignadas, reparadas 30 días, tiempo promedio)
 - **Menú lateral restringido**: Técnicos solo ven Dashboard, Órdenes de Trabajo, Escáner QR, Notificaciones
@@ -87,13 +97,15 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 ## Prioritized Backlog
 
 ### P0 - Crítico
-- [ ] Error 520 en Producción (Deploy) - Requiere que el usuario presione "Deploy" en el panel de Emergent
+- [x] ~~Error 520 en Producción~~ - Usuario debe hacer Deploy tras cambios
+- [x] ~~Bug doble /crm/crm/ en URLs~~ - RESUELTO 2026-04-13
 
 ### P1 - Alto
-- [ ] Validar importación de órdenes Insurama con nueva lógica de Cloudinary
+- [x] ~~Métricas Dashboard mostraban 56 en vez de 80 órdenes~~ - RESUELTO 2026-04-13
+- [ ] Sistema de solicitud de cambio de estado (Admin → Master) - Pendiente definir si automático o manual
 
 ### P2 - Medio
-- [ ] El checklist de control de calidad (QC) no se muestra en la impresión final de la orden (`OrdenDetalle.jsx`)
+- [x] ~~QC Checklist en impresión de órdenes~~ - RESUELTO 2026-04-13 (añadida trazabilidad baterías)
 - [ ] Google Business Profile + Gemini Flash integration
 - [ ] Flujo de gestión de incidencias
 - [ ] Acortar SKUs generados en inventario

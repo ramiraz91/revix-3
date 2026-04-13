@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, MapPin } from 'lucide-react';
+import { User } from 'lucide-react';
 
 export function OrdenClienteCard({ cliente, onEdit }) {
   // Construir dirección completa
@@ -13,18 +13,6 @@ export function OrdenClienteCard({ cliente, onEdit }) {
     ].filter(Boolean);
     return parts.join(' ') || '-';
   };
-
-  const buildLocation = () => {
-    if (!cliente) return null;
-    const parts = [
-      cliente.codigo_postal,
-      cliente.ciudad || cliente.localidad || cliente.poblacion,
-      cliente.provincia && `(${cliente.provincia})`
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(' ') : null;
-  };
-
-  const location = buildLocation();
 
   return (
     <Card>
@@ -48,11 +36,11 @@ export function OrdenClienteCard({ cliente, onEdit }) {
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">DNI</p>
-              <p className="font-mono">{cliente.dni}</p>
+              <p className="font-mono">{cliente.dni || '-'}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Teléfono</p>
-              <p>{cliente.telefono}</p>
+              <p>{cliente.telefono || '-'}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Email</p>
@@ -61,13 +49,21 @@ export function OrdenClienteCard({ cliente, onEdit }) {
             <div className="sm:col-span-2">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Dirección</p>
               <p>{buildFullAddress()}</p>
-              {location && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                  <MapPin className="w-3 h-3" />
-                  {location}
-                </p>
-              )}
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Código Postal</p>
+              <p>{cliente.codigo_postal || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Ciudad / Localidad</p>
+              <p>{cliente.ciudad || cliente.localidad || cliente.poblacion || '-'}</p>
+            </div>
+            {cliente.provincia && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Provincia</p>
+                <p>{cliente.provincia}</p>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground">Cliente no encontrado</p>

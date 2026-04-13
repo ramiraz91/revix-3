@@ -1588,7 +1588,7 @@ export default function OrdenDetalle() {
                 onGenerarRecogida={() => setShowGenerarRecogida(true)}
                 onGenerarEnvio={() => setShowGenerarEnvio(true)}
               />
-              <OrdenInsuramaPanel orden={orden} />
+              <OrdenInsuramaPanel orden={orden} onRefresh={() => fetchOrden(false)} />
               
               {/* Diagnóstico y Control de Calidad - Visible para técnicos Y admins */}
               <OrdenDiagnosticoCard

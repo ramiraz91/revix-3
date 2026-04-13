@@ -1,8 +1,31 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User } from 'lucide-react';
+import { User, MapPin } from 'lucide-react';
 
 export function OrdenClienteCard({ cliente, onEdit }) {
+  // Construir dirección completa
+  const buildFullAddress = () => {
+    if (!cliente) return '-';
+    const parts = [
+      cliente.direccion,
+      cliente.planta && `Planta ${cliente.planta}`,
+      cliente.puerta && `Puerta ${cliente.puerta}`
+    ].filter(Boolean);
+    return parts.join(' ') || '-';
+  };
+
+  const buildLocation = () => {
+    if (!cliente) return null;
+    const parts = [
+      cliente.codigo_postal,
+      cliente.ciudad || cliente.localidad || cliente.poblacion,
+      cliente.provincia && `(${cliente.provincia})`
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : null;
+  };
+
+  const location = buildLocation();
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -37,7 +60,13 @@ export function OrdenClienteCard({ cliente, onEdit }) {
             </div>
             <div className="sm:col-span-2">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Dirección</p>
-              <p>{cliente.direccion} {cliente.planta && `Planta ${cliente.planta}`} {cliente.puerta && `Puerta ${cliente.puerta}`}</p>
+              <p>{buildFullAddress()}</p>
+              {location && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <MapPin className="w-3 h-3" />
+                  {location}
+                </p>
+              )}
             </div>
           </div>
         ) : (

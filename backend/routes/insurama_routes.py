@@ -1235,6 +1235,108 @@ async def importar_presupuesto_a_crm(codigo: str, user: dict = Depends(require_a
         logger.error(f"Error importando presupuesto {codigo}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==================== REFRESCAR DATOS DE ORDEN ====================
+
+@router.post("/orden/{orden_id}/refrescar")
+async def refrescar_datos_orden_insurama(orden_id: str, user: dict = Depends(require_admin)):
+    """
+    Refresca los datos de una orden existente desde Insurama/Sumbroker.
+    Actualiza: cliente (localidad, población, CP), dispositivo, y datos del portal.
+    """
+    try:
+        # 1. Obtener la orden
+        orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+        if not orden:
+            raise HTTPException(status_code=404, detail="Orden no encontrada")
+        
+        # 2. Verificar que tiene número de autorización (viene de Insurama)
+        codigo = orden.get("numero_autorizacion")
+        if not codigo:
+            raise HTTPException(status_code=400, detail="Esta orden no tiene código de Insurama asociado")
+        
+        # 3. Obtener datos frescos de Sumbroker
+        client = await get_sumbroker_client()
+        data = await client.extract_service_data(codigo)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No se encontraron datos en Insurama para el código {codigo}")
+        
+        # 4. Actualizar datos del cliente
+        cliente_id = orden.get("cliente_id")
+        if cliente_id:
+            cliente_update = {
+                "nombre": data.get("client_name") or "",
+                "apellidos": f"{data.get('client_last_name_1', '')} {data.get('client_last_name_2', '')}".strip(),
+                "telefono": data.get("client_phone") or "",
+                "email": data.get("client_email") or "",
+                "dni": data.get("client_nif") or "",
+                "direccion": data.get("client_address") or "",
+                "ciudad": data.get("client_city") or "",
+                "localidad": data.get("client_city") or "",  # Localidad = ciudad
+                "poblacion": data.get("client_city") or "",  # Población = ciudad
+                "provincia": data.get("client_province") or "",
+                "codigo_postal": data.get("client_zip") or "",
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            # Solo actualizar campos que tienen valor
+            cliente_update_clean = {k: v for k, v in cliente_update.items() if v}
+            if cliente_update_clean:
+                await db.clientes.update_one(
+                    {"id": cliente_id},
+                    {"$set": cliente_update_clean}
+                )
+        
+        # 5. Actualizar datos del dispositivo en la orden
+        dispositivo_actual = orden.get("dispositivo", {})
+        dispositivo_nuevo = {
+            **dispositivo_actual,
+            "marca": data.get("device_brand") or dispositivo_actual.get("marca", ""),
+            "modelo": data.get("device_model") or dispositivo_actual.get("modelo", ""),
+            "imei": data.get("device_imei") or dispositivo_actual.get("imei", ""),
+            "color": data.get("device_colour") or dispositivo_actual.get("color", ""),
+            "daños": data.get("damage_description") or dispositivo_actual.get("daños", ""),
+        }
+        
+        # 6. Actualizar la orden
+        orden_update = {
+            "dispositivo": dispositivo_nuevo,
+            "datos_portal": data,
+            "datos_portal_sync": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.ordenes.update_one(
+            {"id": orden_id},
+            {"$set": orden_update}
+        )
+        
+        # 7. Obtener cliente actualizado para devolver
+        cliente_actualizado = await db.clientes.find_one({"id": cliente_id}, {"_id": 0}) if cliente_id else None
+        
+        return {
+            "message": "Datos actualizados correctamente desde Insurama",
+            "orden_id": orden_id,
+            "codigo_insurama": codigo,
+            "cliente_actualizado": {
+                "nombre": cliente_actualizado.get("nombre") if cliente_actualizado else "",
+                "ciudad": cliente_actualizado.get("ciudad") if cliente_actualizado else "",
+                "localidad": cliente_actualizado.get("localidad") if cliente_actualizado else "",
+                "poblacion": cliente_actualizado.get("poblacion") if cliente_actualizado else "",
+                "codigo_postal": cliente_actualizado.get("codigo_postal") if cliente_actualizado else "",
+                "provincia": cliente_actualizado.get("provincia") if cliente_actualizado else "",
+            },
+            "dispositivo": dispositivo_nuevo,
+            "sync_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refrescando datos de orden {orden_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== SINCRONIZACIÓN ====================
 
 @router.post("/sincronizar")

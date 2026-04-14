@@ -30,8 +30,9 @@ export function TecnicoMensajesCard({ orden, mensajes, onRefresh, onMensajeAdd }
         visible_tecnico: true
       });
       
-      // Crear objeto de mensaje para actualización local
-      const nuevoMsgObj = response?.data || {
+      // Extraer el objeto mensaje de la respuesta
+      // El backend devuelve: { message: "...", mensaje: {...} }
+      const nuevoMsgObj = response?.data?.mensaje || {
         mensaje: nuevoMensaje.trim(),
         rol: 'tecnico',
         autor_nombre: 'Técnico',

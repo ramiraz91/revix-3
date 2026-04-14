@@ -2951,13 +2951,35 @@ async def ia_mejorar_diagnostico(request: MejorarDiagnosticoRequest, user: dict 
     if not EMERGENT_LLM_KEY or not LlmChat:
         raise HTTPException(status_code=500, detail="LLM no configurado")
     try:
-        ctx = ""
+        # System message enfocado SOLO en mejorar el texto técnico
+        system_msg = """Eres un técnico experto en reparación de dispositivos móviles. Tu ÚNICA tarea es mejorar el texto de diagnóstico que te proporcionen.
+
+REGLAS ESTRICTAS:
+1. SOLO mejora el texto del diagnóstico técnico proporcionado
+2. NO incluyas información de clientes (nombres, teléfonos, direcciones, etc.)
+3. NO inventes información que no esté en el texto original
+4. Haz el texto más claro, profesional y técnicamente preciso
+5. Usa terminología técnica correcta
+6. Corrige errores ortográficos y gramaticales
+7. Mantén la esencia del diagnóstico original
+8. Responde SOLO con el diagnóstico mejorado, sin explicaciones adicionales
+9. Texto plano, sin markdown ni formato especial
+10. Responde siempre en español"""
+
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY, 
+            session_id=f"diag-{user['user_id']}-{uuid.uuid4()}", 
+            system_message=system_msg
+        ).with_model("gemini", "gemini-2.5-flash")
+        
+        # Solo enviamos el diagnóstico a mejorar, sin contexto de cliente
+        prompt = f"Mejora el siguiente diagnóstico técnico:\n\n{request.diagnostico}"
+        
+        # Opcionalmente añadir info del dispositivo (no del cliente)
         if request.modelo_dispositivo:
-            ctx += f"Dispositivo: {request.modelo_dispositivo}\n"
-        if request.sintomas:
-            ctx += f"Síntomas: {request.sintomas}\n"
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"diag-{user['user_id']}-{uuid.uuid4()}", system_message="Eres un técnico experto en reparación de móviles. Mejora diagnósticos para que sean claros y comprensibles. IMPORTANTE: Texto plano, sin markdown. Responde SOLO con el diagnóstico mejorado en español.").with_model("gemini", "gemini-2.5-flash")
-        response = await chat.send_message(UserMessage(text=f"{ctx}\nDIAGNÓSTICO ORIGINAL:\n{request.diagnostico}\n\nMejora este diagnóstico:"))
+            prompt = f"Dispositivo: {request.modelo_dispositivo}\n\n{prompt}"
+        
+        response = await chat.send_message(UserMessage(text=prompt))
         return {"diagnostico_mejorado": response, "original": request.diagnostico}
     except Exception as e:
         logger.error(f"Error IA: {e}")

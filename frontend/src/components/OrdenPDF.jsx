@@ -600,6 +600,52 @@ const OrdenPDF = forwardRef(function OrdenPDF(
 
         <div style={S.hrLight} />
 
+        {/* AVISO GARANTÍA NO PROCEDE (si aplica) */}
+        {orden?.es_garantia && orden?.garantia_resultado === 'no_procede' && !isBlank && (
+          <div style={{ 
+            marginBottom: '4mm', 
+            padding: '3mm', 
+            backgroundColor: '#fef2f2', 
+            border: '2px solid #dc2626',
+            borderRadius: '2mm'
+          }}>
+            <p style={{ 
+              margin: '0 0 1.5mm', 
+              fontSize: '10px', 
+              fontWeight: 'bold', 
+              color: '#dc2626',
+              textTransform: 'uppercase'
+            }}>
+              ⚠️ GARANTÍA NO PROCEDE
+            </p>
+            <p style={{ margin: '0 0 1mm', fontSize: '8px', fontWeight: '500' }}>
+              Motivo: {orden?.garantia_motivo_no_procede || 'No especificado'}
+            </p>
+            <p style={{ margin: 0, fontSize: '7px', color: '#666' }}>
+              La avería detectada no está cubierta por la garantía del servicio anterior.
+              {orden?.numero_orden_padre && ` Orden original: ${orden.numero_orden_padre}`}
+            </p>
+          </div>
+        )}
+
+        {/* INDICACIONES GARANTÍA (si es orden de garantía) */}
+        {orden?.es_garantia && orden?.indicaciones_garantia_cliente && !isBlank && (
+          <div style={{ 
+            marginBottom: '3mm', 
+            padding: '2mm', 
+            backgroundColor: '#fef3c7', 
+            border: '1px solid #f59e0b',
+            borderRadius: '2mm'
+          }}>
+            <p style={{ margin: 0, fontSize: '7px', fontWeight: '600', color: '#92400e' }}>
+              Indicaciones del cliente (Garantía):
+            </p>
+            <p style={{ margin: '1mm 0 0', fontSize: '8px' }}>
+              {orden.indicaciones_garantia_cliente}
+            </p>
+          </div>
+        )}
+
         {/* GARANTÍA + NOTAS + QR */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '6mm', marginBottom: '3mm' }}>
           <div>

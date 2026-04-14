@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   CheckCircle2, AlertTriangle, ClipboardCheck, Loader2,
   Battery, Wifi, Bluetooth, Camera, Mic, Volume2,
-  Smartphone, Fingerprint, Signal, ZapIcon
+  Smartphone, Fingerprint, Signal, ZapIcon, Shield
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -63,6 +64,11 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
   // ── Notas ─────────────────────────────────────────────────────────────────
   const [notas, setNotas] = useState('');
 
+  // ── Garantía ──────────────────────────────────────────────────────────────
+  const esGarantia = orden?.es_garantia === true;
+  const [resultadoGarantia, setResultadoGarantia] = useState('procede'); // procede | no_procede
+  const [motivoNoGarantia, setMotivoNoGarantia] = useState('');
+
   // ── Validaciones previas ──────────────────────────────────────────────────
   const materiales        = orden.materiales || [];
   const matPendientes     = materiales.filter(m => !m.validado_tecnico);
@@ -78,7 +84,11 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
     && Boolean(orden.diagnostico_tecnico)
     && !hayMatPendientes;
 
-  const puedeConfirmar = avariaReparada && diagnosticoSalida && Boolean(bateriaEstado) && funcReqOK;
+  // Si es garantía y no procede, no requiere los checks normales
+  const garantiaNoProcede = esGarantia && resultadoGarantia === 'no_procede';
+  const puedeConfirmar = garantiaNoProcede
+    ? Boolean(motivoNoGarantia?.trim())
+    : (avariaReparada && diagnosticoSalida && Boolean(bateriaEstado) && funcReqOK);
 
   // ── Handler cierre ────────────────────────────────────────────────────────
   const handleCerrar = async () => {
@@ -87,30 +97,51 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
       return;
     }
 
+    // Payload base
     const qcPayload = {
-      diagnostico_salida_realizado: true,
-      funciones_verificadas:        funcReqOK,
-      limpieza_realizada:           limpieza,
-      bateria_nivel:                bateriaNivel ? parseInt(bateriaNivel) : null,
-      bateria_ciclos:               bateriaCiclos ? parseInt(bateriaCiclos) : null,
-      bateria_estado:               bateriaEstado,
-      qc_funciones:                 funcionesCheck,
       notas_cierre_tecnico:         notas || null,
       fecha_fin_reparacion:         new Date().toISOString(),
     };
 
+    // Si es garantía que no procede, guardar motivo y saltar QC
+    if (garantiaNoProcede) {
+      qcPayload.garantia_resultado = 'no_procede';
+      qcPayload.garantia_motivo_no_procede = motivoNoGarantia.trim();
+      qcPayload.garantia_tests_omitidos = true;
+    } else {
+      // QC normal
+      qcPayload.diagnostico_salida_realizado = true;
+      qcPayload.funciones_verificadas = funcReqOK;
+      qcPayload.limpieza_realizada = limpieza;
+      qcPayload.bateria_nivel = bateriaNivel ? parseInt(bateriaNivel) : null;
+      qcPayload.bateria_ciclos = bateriaCiclos ? parseInt(bateriaCiclos) : null;
+      qcPayload.bateria_estado = bateriaEstado;
+      qcPayload.qc_funciones = funcionesCheck;
+      
+      // Si es garantía que SÍ procede
+      if (esGarantia) {
+        qcPayload.garantia_resultado = 'procede';
+      }
+    }
+
     setGuardando(true);
     try {
       // 1. Cambiar estado → reparado (con mensaje obligatorio)
+      const mensajeCambio = garantiaNoProcede
+        ? `GARANTÍA NO PROCEDE: ${motivoNoGarantia.trim()}`
+        : (notas?.trim() || 'Reparación completada - QC verificado');
+      
       await ordenesAPI.cambiarEstado(orden.id, {
         nuevo_estado: 'reparado',
         usuario: 'tecnico',
-        mensaje: notas?.trim() || 'Reparación completada - QC verificado',
+        mensaje: mensajeCambio,
       });
       // 2. Guardar datos de QC
       await ordenesAPI.actualizar(orden.id, qcPayload);
 
-      toast.success('Reparación cerrada — la orden pasa a REPARADO / VALIDACIÓN');
+      toast.success(garantiaNoProcede 
+        ? 'Orden cerrada — Garantía NO PROCEDE' 
+        : 'Reparación cerrada — la orden pasa a REPARADO / VALIDACIÓN');
       setShowDialog(false);
       onRefresh();
     } catch (err) {
@@ -169,7 +200,68 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
 
           <div className="space-y-5 py-2">
 
-            {/* ══ 1. AVERÍA Y DIAGNÓSTICO ══ */}
+            {/* ══ 0. SECCIÓN DE GARANTÍA (solo si es_garantia) ══ */}
+            {esGarantia && (
+              <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-amber-700 font-semibold">
+                  <Shield className="w-5 h-5" />
+                  Esta es una orden de GARANTÍA
+                </div>
+                
+                {orden?.indicaciones_garantia_cliente && (
+                  <div className="p-2 bg-white rounded border border-amber-200">
+                    <p className="text-xs text-amber-600 font-medium">Indicaciones del cliente:</p>
+                    <p className="text-sm">{orden.indicaciones_garantia_cliente}</p>
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Resultado de la garantía:</Label>
+                  <RadioGroup 
+                    value={resultadoGarantia} 
+                    onValueChange={setResultadoGarantia}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2 p-3 bg-white rounded border hover:border-green-400 transition-colors">
+                      <RadioGroupItem value="procede" id="garantia-procede" />
+                      <Label htmlFor="garantia-procede" className="cursor-pointer flex-1">
+                        <span className="font-medium text-green-700">✅ Garantía PROCEDE</span>
+                        <p className="text-xs text-muted-foreground">La avería está cubierta y será reparada bajo garantía</p>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-3 bg-white rounded border hover:border-red-400 transition-colors">
+                      <RadioGroupItem value="no_procede" id="garantia-no-procede" />
+                      <Label htmlFor="garantia-no-procede" className="cursor-pointer flex-1">
+                        <span className="font-medium text-red-700">❌ Garantía NO PROCEDE</span>
+                        <p className="text-xs text-muted-foreground">La avería NO está cubierta (daño externo, mal uso, etc.)</p>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {garantiaNoProcede && (
+                  <div className="space-y-2 pt-2 border-t border-amber-200">
+                    <Label className="flex items-center gap-1 text-red-700 font-medium">
+                      <AlertTriangle className="w-4 h-4" />
+                      Motivo de no garantía *
+                    </Label>
+                    <Textarea
+                      value={motivoNoGarantia}
+                      onChange={(e) => setMotivoNoGarantia(e.target.value)}
+                      placeholder="Ej: Daño por líquido detectado en placa, golpe en esquina con fractura de chasis, manipulación por terceros no autorizados..."
+                      rows={3}
+                      className="bg-white"
+                    />
+                    <p className="text-xs text-amber-700">
+                      ⚠️ Este motivo aparecerá en el PDF de la orden. Los tests de QC se omitirán.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ 1. AVERÍA Y DIAGNÓSTICO ══ (ocultar si garantía no procede) */}
+            {!garantiaNoProcede && (
             <Section title="1. Avería y diagnóstico de salida" required>
               <CheckItem
                 id="avaria-reparada"
@@ -189,7 +281,11 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
                 testId="check-diagnostico-salida"
               />
             </Section>
+            )}
 
+            {/* Secciones de QC - ocultar si garantía no procede */}
+            {!garantiaNoProcede && (
+            <>
             {/* ══ 2. BATERÍA (WISE ASC) ══ */}
             <Section title="2. Verificación de batería (WISE ASC)" required>
               <div className="grid grid-cols-2 gap-3">
@@ -303,6 +399,12 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
                 label="Limpieza exterior del dispositivo realizada"
                 testId="check-limpieza"
               />
+            </Section>
+            </>
+            )}
+
+            {/* Notas - siempre visible */}
+            <Section title={garantiaNoProcede ? "Notas adicionales" : "6. Notas adicionales"}>
               <div className="mt-2">
                 <Label className="text-xs">Notas de cierre técnico (opcional)</Label>
                 <Textarea
@@ -322,7 +424,9 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
           {!puedeConfirmar && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <AlertTriangle className="w-4 h-4 inline mr-1" />
-              Completa los campos obligatorios: avería reparada, diagnóstico de salida, estado de batería y funciones requeridas.
+              {garantiaNoProcede 
+                ? 'Indica el motivo por el que la garantía no procede.'
+                : 'Completa los campos obligatorios: avería reparada, diagnóstico de salida, estado de batería y funciones requeridas.'}
             </div>
           )}
 

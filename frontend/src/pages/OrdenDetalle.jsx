@@ -84,6 +84,7 @@ import {
   OrdenSubestadoCard,
 } from '@/components/orden';
 import { OrdenAsignarTecnico } from '@/components/orden/OrdenAsignarTecnico';
+import { GarantiaModal } from '@/components/orden/GarantiaModal';
 
 
 const statusOrder = ['pendiente_recibir', 'recibida', 'cuarentena', 'en_taller', 'reparado', 'validacion', 'enviado'];
@@ -154,6 +155,7 @@ export default function OrdenDetalle() {
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
   const [enviandoNotificacion, setEnviandoNotificacion] = useState(false);
   const [creandoGarantia, setCreandoGarantia] = useState(false);
+  const [showGarantiaModal, setShowGarantiaModal] = useState(false);
   const [desbloqueando, setDesbloqueando] = useState(false);
   const [guardandoEnvio, setGuardandoEnvio] = useState(false);
   const [guardandoCliente, setGuardandoCliente] = useState(false);
@@ -368,17 +370,14 @@ export default function OrdenDetalle() {
     doPrintBlank();
   };
 
-  const handleCrearGarantia = async () => {
-    setCreandoGarantia(true);
-    try {
-      const response = await ordenesAPI.crearGarantia(id);
-      toast.success(`Orden de garantía ${response.data.orden_garantia?.numero_orden} creada`);
-      navigate(`/ordenes/${response.data.orden_garantia?.id}`);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al crear garantía');
-    } finally {
-      setCreandoGarantia(false);
-    }
+  // Abrir modal de garantía (nuevo flujo)
+  const handleCrearGarantia = () => {
+    setShowGarantiaModal(true);
+  };
+
+  // Callback cuando se crea la garantía exitosamente
+  const handleGarantiaCreada = (data) => {
+    navigate(`/crm/ordenes/${data.orden_garantia?.id}`);
   };
 
   // Descargar ZIP de fotos
@@ -2141,6 +2140,14 @@ export default function OrdenDetalle() {
         setDesbloqueoData={setDesbloqueoData}
         onDesbloquear={handleDesbloquearConDatos}
         desbloqueando={desbloqueando}
+      />
+
+      {/* Modal de Garantía */}
+      <GarantiaModal
+        isOpen={showGarantiaModal}
+        onClose={() => setShowGarantiaModal(false)}
+        orden={orden}
+        onSuccess={handleGarantiaCreada}
       />
 
       {/* Image Preview Dialog */}

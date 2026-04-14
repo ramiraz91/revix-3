@@ -3083,12 +3083,18 @@ async def guardar_diagnostico(orden_id: str, request: DiagnosticoRequest, user: 
 
 # ==================== GARANTÍAS ====================
 
+class CrearGarantiaRequest(BaseModel):
+    indicaciones_cliente: str = ""
+
 @router.post("/ordenes/{orden_id}/crear-garantia")
-async def crear_garantia_simple(orden_id: str, user: dict = Depends(require_admin)):
+async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = None, user: dict = Depends(require_admin)):
     """
     Crea una orden de garantía desde una orden enviada.
     También crea una incidencia de tipo 'garantia' vinculada al cliente.
     """
+    # Parse request body si existe
+    indicaciones = request.indicaciones_cliente if request else ""
+    
     orden_padre = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not orden_padre:
         raise HTTPException(status_code=404, detail="Orden padre no encontrada")
@@ -3136,6 +3142,11 @@ async def crear_garantia_simple(orden_id: str, user: dict = Depends(require_admi
     
     # Referencia clara a la orden padre
     doc['numero_orden_padre'] = orden_padre['numero_orden']
+    
+    # Indicaciones del cliente para la garantía
+    if indicaciones:
+        doc['indicaciones_garantia_cliente'] = indicaciones
+        doc['indicaciones_tecnico'] = f"GARANTÍA: {indicaciones}"
     
     await db.ordenes.insert_one(doc)
     doc.pop('_id', None)

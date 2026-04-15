@@ -209,11 +209,11 @@ export default function Inventario() {
     });
   };
 
-  // Genera SKU automático basado en nombre y categoría
+  // Genera SKU descriptivo corto: CAT-MODELO-TIPO
+  // Ejemplos: BAT-IP15-COM, PANT-IP17P-ORI, CON-S24U, CAM-IP15P
   const generateSKU = (nombre, categoria) => {
     if (!nombre) return '';
-    
-    // Prefijo de categoría
+
     const prefijos = {
       'Pantallas': 'PANT',
       'Baterías': 'BAT',
@@ -225,22 +225,54 @@ export default function Inventario() {
       'Cristales': 'CRI',
       'Otros': 'OTR'
     };
-    const prefijo = prefijos[categoria] || 'REP';
-    
-    // Extraer palabras clave del nombre (máx 3 palabras significativas)
-    const palabras = nombre
-      .toUpperCase()
-      .replace(/[^A-Z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter(p => p.length > 2 && !['PARA', 'CON', 'DEL', 'LOS', 'LAS', 'THE'].includes(p))
-      .slice(0, 3)
-      .map(p => p.slice(0, 4))
-      .join('-');
-    
-    // Generar número único basado en timestamp
-    const numUnico = Date.now().toString(36).slice(-4).toUpperCase();
-    
-    return `${prefijo}-${palabras || 'X'}-${numUnico}`;
+    const cat = prefijos[categoria] || 'REP';
+
+    const upper = nombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    // Extraer modelo del dispositivo (abreviado)
+    let modelo = '';
+    // iPhone patterns: "iPhone 15 Pro Max" -> IP15PM, "iPhone 14" -> IP14
+    const ipMatch = upper.match(/IPHONE\s*(\d+)\s*(PRO)?\s*(MAX)?/i);
+    if (ipMatch) {
+      modelo = 'IP' + ipMatch[1] + (ipMatch[2] ? 'P' : '') + (ipMatch[3] ? 'M' : '');
+    }
+    // Samsung patterns: "Samsung S24 Ultra" -> S24U, "Samsung A54" -> A54
+    if (!modelo) {
+      const samMatch = upper.match(/(?:SAMSUNG\s+)?(?:GALAXY\s+)?([A-Z])(\d+)\s*(ULTRA|PLUS|\+)?/i);
+      if (samMatch) {
+        modelo = samMatch[1] + samMatch[2] + (samMatch[3] === 'ULTRA' || samMatch[3] === 'U' ? 'U' : samMatch[3] === 'PLUS' || samMatch[3] === '+' ? 'P' : '');
+      }
+    }
+    // Xiaomi, Huawei, etc: tomar primeras palabras significativas
+    if (!modelo) {
+      const words = upper
+        .replace(/[^A-Z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 1 && !['PARA', 'CON', 'DEL', 'LOS', 'LAS', 'MO', 'DE'].includes(w));
+      modelo = words.slice(0, 2).map(w => w.slice(0, 4)).join('');
+    }
+
+    // Detectar tipo/calidad
+    let tipo = '';
+    if (/ORIGINAL|ORI\b/i.test(upper)) tipo = 'ORI';
+    else if (/COMPATIBLE|COMP\b/i.test(upper)) tipo = 'COM';
+    else if (/OLED/i.test(upper)) tipo = 'OLE';
+    else if (/LCD/i.test(upper)) tipo = 'LCD';
+    else if (/INCELL/i.test(upper)) tipo = 'INC';
+
+    // Construir SKU
+    const parts = [cat];
+    if (modelo) parts.push(modelo);
+    if (tipo) parts.push(tipo);
+
+    let sku = parts.join('-');
+
+    // Si es muy genérico (solo categoría), añadir hash corto
+    if (parts.length <= 1) {
+      sku += '-' + Date.now().toString(36).slice(-3).toUpperCase();
+    }
+
+    return sku;
   };
 
   const handleOpenDialog = (repuesto = null) => {

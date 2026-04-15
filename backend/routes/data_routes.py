@@ -403,11 +403,45 @@ async def crear_repuesto(repuesto: RepuestoCreate):
     if not doc.get('codigo_barras'):
         doc['codigo_barras'] = generate_barcode_number()
     
-    # Auto-generar SKU si no se proporciona
+    # Auto-generar SKU descriptivo si no se proporciona
     if not doc.get('sku'):
-        categoria_prefix = (doc.get('categoria') or 'GEN')[:3].upper()
-        count = await db.repuestos.count_documents({"categoria": doc.get('categoria')})
-        doc['sku'] = f"{categoria_prefix}-{count + 1:04d}"
+        import re, unicodedata
+        cat_prefix = {
+            'Pantallas': 'PANT', 'Baterías': 'BAT', 'Conectores': 'CON',
+            'Cámaras': 'CAM', 'Altavoces': 'ALT', 'Flex': 'FLX',
+            'Carcasas': 'CAR', 'Cristales': 'CRI', 'Otros': 'OTR',
+        }
+        cat = cat_prefix.get(doc.get('categoria', ''), 'REP')
+        nombre_raw = doc.get('nombre', '')
+        upper = unicodedata.normalize('NFD', nombre_raw.upper())
+        upper = re.sub(r'[\u0300-\u036f]', '', upper)
+        
+        modelo = ''
+        ip = re.search(r'IPHONE\s*(\d+)\s*(PRO)?\s*(MAX)?', upper)
+        if ip:
+            modelo = 'IP' + ip.group(1) + ('P' if ip.group(2) else '') + ('M' if ip.group(3) else '')
+        if not modelo:
+            sam = re.search(r'(?:SAMSUNG\s+)?(?:GALAXY\s+)?([A-Z])(\d+)\s*(ULTRA|PLUS|\+)?', upper)
+            if sam:
+                modelo = sam.group(1) + sam.group(2) + ('U' if sam.group(3) in ('ULTRA',) else 'P' if sam.group(3) in ('PLUS', '+') else '')
+        if not modelo:
+            words = [w for w in re.sub(r'[^A-Z0-9\s]', '', upper).split() if len(w) > 1 and w not in ('PARA', 'CON', 'DEL', 'MO', 'DE')]
+            modelo = ''.join(w[:4] for w in words[:2])
+        
+        tipo = ''
+        if re.search(r'ORIGINAL|ORI\b', upper): tipo = 'ORI'
+        elif re.search(r'COMPATIBLE|COMP\b', upper): tipo = 'COM'
+        elif re.search(r'OLED', upper): tipo = 'OLE'
+        elif re.search(r'LCD', upper): tipo = 'LCD'
+        
+        parts = [cat]
+        if modelo: parts.append(modelo)
+        if tipo: parts.append(tipo)
+        sku_base = '-'.join(parts)
+        
+        # Verificar unicidad, añadir sufijo numérico si duplicado
+        existing = await db.repuestos.count_documents({"sku": {"$regex": f"^{re.escape(sku_base)}"}})
+        doc['sku'] = sku_base if existing == 0 else f"{sku_base}-{existing + 1}"
     
     doc['created_at'] = doc['created_at'].isoformat()
     doc['updated_at'] = doc['updated_at'].isoformat()

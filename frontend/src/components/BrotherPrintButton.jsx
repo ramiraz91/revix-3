@@ -114,12 +114,14 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
           },
         };
       } else {
+        // Usar numero_autorizacion como barcode (mas corto, mejor calidad)
+        const barcodeVal = orden?.numero_autorizacion || orden?.numero_orden || orden?.id || '';
         payload = {
           template: 'ot_barcode_minimal',
           data: {
             orderId: orden?.id || '',
             orderNumber: orden?.numero_orden || '',
-            barcodeValue: orden?.id || orden?.numero_orden || '',
+            barcodeValue: barcodeVal,
             deviceModel: orden?.dispositivo?.modelo || orden?.dispositivo_modelo || '',
           },
         };

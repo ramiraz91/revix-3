@@ -711,7 +711,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
             <span style={{ ...S.label, display: 'block', textAlign: 'center' }}>Código de Identificación</span>
             {!isBlank ? (
               <BarcodeImage 
-                value={orden?.numero_orden || orden?.token_seguimiento || orden?.id?.substring(0, 12)} 
+                value={orden?.numero_autorizacion || orden?.numero_orden || orden?.token_seguimiento || orden?.id?.substring(0, 12)} 
                 width={1.2}
                 height={35}
               />

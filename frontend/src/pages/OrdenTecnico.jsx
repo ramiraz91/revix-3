@@ -269,14 +269,17 @@ export default function OrdenTecnico() {
             <CardContent className="flex flex-col items-center">
               <div className="p-4 bg-white" data-testid="tecnico-barcode">
                 <Barcode 
-                  value={orden.numero_orden} 
+                  value={orden.numero_autorizacion || orden.numero_orden} 
                   width={2} 
                   height={70} 
                   fontSize={12}
                   margin={5}
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="font-mono text-xs text-muted-foreground mt-1">
+                {orden.numero_autorizacion || orden.numero_orden}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
                 Escanea con pistola láser
               </p>
             </CardContent>

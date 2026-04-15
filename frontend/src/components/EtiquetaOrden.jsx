@@ -115,13 +115,15 @@ export function EtiquetaOrden({ orden, onClose }) {
   const etiquetaRef = useRef(null);
   const [barcodeDataUrl, setBarcodeDataUrl] = useState(null);
 
+  const barcodeText = orden?.numero_autorizacion || orden?.numero_orden || '';
+
   // Generar código de barras como imagen para impresión
   useEffect(() => {
-    if (orden?.numero_orden) {
+    if (barcodeText) {
       const canvas = document.createElement('canvas');
       const size = LABEL_SIZES[labelSize];
       try {
-        JsBarcode(canvas, orden.numero_orden, {
+        JsBarcode(canvas, barcodeText, {
           format: 'CODE128',
           width: size.barcodeWidth,
           height: size.barcodeHeight,
@@ -137,7 +139,7 @@ export function EtiquetaOrden({ orden, onClose }) {
         console.error('Error generating barcode:', error);
       }
     }
-  }, [orden?.numero_orden, labelSize]);
+  }, [barcodeText, labelSize]);
 
   if (!orden) return null;
 
@@ -379,7 +381,7 @@ export function EtiquetaOrden({ orden, onClose }) {
               {/* Código de barras */}
               <div className="flex-shrink-0 barcode-container">
                 <BarcodeLabel 
-                  value={orden.numero_orden} 
+                  value={barcodeText} 
                   width={size.barcodeWidth}
                   height={size.barcodeHeight}
                   fontSize={size.barcodeFontSize}
@@ -474,7 +476,7 @@ export function EtiquetaPequena({ orden }) {
       </div>
       
       <div className="flex items-center gap-2 mb-2">
-        <BarcodeLabel value={orden.numero_orden} width={1} height={25} fontSize={8} />
+        <BarcodeLabel value={orden.numero_autorizacion || orden.numero_orden} width={1} height={25} fontSize={8} />
       </div>
       
       <div className="text-[9px] space-y-1">

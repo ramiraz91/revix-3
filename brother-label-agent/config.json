@@ -1,0 +1,7 @@
+{
+    "port": 5555,
+    "default_printer": "Brother QL-800",
+    "label_format": "DK-11204",
+    "label_width_mm": 54,
+    "label_height_mm": 17
+}

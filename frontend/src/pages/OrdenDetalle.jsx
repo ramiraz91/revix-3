@@ -85,6 +85,7 @@ import {
 } from '@/components/orden';
 import { OrdenAsignarTecnico } from '@/components/orden/OrdenAsignarTecnico';
 import { GarantiaModal } from '@/components/orden/GarantiaModal';
+import { BrotherPrintButton } from '@/components/BrotherPrintButton';
 
 
 const statusOrder = ['pendiente_recibir', 'recibida', 'cuarentena', 'en_taller', 'reparado', 'validacion', 'enviado'];
@@ -1641,6 +1642,9 @@ export default function OrdenDetalle() {
                   <p className="text-xs text-muted-foreground mt-2">Escanea con pistola láser</p>
                 </CardContent>
               </Card>
+
+              {/* Impresion Directa Brother */}
+              <BrotherPrintButton orden={orden} mode="ot" />
               
               {/* Subestado Card */}
               <OrdenSubestadoCard 

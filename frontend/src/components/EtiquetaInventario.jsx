@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import JsBarcode from 'jsbarcode';
-import { Printer, X, Settings, Loader2, Package } from 'lucide-react';
+import { Printer, X, Settings, Loader2, Package, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -107,9 +107,57 @@ export function EtiquetaInventario({ producto, onClose }) {
   const [cantidad, setCantidad] = useState(1);
   const [printing, setPrinting] = useState(false);
   const [barcodeDataUrl, setBarcodeDataUrl] = useState(null);
+  const [brotherOnline, setBrotherOnline] = useState(false);
+  const [brotherPrinting, setBrotherPrinting] = useState(false);
 
   const codigoBarras = producto?.sku || producto?.codigo_barras || producto?.id || 'SIN-SKU';
   const size = LABEL_SIZES[labelSize];
+
+  // Check Brother agent status
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:5555/health', { signal: AbortSignal.timeout(2000) });
+        const data = await res.json();
+        setBrotherOnline(data.ok && data.printerOnline);
+      } catch { setBrotherOnline(false); }
+    };
+    check();
+  }, []);
+
+  // Brother direct print
+  const handleBrotherPrint = async () => {
+    setBrotherPrinting(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5555/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerName: 'Brother QL-800',
+          template: 'inventory_label',
+          jobId: `inv-${codigoBarras}`,
+          data: {
+            barcodeValue: codigoBarras,
+            productName: producto?.nombre || '',
+            price: producto?.precio_venta ? `${producto.precio_venta.toFixed(2)} EUR` : '',
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const { toast } = await import('sonner');
+        toast.success('Etiqueta impresa en Brother QL-800');
+      } else {
+        const { toast } = await import('sonner');
+        toast.error(data.error || 'Error al imprimir');
+      }
+    } catch {
+      const { toast } = await import('sonner');
+      toast.error('No se pudo conectar con el agente Brother');
+    } finally {
+      setBrotherPrinting(false);
+    }
+  };
 
   // Generar código de barras como imagen para impresión
   useEffect(() => {
@@ -343,28 +391,43 @@ export function EtiquetaInventario({ producto, onClose }) {
         </div>
 
         {/* Acciones */}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onClose}>
-            <X className="w-4 h-4 mr-2" />
-            Cerrar
-          </Button>
+        <div className="space-y-2 pt-2">
+          {/* Brother Direct Print */}
           <Button
-            onClick={handlePrint}
-            disabled={printing}
-            data-testid="btn-imprimir-etiqueta-inventario"
+            className="w-full"
+            variant={brotherOnline ? 'default' : 'outline'}
+            onClick={handleBrotherPrint}
+            disabled={!brotherOnline || brotherPrinting}
+            data-testid="btn-brother-print-inventario"
           >
-            {printing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Imprimiendo...
-              </>
+            {brotherPrinting ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Imprimiendo en Brother...</>
+            ) : brotherOnline ? (
+              <><Wifi className="w-4 h-4 mr-2" />Imprimir en Brother QL-800</>
             ) : (
-              <>
-                <Printer className="w-4 h-4 mr-2" />
-                Imprimir {cantidad > 1 ? `${cantidad} Etiquetas` : 'Etiqueta'}
-              </>
+              <><WifiOff className="w-4 h-4 mr-2" />Brother no disponible</>
             )}
           </Button>
+
+          {/* CSS Print fallback */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>
+              <X className="w-4 h-4 mr-2" />
+              Cerrar
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handlePrint}
+              disabled={printing}
+              data-testid="btn-imprimir-etiqueta-inventario"
+            >
+              {printing ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Imprimiendo...</>
+              ) : (
+                <><Printer className="w-4 h-4 mr-2" />Navegador {cantidad > 1 ? `(${cantidad})` : ''}</>
+              )}
+            </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground text-center">

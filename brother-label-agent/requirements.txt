@@ -1,0 +1,5 @@
+flask==3.1.*
+flask-cors==5.*
+Pillow==11.*
+python-barcode==0.15.*
+pywin32==308;platform_system=="Windows"

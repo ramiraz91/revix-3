@@ -63,6 +63,7 @@ from modules.gls.routes import router as gls_router
 from routes.finanzas_routes import router as finanzas_router
 from routes.inventario_mejorado_routes import router as inventario_mejorado_router
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
+from routes.print_routes import router as print_router
 
 # ==================== APP SETUP ====================
 app = FastAPI(title="Mobile Repair CRM/ERP API")
@@ -138,6 +139,7 @@ api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
 api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
+api_router.include_router(print_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
 @app.get("/api/debug-connection")

@@ -5,7 +5,7 @@
     "label_width_mm": 54,
     "label_height_mm": 17,
 
-    "crm_url": "https://TU-DOMINIO.preview.emergentagent.com",
+    "crm_url": "https://revix.es",
     "agent_key": "revix-brother-agent-2026-key",
     "agent_id": "taller-principal",
     "poll_interval": 3,

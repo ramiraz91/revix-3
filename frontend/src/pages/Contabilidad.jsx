@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import { 
   FileText, Receipt, CreditCard, TrendingUp, AlertCircle, 
   Plus, Search, Filter, Download, ChevronRight, Euro,
-  Calendar, Clock, CheckCircle, XCircle, AlertTriangle
+  Calendar, Clock, CheckCircle, XCircle, AlertTriangle,
+  ChevronLeft, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 
 const estadoColors = {
@@ -41,32 +42,59 @@ export default function Contabilidad() {
   const [albaranes, setAlbaranes] = useState([]);
   const [pendientes, setPendientes] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Filtros para facturas
   const [filtros, setFiltros] = useState({
     tipo: '',
     estado: '',
     busqueda: ''
   });
 
+  // Paginación facturas
+  const [facturasPagina, setFacturasPagina] = useState(1);
+  const [facturasPorPagina, setFacturasPorPagina] = useState(20);
+  const [facturasTotal, setFacturasTotal] = useState(0);
+
+  // Filtros para albaranes
+  const [filtrosAlbaranes, setFiltrosAlbaranes] = useState({
+    estado: '', // '' | 'pendiente' | 'facturado'
+    busqueda: ''
+  });
+
+  // Paginación albaranes
+  const [albaranesPagina, setAlbaranesPagina] = useState(1);
+  const [albaranesPorPagina, setAlbaranesPorPagina] = useState(20);
+  const [albaranesTotal, setAlbaranesTotal] = useState(0);
+
   useEffect(() => {
-    cargarDatos();
+    cargarDatosIniciales();
   }, []);
 
-  const cargarDatos = async () => {
+  // Cargar facturas cuando cambia página o filtros
+  useEffect(() => {
+    if (!loading) cargarFacturas();
+  }, [facturasPagina, facturasPorPagina]);
+
+  // Cargar albaranes cuando cambia página o filtros
+  useEffect(() => {
+    if (!loading) cargarAlbaranes();
+  }, [albaranesPagina, albaranesPorPagina]);
+
+  const cargarDatosIniciales = async () => {
     try {
       setLoading(true);
-      const [statsRes, resumenRes, facturasRes, albaranesRes, pendientesRes] = await Promise.all([
+      const [statsRes, resumenRes, pendientesRes] = await Promise.all([
         api.get('/contabilidad/stats'),
         api.get('/contabilidad/informes/resumen'),
-        api.get('/contabilidad/facturas?page_size=20'),
-        api.get('/contabilidad/albaranes?page_size=20'),
         api.get('/contabilidad/informes/pendientes')
       ]);
       
       setStats(statsRes.data);
       setResumen(resumenRes.data);
-      setFacturas(facturasRes.data.items || []);
-      setAlbaranes(albaranesRes.data.items || []);
       setPendientes(pendientesRes.data);
+
+      // Cargar facturas y albaranes
+      await Promise.all([cargarFacturas(), cargarAlbaranes()]);
     } catch (error) {
       console.error('Error cargando datos:', error);
       toast.error('Error al cargar datos de contabilidad');
@@ -75,22 +103,57 @@ export default function Contabilidad() {
     }
   };
 
-  const filtrarFacturas = () => {
-    let filtered = facturas;
-    if (filtros.tipo) {
-      filtered = filtered.filter(f => f.tipo === filtros.tipo);
+  const cargarFacturas = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: facturasPagina,
+        page_size: facturasPorPagina
+      });
+      if (filtros.tipo) params.append('tipo', filtros.tipo);
+      if (filtros.estado) params.append('estado', filtros.estado);
+      if (filtros.busqueda) params.append('search', filtros.busqueda);
+
+      const res = await api.get(`/contabilidad/facturas?${params}`);
+      setFacturas(res.data.items || []);
+      setFacturasTotal(res.data.total || 0);
+    } catch (error) {
+      console.error('Error cargando facturas:', error);
     }
-    if (filtros.estado) {
-      filtered = filtered.filter(f => f.estado === filtros.estado);
+  };
+
+  const cargarAlbaranes = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: albaranesPagina,
+        page_size: albaranesPorPagina
+      });
+      if (filtrosAlbaranes.estado === 'pendiente') params.append('facturado', 'false');
+      if (filtrosAlbaranes.estado === 'facturado') params.append('facturado', 'true');
+      if (filtrosAlbaranes.busqueda) params.append('search', filtrosAlbaranes.busqueda);
+
+      const res = await api.get(`/contabilidad/albaranes?${params}`);
+      setAlbaranes(res.data.items || []);
+      setAlbaranesTotal(res.data.total || 0);
+    } catch (error) {
+      console.error('Error cargando albaranes:', error);
     }
-    if (filtros.busqueda) {
-      const search = filtros.busqueda.toLowerCase();
-      filtered = filtered.filter(f => 
-        f.numero?.toLowerCase().includes(search) ||
-        f.nombre_fiscal?.toLowerCase().includes(search)
-      );
-    }
-    return filtered;
+  };
+
+  // Recargar todo
+  const cargarDatos = async () => {
+    await cargarDatosIniciales();
+  };
+
+  // Buscar facturas con debounce
+  const handleBuscarFacturas = () => {
+    setFacturasPagina(1);
+    cargarFacturas();
+  };
+
+  // Buscar albaranes con debounce
+  const handleBuscarAlbaranes = () => {
+    setAlbaranesPagina(1);
+    cargarAlbaranes();
   };
 
   const formatCurrency = (amount) => {
@@ -100,6 +163,75 @@ export default function Contabilidad() {
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('es-ES');
+  };
+
+  // Componente de paginación reutilizable
+  const Paginacion = ({ pagina, setPagina, porPagina, setPorPagina, total }) => {
+    const totalPaginas = Math.ceil(total / porPagina) || 1;
+    
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t bg-gray-50">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>Mostrar</span>
+          <Select value={porPagina.toString()} onValueChange={(v) => { setPorPagina(parseInt(v)); setPagina(1); }}>
+            <SelectTrigger className="w-[70px] h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+          <span>de {total} resultados</span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPagina(1)} 
+            disabled={pagina === 1}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPagina(p => Math.max(1, p - 1))} 
+            disabled={pagina === 1}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <span className="px-3 text-sm">
+            Página <strong>{pagina}</strong> de <strong>{totalPaginas}</strong>
+          </span>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} 
+            disabled={pagina >= totalPaginas}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPagina(totalPaginas)} 
+            disabled={pagina >= totalPaginas}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -306,9 +438,10 @@ export default function Contabilidad() {
                 className="pl-10"
                 value={filtros.busqueda}
                 onChange={(e) => setFiltros({ ...filtros, busqueda: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleBuscarFacturas()}
               />
             </div>
-            <Select value={filtros.tipo || 'all'} onValueChange={(v) => setFiltros({ ...filtros, tipo: v === 'all' ? '' : v })}>
+            <Select value={filtros.tipo || 'all'} onValueChange={(v) => { setFiltros({ ...filtros, tipo: v === 'all' ? '' : v }); setFacturasPagina(1); }}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
@@ -318,7 +451,7 @@ export default function Contabilidad() {
                 <SelectItem value="compra">Compra</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filtros.estado || 'all'} onValueChange={(v) => setFiltros({ ...filtros, estado: v === 'all' ? '' : v })}>
+            <Select value={filtros.estado || 'all'} onValueChange={(v) => { setFiltros({ ...filtros, estado: v === 'all' ? '' : v }); setFacturasPagina(1); }}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
@@ -331,6 +464,10 @@ export default function Contabilidad() {
                 <SelectItem value="vencida">Vencida</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={handleBuscarFacturas}>
+              <Search className="h-4 w-4 mr-2" />
+              Buscar
+            </Button>
           </div>
 
           {/* Lista de facturas */}
@@ -350,7 +487,7 @@ export default function Contabilidad() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrarFacturas().map((factura) => (
+                  {facturas.map((factura) => (
                     <tr key={factura.id} className="border-b hover:bg-gray-50">
                       <td className="p-3 font-medium">{factura.numero}</td>
                       <td className="p-3">
@@ -389,21 +526,67 @@ export default function Contabilidad() {
                   ))}
                 </tbody>
               </table>
-              {filtrarFacturas().length === 0 && (
+              {facturas.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   No hay facturas que mostrar
                 </div>
               )}
             </div>
+            {/* Paginación Facturas */}
+            <Paginacion
+              pagina={facturasPagina}
+              setPagina={setFacturasPagina}
+              porPagina={facturasPorPagina}
+              setPorPagina={setFacturasPorPagina}
+              total={facturasTotal}
+            />
           </Card>
         </TabsContent>
 
         {/* Tab: Albaranes */}
         <TabsContent value="albaranes" className="space-y-4">
+          {/* Filtros para albaranes */}
+          <div className="flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por número, orden o cliente..."
+                className="pl-10"
+                value={filtrosAlbaranes.busqueda}
+                onChange={(e) => setFiltrosAlbaranes({ ...filtrosAlbaranes, busqueda: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleBuscarAlbaranes()}
+              />
+            </div>
+            <Select 
+              value={filtrosAlbaranes.estado || 'all'} 
+              onValueChange={(v) => { 
+                setFiltrosAlbaranes({ ...filtrosAlbaranes, estado: v === 'all' ? '' : v }); 
+                setAlbaranesPagina(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="pendiente">Pendiente facturar</SelectItem>
+                <SelectItem value="facturado">Facturado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={handleBuscarAlbaranes}>
+              <Search className="h-4 w-4 mr-2" />
+              Buscar
+            </Button>
+          </div>
+
+          {/* Info de pendientes */}
           <div className="flex justify-between items-center">
             <p className="text-gray-600">
               {stats?.albaranes_sin_facturar || 0} albaranes pendientes de facturar
             </p>
+            <Badge variant="outline">
+              Total: {albaranesTotal} albaranes
+            </Badge>
           </div>
           
           <Card>
@@ -464,6 +647,14 @@ export default function Contabilidad() {
                 </div>
               )}
             </div>
+            {/* Paginación Albaranes */}
+            <Paginacion
+              pagina={albaranesPagina}
+              setPagina={setAlbaranesPagina}
+              porPagina={albaranesPorPagina}
+              setPorPagina={setAlbaranesPorPagina}
+              total={albaranesTotal}
+            />
           </Card>
         </TabsContent>
 

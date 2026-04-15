@@ -18,7 +18,7 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 - Almacenamiento de imágenes en Cloudinary
 
 ## Tech Stack
-- **Frontend**: React 18, Tailwind CSS, Shadcn/UI, Framer Motion
+- **Frontend**: React 18, Tailwind CSS, Shadcn/UI, Framer Motion, JsBarcode
 - **Backend**: FastAPI, Motor (async MongoDB), BeautifulSoup4
 - **Database**: MongoDB Atlas (production)
 - **Storage**: Cloudinary (imágenes)
@@ -30,82 +30,51 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ## What's Been Implemented (Latest First)
 
+### 2026-04-15 - Migración QR → Códigos de Barras Code128 + Etiquetas Inventario
+- **Reemplazo completo QR → Barcode**: Todos los códigos QR reemplazados por Code128 estándar usando `jsbarcode`
+- **OrdenDetalle.jsx**: QRCode sustituido por componente `Barcode` con pistola láser compatible
+- **OrdenTecnico.jsx**: QRCode sustituido por componente `Barcode`
+- **OrdenPDF.jsx**: BarcodeImage con canvas → base64 → img para PDFs
+- **EtiquetaOrden.jsx**: Ya usaba JsBarcode (verificado y funcional)
+- **NUEVO: EtiquetaInventario.jsx**: Diálogo con vista previa, selector de 4 tamaños (29x90mm Brother, 50x30, 60x40, 70x50), selector de copias, código de barras Code128 real
+- **Inventario.jsx**: printLabels actualizado de SVG falso a JsBarcode real; dropdown ahora abre modal de vista previa
+- **Testing**: 100% - Todos los tests pasados (iteration_12.json)
+- **Files**: `OrdenDetalle.jsx`, `OrdenTecnico.jsx`, `OrdenPDF.jsx`, `EtiquetaOrden.jsx`, `EtiquetaInventario.jsx`, `Inventario.jsx`, `Barcode.jsx`
+
 ### 2026-04-13 - Botón Refrescar Datos Insurama + Mejoras UI
 - **Nuevo endpoint** `POST /api/insurama/orden/{orden_id}/refrescar`: Refresca datos desde Sumbroker
-- **Datos actualizados**: Cliente (nombre, dirección, ciudad, localidad, población, CP, provincia) + Dispositivo (marca, modelo, IMEI, color, daños)
-- **Panel Insurama mejorado**: Botón "Refrescar datos" con animación, muestra última sincronización
-- **Tarjeta Cliente mejorada**: Ahora muestra ubicación formateada (📍 CP + Ciudad + Provincia)
-- **Fix Bug doble /crm/crm/**: Corregido en `App.js` (LegacyCRMRedirect) y `Layout.jsx` (NavItems)
-- **Métricas Dashboard corregidas**: Ahora usan 100% de órdenes enviadas (80) en vez de muestra parcial (56)
-- **QC Checklist en PDF**: Añadida trazabilidad de baterías y notas de cierre técnico
-- **Files**: `insurama_routes.py`, `OrdenInsuramaPanel.jsx`, `OrdenClienteCard.jsx`, `OrdenPDF.jsx`, `App.js`, `Layout.jsx`, `server.py`
+- **Panel Insurama mejorado**: Botón "Refrescar datos" con animación
+- **Tarjeta Cliente mejorada**: CP + Ciudad + Provincia separados
+- **Fix Bug doble /crm/crm/**: Corregido en `App.js` y `Layout.jsx`
+- **Métricas Dashboard corregidas**: 100% órdenes completadas
+- **QC Checklist en PDF**: Trazabilidad de baterías y notas cierre técnico
+- **Flujo de garantías**: GarantiaModal + opción "Garantía no procede" en QC y PDF
+- **Paginación**: Contabilidad y Presupuestos Insurama
+- **Eliminación branding**: Removido de `index.html`
+- **IA diagnósticos**: Solo texto técnico, sin datos de cliente
+- **Fix pantalla blanca**: Mensajes del técnico (parsing JSON)
 
 ### 2026-04-09 - Dashboard y Permisos de Técnico
-- **Dashboard específico para técnicos**: "Mi Panel de Técnico" con KPIs personales (asignadas, reparadas 30 días, tiempo promedio)
-- **Menú lateral restringido**: Técnicos solo ven Dashboard, Órdenes de Trabajo, Escáner QR, Notificaciones
-- **Protección de rutas**: Técnicos no pueden acceder a Nuevas Órdenes, Clientes, Envíos, Calendario, Incidencias
-- **Endpoint `/dashboard/tecnico`**: Devuelve métricas personalizadas del técnico
-- **Files**: `Dashboard.jsx`, `Layout.jsx`, `App.js`, `server.py`
+- Dashboard específico para técnicos con KPIs personales
+- Menú lateral restringido por rol
+- Protección de rutas
 
-### 2026-04-09 - Fix Mixed Content / Redirect HTTPS
-- **Problema**: FastAPI hacía redirect 307 a HTTP causando bloqueo de peticiones
-- **Solución**: Middleware `HTTPSRedirectMiddleware` que fuerza HTTPS en redirects
-- **Doble decorador**: `@router.get("")` y `@router.get("/")` en rutas problemáticas
-- **Files**: `server.py`, `compras_routes.py`, `nuevas_ordenes_routes.py`
-
-### 2026-04-07 - Dashboard Operativo Rediseñado
-- **Nuevo Dashboard**: Totalmente rediseñado con métricas operativas reales (Total Órdenes, Enviados, En Taller, Por Recibir, Reparados, Con Demora, Garantías, Cambios Hoy/Ayer)
-- **Tarjetas Clicables**: Las tarjetas de KPIs ahora navegan directamente a vistas filtradas (`/crm/ordenes?estado=X`)
-- **Desglose En Taller**: Visualización de subestados (Recibidas, En Reparación, Re-presupuestar, Validación)
-- **Órdenes con Demora**: Lista de órdenes con más de 4 días sin movimiento
-- **Gráfico Semanal**: Visualización de órdenes de la semana con Recharts
-- **Métricas de Tiempo**: Promedio de días/horas de reparación
-- **Fix**: Corregido `</div>` extra que rompía el layout
-- **Files**: `Dashboard.jsx`, `server.py`
-
-### 2026-04-07 - Eliminación Catálogo Proveedores
-- **Eliminado**: Toda la arquitectura de scrapers de proveedores a petición del usuario
-- **Razón**: El usuario no necesita esta funcionalidad y causaba confusión en la base de datos
-
-### 2026-04-07 - Fix: Gestión de Compras con IA
-- **Issue**: Error `float() argument must be a string or a real number, not 'NoneType'` al procesar facturas con IA
-- **Causa**: Gemini devolvía `null` para campos numéricos y `float(None)` fallaba
-- **Solución**: Funciones `safe_float()` y `safe_int()` para conversiones seguras
-- **Adicional**: Corregida ruta `/compras` que no estaba registrada (ahora `/crm/compras`)
-- **Files**: `compras_routes.py`, `App.js`, `Layout.jsx`
-
-### 2026-04-07 - Fotos Cloudinary + Analíticas + Métricas Insurama
-- **Fotos del Portal a Cloudinary**: Las fotos descargadas del portal de aseguradoras ahora se suben automáticamente a Cloudinary
-- **Analíticas con Fechas Personalizadas**: Selector de período con DatePicker personalizado
-- **Métricas Insurama con Filtros e Informes**: Filtros por período + botón "Generar Informe" (CSV)
-- **Files**: `cloudinary_service.py`, `scraper.py`, `insurama_routes.py`, `processor.py`, `server.py`, `Seguimiento.jsx`, `Analiticas.jsx`, `InteligenciaDashboard.jsx`, `inteligencia_precios_routes.py`
-
-### 2026-04-06 - Fix: Fotos en Seguimiento Público
-- Backend consolida todas las fuentes de fotos
-- Frontend maneja errores de carga (oculta imágenes que no existen)
-
-### 2026-04-05 - Formulario Público de Presupuesto Ampliado
-- Añadidos campos: DNI, dirección, código postal, ciudad, provincia, "¿cómo nos conociste?"
-- Fix de pérdida de foco en inputs
-
-### 2026-04-04 - Sistema de Scrapers de Proveedores (En Progreso)
-- Arquitectura base creada en `/backend/providers/`
-- **Estado**: Esqueleto funcional, falta implementación real de extracción
+### 2026-04-07 - Dashboard Operativo + Gestión de Compras con IA
+- Dashboard rediseñado con métricas operativas
+- Tarjetas clicables a vistas filtradas
+- Gestión de compras con funciones safe_float/safe_int
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Crítico
-- [x] ~~Error 520 en Producción~~ - Usuario debe hacer Deploy tras cambios
-- [x] ~~Bug doble /crm/crm/ en URLs~~ - RESUELTO 2026-04-13
+- (Todos resueltos)
 
 ### P1 - Alto
-- [x] ~~Métricas Dashboard mostraban 56 en vez de 80 órdenes~~ - RESUELTO 2026-04-13
-- [ ] Sistema de solicitud de cambio de estado (Admin → Master) - Pendiente definir si automático o manual
+- [ ] Sistema de solicitud de cambio de estado (Admin → Master)
 
 ### P2 - Medio
-- [x] ~~QC Checklist en impresión de órdenes~~ - RESUELTO 2026-04-13 (añadida trazabilidad baterías)
 - [ ] Google Business Profile + Gemini Flash integration
 - [ ] Flujo de gestión de incidencias
 - [ ] Acortar SKUs generados en inventario
@@ -115,34 +84,29 @@ Sistema CRM/ERP para taller de reparación de telefonía móvil (Revix.es). Incl
 
 ---
 
-## Key API Endpoints
-- `POST /api/compras/analizar-factura` - Sube factura PDF y extrae datos con IA (CORREGIDO)
-- `POST /api/compras/confirmar` - Confirma compra y crea materiales en inventario (CORREGIDO)
-- `POST /api/seguimiento/verificar` - Verificar seguimiento público
-- `GET /api/master/finanzas?periodo=X&fecha_inicio=Y&fecha_fin=Z` - Analíticas financieras
-- `GET /api/inteligencia-precios/dashboard?periodo=X` - Dashboard Insurama con filtros
-
 ## Key Files
-- `/app/backend/routes/compras_routes.py` - Gestión de compras con IA
+- `/app/frontend/src/components/Barcode.jsx` - Componente reutilizable de barcode
+- `/app/frontend/src/components/EtiquetaOrden.jsx` - Diálogo de etiqueta para órdenes
+- `/app/frontend/src/components/EtiquetaInventario.jsx` - Diálogo de etiqueta para inventario
+- `/app/frontend/src/components/OrdenPDF.jsx` - PDF de orden con barcode
+- `/app/frontend/src/pages/OrdenDetalle.jsx` - Detalle de orden con barcode
+- `/app/frontend/src/pages/OrdenTecnico.jsx` - Vista técnico con barcode
+- `/app/frontend/src/pages/Inventario.jsx` - Inventario con etiquetas Code128
 - `/app/backend/server.py` - Servidor principal FastAPI
-- `/app/backend/database.py` - Conexión MongoDB (con fallback seguro)
-- `/app/backend/services/cloudinary_service.py` - Servicio de subida de imágenes
-- `/app/frontend/src/pages/Compras.jsx` - UI de gestión de compras
-- `/app/frontend/src/components/Layout.jsx` - Navegación del CRM
 
 ## Credentials (Test)
 - `master@revix.es` / `RevixMaster2026!`
 
 ## Critical Notes
-- **NO modificar conexión a base de datos** - El fallback de seguridad en `database.py` fuerza Atlas
-- **NO hacer commit de .env** - Usar System Keys en panel de Emergent
-- **Bloqueos temporales en memoria** - Reiniciar backend si hay "Demasiados intentos"
-- **Fotos del portal** - Ahora se suben a Cloudinary automáticamente
-- **Gestión de Compras** - Usa funciones `safe_float/safe_int` para evitar errores de conversión
+- **NO modificar conexión a base de datos** - Forzado a Atlas
+- **NO hacer commit de .env** - Usar System Keys
+- **Códigos de barras**: Todos los QR han sido eliminados. Usar componente `Barcode` o `JsBarcode` directamente
+- **Fotos del portal** - Se suben a Cloudinary automáticamente
 
 ## 3rd Party Integrations
-- Emergent LLM Key (Gemini 2.5 Flash para extracción de facturas)
-- Cloudinary (almacenamiento de imágenes)
-- Resend (emails transaccionales)
+- Emergent LLM Key (Gemini 2.5 Flash)
+- Cloudinary (imágenes)
+- Resend (emails)
 - GLS (logística)
-- Sumbroker API (portal aseguradoras)
+- Sumbroker API (aseguradoras)
+- JsBarcode (códigos de barras Code128)

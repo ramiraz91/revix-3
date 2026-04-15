@@ -3,10 +3,10 @@ Servicio de impresion para Windows via Win32 GDI.
 
 Flujo:
   1. Detecta impresoras instaladas en Windows.
-  2. Abre un Device Context (DC) para la impresora objetivo.
-  3. Consulta dimensiones fisicas del DC (PHYSICALWIDTH / PHYSICALHEIGHT).
+  2. Configura DEVMODE con el tamano de papel DK-11204 (17x54mm).
+  3. Abre un Device Context (DC) para la impresora.
   4. Si la imagen no coincide en orientacion, rota automaticamente.
-  5. Envia la imagen como DIB (Device-Independent Bitmap) al spooler.
+  5. Envia la imagen como DIB al spooler.
 
 Requisitos en el PC destino:
   - Windows 10/11
@@ -26,7 +26,6 @@ log = logging.getLogger("brother-agent")
 
 IS_WINDOWS = platform.system() == "Windows"
 
-# Importar modulos Win32 solo en Windows
 if IS_WINDOWS:
     try:
         import win32print
@@ -40,6 +39,11 @@ if IS_WINDOWS:
         log.warning("pywin32 no disponible. Instale: pip install pywin32")
 else:
     WIN32_AVAILABLE = False
+
+
+# DK-11204 en decimas de milimetro (para DEVMODE)
+DK11204_WIDTH_DMM = 170    # 17.0 mm
+DK11204_HEIGHT_DMM = 540   # 54.0 mm
 
 
 class PrinterService:
@@ -98,10 +102,9 @@ class PrinterService:
                 return {
                     "online": False,
                     "reason": f"Impresora '{self.default_printer}' no encontrada. "
-                    f"Impresoras disponibles: {', '.join(names) or 'ninguna'}",
+                    f"Disponibles: {', '.join(names) or 'ninguna'}",
                 }
 
-            # Verificar estado del spooler
             handle = win32print.OpenPrinter(self.default_printer)
             try:
                 info = win32print.GetPrinter(handle, 2)
@@ -138,8 +141,7 @@ class PrinterService:
                     0x01000000: "Modo ahorro de energia",
                 }
                 reasons = [
-                    desc
-                    for code, desc in status_map.items()
+                    desc for code, desc in status_map.items()
                     if status_code & code
                 ]
                 reason_str = ", ".join(reasons) if reasons else f"Codigo: {status_code}"
@@ -151,23 +153,48 @@ class PrinterService:
             return {"online": False, "reason": str(exc)}
 
     # ------------------------------------------------------------------
+    # Configurar DEVMODE para DK-11204
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _get_devmode_dk11204(printer_name):
+        """
+        Obtiene el DEVMODE de la impresora y fuerza tamano de papel
+        personalizado a DK-11204 (17mm x 54mm).
+        """
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            # Obtener DEVMODE actual
+            devmode = win32print.GetPrinter(handle, 2)["pDevMode"]
+
+            # Forzar tamano de papel personalizado
+            devmode.PaperSize = 256  # DMPAPER_USER (tamano personalizado)
+            devmode.PaperWidth = DK11204_WIDTH_DMM     # 17.0 mm en decimas de mm
+            devmode.PaperLength = DK11204_HEIGHT_DMM   # 54.0 mm en decimas de mm
+            devmode.Orientation = 1  # Portrait (la QL-800 alimenta por el lado corto)
+
+            # Marcar que hemos modificado estos campos
+            devmode.Fields |= (
+                0x00000002 |  # DM_PAPERSIZE
+                0x00000008 |  # DM_PAPERLENGTH
+                0x00000010 |  # DM_PAPERWIDTH
+                0x00000001    # DM_ORIENTATION
+            )
+
+            return devmode
+        finally:
+            win32print.ClosePrinter(handle)
+
+    # ------------------------------------------------------------------
     # Impresion
     # ------------------------------------------------------------------
     def print_image(self, pil_image, printer_name=None):
         """
-        Envia una imagen PIL directamente a la impresora via Win32 GDI.
-
-        Pasos:
-          1. Crea DC de la impresora.
-          2. Lee PHYSICALWIDTH / PHYSICALHEIGHT.
-          3. Rota imagen si es necesario para coincidir con la orientacion.
-          4. Dibuja la imagen como DIB al DC.
-          5. Finaliza el documento.
+        Envia una imagen PIL a la impresora via Win32 GDI.
+        Fuerza el tamano de papel a DK-11204 (17x54mm) mediante DEVMODE.
         """
         printer_name = printer_name or self.default_printer
 
         if not WIN32_AVAILABLE:
-            # Modo simulacion: guardar preview
             preview_path = os.path.join(
                 tempfile.gettempdir(), "brother_last_label.png"
             )
@@ -181,15 +208,32 @@ class PrinterService:
 
         hdc = None
         try:
+            # Intentar configurar DEVMODE con tamano DK-11204
+            devmode = None
+            try:
+                devmode = self._get_devmode_dk11204(printer_name)
+                log.info(
+                    "DEVMODE configurado: PaperSize=%s  Width=%s  Length=%s",
+                    devmode.PaperSize, devmode.PaperWidth, devmode.PaperLength,
+                )
+            except Exception as dm_err:
+                log.warning("No se pudo configurar DEVMODE: %s (usando defaults)", dm_err)
+
+            # Crear DC con DEVMODE personalizado
             hdc = win32ui.CreateDC()
-            hdc.CreatePrinterDC(printer_name)
+            if devmode:
+                hdc.CreatePrinterDC(printer_name)
+                # Aplicar DEVMODE al DC
+                try:
+                    hdc.ResetDC(devmode)
+                except Exception as reset_err:
+                    log.warning("ResetDC fallo: %s (continuando con defaults)", reset_err)
+            else:
+                hdc.CreatePrinterDC(printer_name)
 
             pw = hdc.GetDeviceCaps(win32con.PHYSICALWIDTH)
             ph = hdc.GetDeviceCaps(win32con.PHYSICALHEIGHT)
-            log.info(
-                "Printer DC: %s  physical=%dx%d px",
-                printer_name, pw, ph,
-            )
+            log.info("Printer DC: %s  physical=%dx%d px", printer_name, pw, ph)
 
             img_w, img_h = pil_image.size
             img_landscape = img_w > img_h
@@ -200,7 +244,6 @@ class PrinterService:
                 pil_image = pil_image.rotate(90, expand=True)
                 log.info("Imagen rotada 90 grados para ajustar orientacion")
 
-            # Asegurar modo RGB
             if pil_image.mode != "RGB":
                 pil_image = pil_image.convert("RGB")
 
@@ -219,7 +262,6 @@ class PrinterService:
         except Exception as exc:
             log.error("Error de impresion en '%s': %s", printer_name, exc)
 
-            # Traducir errores comunes a mensajes claros
             err = str(exc).lower()
             if "no existe" in err or "not found" in err or "invalidprinter" in err:
                 raise Exception(

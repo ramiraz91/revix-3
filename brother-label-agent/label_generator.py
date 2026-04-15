@@ -7,13 +7,9 @@ Resolucion Brother QL-800: 300 x 300 DPI
 Pixels:
   ancho  = 54 mm * 300 / 25.4 = 638 px
   alto   = 17 mm * 300 / 25.4 = 201 px
-
-La imagen se genera en orientacion landscape (638 x 201).
-El servicio de impresion rota si el driver lo requiere.
 """
 
 import os
-import sys
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
@@ -51,7 +47,6 @@ def _font(size, bold=False):
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
 
-    # Fallback: fuente por defecto de PIL
     try:
         return ImageFont.load_default(size=size)
     except TypeError:
@@ -96,7 +91,6 @@ class LabelGenerator:
         if bbox:
             img = img.crop(bbox)
 
-        # Escalar manteniendo proporcion, luego ajustar al area objetivo
         img = img.resize((target_w, target_h), Image.LANCZOS)
         return img
 
@@ -126,7 +120,7 @@ class LabelGenerator:
         return (canvas_w - tw) // 2
 
     # ------------------------------------------------------------------
-    # Plantilla OT
+    # Plantilla OT — DK-11204 (17x54mm)
     # ------------------------------------------------------------------
     def generate_ot_label(self, barcode_value, order_number, device_model):
         """
@@ -162,7 +156,7 @@ class LabelGenerator:
         return img
 
     # ------------------------------------------------------------------
-    # Plantilla Inventario
+    # Plantilla Inventario — DK-11204 (17x54mm)
     # ------------------------------------------------------------------
     def generate_inventory_label(self, barcode_value, product_name, price=""):
         """
@@ -202,17 +196,15 @@ class LabelGenerator:
         return img
 
     # ------------------------------------------------------------------
-    # Etiqueta de prueba
+    # Etiqueta de prueba — DK-11204
     # ------------------------------------------------------------------
     def generate_test_label(self):
-        """Genera etiqueta de prueba para verificar la impresora."""
+        """Genera etiqueta de prueba."""
         img = Image.new("RGB", (LABEL_W, LABEL_H), "white")
         draw = ImageDraw.Draw(img)
 
-        # Borde fino
         draw.rectangle([2, 2, LABEL_W - 3, LABEL_H - 3], outline="black", width=2)
 
-        # Texto centrado
         lines = [
             ("BROTHER QL-800", FONT_TEST, 30),
             ("DK-11204  |  17x54mm", FONT_MODEL, 65),
@@ -238,7 +230,7 @@ if __name__ == "__main__":
         device_model="Samsung Galaxy S24 Ultra 256GB",
     )
     ot.save("preview_ot_label.png")
-    print("Guardado: preview_ot_label.png")
+    print(f"Guardado: preview_ot_label.png ({ot.size[0]}x{ot.size[1]})")
 
     inv = gen.generate_inventory_label(
         barcode_value="PANT-IPHO-15PRO-ORI",
@@ -246,8 +238,8 @@ if __name__ == "__main__":
         price="189.00 EUR",
     )
     inv.save("preview_inv_label.png")
-    print("Guardado: preview_inv_label.png")
+    print(f"Guardado: preview_inv_label.png ({inv.size[0]}x{inv.size[1]})")
 
     test = gen.generate_test_label()
     test.save("preview_test_label.png")
-    print("Guardado: preview_test_label.png")
+    print(f"Guardado: preview_test_label.png ({test.size[0]}x{test.size[1]})")

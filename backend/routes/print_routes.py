@@ -38,10 +38,12 @@ AGENT_FILES = [
     "agent.py",
     "label_generator.py",
     "printer_service.py",
+    "service.py",
     "config.json",
     "requirements.txt",
     "install.bat",
     "start.bat",
+    "install-service.bat",
     "README.md",
 ]
 

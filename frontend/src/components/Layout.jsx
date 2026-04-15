@@ -34,7 +34,7 @@ import {
   FileText,
   History
 } from 'lucide-react';
-import { PackagePlus, Store } from 'lucide-react';
+import { PackagePlus, Store, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -332,6 +332,7 @@ export default function Layout() {
           {isAdmin() && (
             <SidebarGroup label="Herramientas Admin">
               <NavItem path="/agente-aria" icon={Bot} label="ARIA (IA)" badge="Nuevo" />
+              <NavItem path="/historial-impresion" icon={Printer} label="Impresión" />
             </SidebarGroup>
           )}
           

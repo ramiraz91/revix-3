@@ -74,6 +74,7 @@ import ISOModule from "@/pages/ISOModule";
 import PeticionesExteriores from "@/pages/PeticionesExteriores";
 import FAQsAdmin from "@/pages/FAQsAdmin";
 import AgentARIA from "@/pages/AgentARIA";
+import HistorialImpresion from "@/pages/HistorialImpresion";
 
 // Public website pages
 import PublicLayout from "@/components/public/PublicLayout";
@@ -177,6 +178,7 @@ function AppRoutes() {
       <Route path="/gls-config" element={<LegacyCRMRedirect />} />
       <Route path="/insurama" element={<LegacyCRMRedirect />} />
       <Route path="/agente-aria" element={<LegacyCRMRedirect />} />
+      <Route path="/historial-impresion" element={<LegacyCRMRedirect />} />
       <Route path="/buscar-siniestro" element={<LegacyCRMRedirect />} />
       <Route path="/peticiones-exteriores" element={<LegacyCRMRedirect />} />
       <Route path="/faqs-admin" element={<LegacyCRMRedirect />} />
@@ -340,6 +342,11 @@ function AppRoutes() {
         <Route path="agente-aria" element={
           <ProtectedRoute adminOnly>
             <AgentARIA />
+          </ProtectedRoute>
+        } />
+        <Route path="historial-impresion" element={
+          <ProtectedRoute adminOnly>
+            <HistorialImpresion />
           </ProtectedRoute>
         } />
         <Route path="liquidaciones" element={

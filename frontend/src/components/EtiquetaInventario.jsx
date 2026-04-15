@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Printer, X, Settings, Loader2, Package, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import api from '@/lib/api';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -112,48 +113,41 @@ export function EtiquetaInventario({ producto, onClose }) {
 
   const codigoBarras = producto?.sku || producto?.codigo_barras || producto?.id || 'SIN-SKU';
   const size = LABEL_SIZES[labelSize];
+  const API = process.env.REACT_APP_BACKEND_URL;
 
-  // Check Brother agent status
+  // Check Brother agent status via CRM backend
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:5555/health', { signal: AbortSignal.timeout(2000) });
-        const data = await res.json();
-        setBrotherOnline(data.ok && data.printerOnline);
+        const res = await api.get(`${API}/api/print/status`);
+        setBrotherOnline(res.data.agent_connected && res.data.printer_online);
       } catch { setBrotherOnline(false); }
     };
     check();
-  }, []);
+  }, [API]);
 
-  // Brother direct print
+  // Brother print via CRM backend (centralized)
   const handleBrotherPrint = async () => {
     setBrotherPrinting(true);
     try {
-      const res = await fetch('http://127.0.0.1:5555/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          printerName: 'Brother QL-800',
-          template: 'inventory_label',
-          jobId: `inv-${codigoBarras}`,
-          data: {
-            barcodeValue: codigoBarras,
-            productName: producto?.nombre || '',
-            price: producto?.precio_venta ? `${producto.precio_venta.toFixed(2)} EUR` : '',
-          },
-        }),
+      const res = await api.post(`${API}/api/print/send`, {
+        template: 'inventory_label',
+        data: {
+          barcodeValue: codigoBarras,
+          productName: producto?.nombre || '',
+          price: producto?.precio_venta ? `${producto.precio_venta.toFixed(2)} EUR` : '',
+        },
       });
-      const data = await res.json();
-      if (data.ok) {
+      if (res.data.ok) {
         const { toast } = await import('sonner');
-        toast.success('Etiqueta impresa en Brother QL-800');
+        toast.success('Etiqueta enviada a la impresora');
       } else {
         const { toast } = await import('sonner');
-        toast.error(data.error || 'Error al imprimir');
+        toast.error('Error al enviar el trabajo');
       }
     } catch {
       const { toast } = await import('sonner');
-      toast.error('No se pudo conectar con el agente Brother');
+      toast.error('Error de comunicacion con el servidor');
     } finally {
       setBrotherPrinting(false);
     }

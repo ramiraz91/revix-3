@@ -1,90 +1,112 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Printer, CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle, Wifi, WifiOff, Download } from 'lucide-react';
+import {
+  Printer, CheckCircle2, XCircle, Loader2, RefreshCw,
+  AlertTriangle, Wifi, WifiOff, Download, Clock, History,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
-const AGENT_URL = 'http://127.0.0.1:5555';
-const POLL_INTERVAL = 15000; // 15s
+const API = process.env.REACT_APP_BACKEND_URL;
+const POLL_STATUS = 12000; // 12s
 
 /**
- * BrotherPrintButton
+ * BrotherPrintButton — Impresion centralizada Brother QL-800.
  *
- * Componente de impresion directa Brother QL-800.
- * Se comunica con el agente local en localhost:5555.
+ * Flujo:
+ *   1. Frontend -> POST /api/print/send (backend CRM, JWT)
+ *   2. Backend guarda job en MongoDB (status: pending)
+ *   3. Agente del taller hace polling, imprime, reporta
+ *   4. Frontend consulta GET /api/print/status para estado
  *
- * Props:
- *   - orden: objeto de la orden de trabajo
- *   - mode: 'ot' | 'inventory'
- *   - inventoryData: { sku, nombre, precio } (solo si mode='inventory')
+ * Funciona desde CUALQUIER dispositivo con sesion activa.
  */
 export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
-  const [agentStatus, setAgentStatus] = useState('checking'); // 'checking' | 'online' | 'offline' | 'printer_error'
+  const [agentStatus, setAgentStatus] = useState('checking');
   const [printerName, setPrinterName] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
   const [printing, setPrinting] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [lastPrint, setLastPrint] = useState(null);
+  const [lastResult, setLastResult] = useState(null); // {ok, time, jobId}
+  const [jobPolling, setJobPolling] = useState(null); // job_id en espera
   const pollRef = useRef(null);
+  const jobPollRef = useRef(null);
 
-  // ------------------------------------------------------------------
-  // Health check
-  // ------------------------------------------------------------------
-  const checkHealth = useCallback(async () => {
+  // ── Check status via backend ────────────────────────────────────
+  const checkStatus = useCallback(async () => {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-
-      const res = await fetch(`${AGENT_URL}/health`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!res.ok) throw new Error('Agent error');
-
-      const data = await res.json();
-      setPrinterName(data.defaultPrinter || '');
-
-      if (data.ok && data.printerOnline) {
+      const res = await api.get(`${API}/api/print/status`);
+      const d = res.data;
+      setPrinterName(d.printer_name || '');
+      if (d.agent_connected && d.printer_online) {
         setAgentStatus('online');
-        setStatusMessage('');
-      } else if (data.ok && !data.printerOnline) {
+        setStatusMsg('');
+      } else if (d.agent_connected && !d.printer_online) {
         setAgentStatus('printer_error');
-        setStatusMessage(data.reason || 'Impresora no disponible');
+        setStatusMsg(d.reason || 'Impresora no disponible');
       } else {
         setAgentStatus('offline');
-        setStatusMessage(data.error || 'Error del agente');
+        setStatusMsg(d.message || 'Agente no conectado');
       }
     } catch {
       setAgentStatus('offline');
-      setStatusMessage('');
+      setStatusMsg('No se pudo consultar el estado');
     }
   }, []);
 
   useEffect(() => {
-    checkHealth();
-    pollRef.current = setInterval(checkHealth, POLL_INTERVAL);
+    checkStatus();
+    pollRef.current = setInterval(checkStatus, POLL_STATUS);
     return () => clearInterval(pollRef.current);
-  }, [checkHealth]);
+  }, [checkStatus]);
 
-  // ------------------------------------------------------------------
-  // Imprimir etiqueta
-  // ------------------------------------------------------------------
+  // ── Poll job result ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!jobPolling) return;
+    let attempts = 0;
+    const maxAttempts = 20; // 20 * 1.5s = 30s max
+
+    jobPollRef.current = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await api.get(`${API}/api/print/job/${jobPolling}`);
+        const job = res.data.job;
+        if (job.status === 'completed') {
+          clearInterval(jobPollRef.current);
+          setJobPolling(null);
+          setPrinting(false);
+          setLastResult({ ok: true, time: new Date().toLocaleTimeString('es-ES'), jobId: jobPolling });
+          toast.success('Etiqueta impresa correctamente');
+        } else if (job.status === 'error') {
+          clearInterval(jobPollRef.current);
+          setJobPolling(null);
+          setPrinting(false);
+          setLastResult({ ok: false, time: new Date().toLocaleTimeString('es-ES'), jobId: jobPolling });
+          toast.error(job.error_message || 'Error al imprimir');
+        }
+      } catch { /* keep polling */ }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(jobPollRef.current);
+        setJobPolling(null);
+        setPrinting(false);
+        toast.warning('La impresion esta en cola. Se procesara cuando el agente responda.');
+      }
+    }, 1500);
+
+    return () => clearInterval(jobPollRef.current);
+  }, [jobPolling]);
+
+  // ── Send print job ──────────────────────────────────────────────
   const handlePrint = async () => {
-    if (agentStatus !== 'online') {
-      toast.error('El agente de impresion no esta conectado');
-      return;
-    }
-
     setPrinting(true);
+    setLastResult(null);
+
     try {
       let payload;
-
       if (mode === 'inventory' && inventoryData) {
         payload = {
-          printerName,
           template: 'inventory_label',
-          jobId: `inv-${inventoryData.sku || 'x'}`,
           data: {
             barcodeValue: inventoryData.sku || inventoryData.id || 'SIN-SKU',
             productName: inventoryData.nombre || '',
@@ -93,9 +115,7 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
         };
       } else {
         payload = {
-          printerName,
           template: 'ot_barcode_minimal',
-          jobId: `ot-${orden?.numero_orden || 'x'}`,
           data: {
             orderId: orden?.id || '',
             orderNumber: orden?.numero_orden || '',
@@ -105,63 +125,55 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
         };
       }
 
-      const res = await fetch(`${AGENT_URL}/print`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await api.post(`${API}/api/print/send`, payload);
+      const d = res.data;
 
-      const data = await res.json();
-
-      if (data.ok && data.printed) {
-        setLastPrint(new Date().toLocaleTimeString('es-ES'));
-        toast.success('Etiqueta impresa correctamente');
+      if (d.ok) {
+        toast.info('Trabajo enviado a la impresora...');
+        setJobPolling(d.job_id);
       } else {
-        toast.error(data.error || 'Error al imprimir');
+        setPrinting(false);
+        toast.error('Error al enviar el trabajo');
       }
     } catch (err) {
-      toast.error('No se pudo conectar con el agente de impresion');
-    } finally {
       setPrinting(false);
+      const msg = err?.response?.data?.detail || 'Error de comunicacion con el servidor';
+      toast.error(msg);
     }
   };
 
-  // ------------------------------------------------------------------
-  // Prueba de impresion
-  // ------------------------------------------------------------------
+  // ── Test print ──────────────────────────────────────────────────
   const handleTestPrint = async () => {
-    setTesting(true);
     try {
-      const res = await fetch(`${AGENT_URL}/test-print`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerName }),
+      const res = await api.post(`${API}/api/print/send`, {
+        template: 'ot_barcode_minimal',
+        data: {
+          barcodeValue: 'TEST-BROTHER-QL800',
+          orderNumber: 'OT-TEST-001',
+          deviceModel: 'Test Label - Brother QL-800',
+        },
       });
-
-      const data = await res.json();
-      if (data.ok && data.printed) {
-        toast.success('Etiqueta de prueba impresa');
-      } else {
-        toast.error(data.error || 'Error en la prueba');
+      if (res.data.ok) {
+        toast.info('Prueba enviada a la impresora');
       }
     } catch {
-      toast.error('No se pudo conectar con el agente');
-    } finally {
-      setTesting(false);
+      toast.error('Error al enviar prueba');
     }
   };
 
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
-  const statusConfig = {
-    checking: { icon: Loader2, color: 'text-slate-400', bg: 'bg-slate-50', label: 'Verificando agente...', spin: true },
-    online:   { icon: Wifi, color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Impresora conectada', spin: false },
-    offline:  { icon: WifiOff, color: 'text-red-500', bg: 'bg-red-50', label: 'Agente no detectado', spin: false },
-    printer_error: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', label: 'Error de impresora', spin: false },
+  // ── Download agent ──────────────────────────────────────────────
+  const handleDownload = () => {
+    window.open(`${API}/api/print/agent/download`, '_blank');
   };
 
-  const cfg = statusConfig[agentStatus];
+  // ── Render ──────────────────────────────────────────────────────
+  const cfg = {
+    checking:      { icon: Loader2,        color: 'text-slate-400',   bg: 'bg-slate-50',   label: 'Verificando agente...', spin: true },
+    online:        { icon: Wifi,           color: 'text-emerald-600', bg: 'bg-emerald-50',  label: 'Impresora conectada',   spin: false },
+    offline:       { icon: WifiOff,        color: 'text-red-500',     bg: 'bg-red-50',      label: 'Agente no conectado',   spin: false },
+    printer_error: { icon: AlertTriangle,  color: 'text-amber-600',   bg: 'bg-amber-50',    label: 'Error de impresora',    spin: false },
+  }[agentStatus];
+
   const StatusIcon = cfg.icon;
   const canPrint = agentStatus === 'online';
 
@@ -174,7 +186,7 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
             Impresion Directa
           </span>
           <button
-            onClick={checkHealth}
+            onClick={checkStatus}
             className="p-1 rounded hover:bg-slate-100 transition-colors"
             title="Actualizar estado"
             data-testid="brother-refresh-status"
@@ -187,27 +199,38 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
       <CardContent className="space-y-3">
         {/* Estado */}
         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${cfg.bg}`} data-testid="brother-status">
-          <StatusIcon className={`w-4 h-4 ${cfg.color} ${cfg.spin ? 'animate-spin' : ''}`} />
+          <StatusIcon className={`w-4 h-4 flex-shrink-0 ${cfg.color} ${cfg.spin ? 'animate-spin' : ''}`} />
           <div className="flex-1 min-w-0">
             <p className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</p>
             {agentStatus === 'online' && printerName && (
               <p className="text-[10px] text-muted-foreground truncate">{printerName} &middot; DK-11204</p>
             )}
-            {statusMessage && agentStatus !== 'online' && (
-              <p className="text-[10px] text-muted-foreground truncate">{statusMessage}</p>
+            {statusMsg && agentStatus !== 'online' && (
+              <p className="text-[10px] text-muted-foreground truncate">{statusMsg}</p>
             )}
           </div>
         </div>
 
-        {/* Agente offline: instrucciones */}
+        {/* Instrucciones offline + descarga */}
         {agentStatus === 'offline' && (
-          <div className="text-[11px] text-muted-foreground space-y-1 px-1">
-            <p>El agente local no responde en <code className="text-xs bg-slate-100 px-1 rounded">127.0.0.1:5555</code></p>
-            <p>Ejecute <strong>start.bat</strong> en el PC del taller.</p>
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground px-1">
+              Instale y ejecute el agente en el PC del taller donde esta la Brother QL-800.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={handleDownload}
+              data-testid="brother-download-btn"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Descargar Agente de Impresion
+            </Button>
           </div>
         )}
 
-        {/* Botones */}
+        {/* Botones de impresion */}
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -232,25 +255,29 @@ export function BrotherPrintButton({ orden, mode = 'ot', inventoryData }) {
             size="sm"
             variant="outline"
             onClick={handleTestPrint}
-            disabled={!canPrint || testing}
-            title="Imprimir etiqueta de prueba"
+            disabled={!canPrint}
+            title="Enviar etiqueta de prueba"
             data-testid="brother-test-btn"
           >
-            {testing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
+            <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
 
-        {/* Ultimo trabajo */}
-        {lastPrint && (
-          <div className="flex items-center gap-1.5 text-[10px] text-emerald-600" data-testid="brother-last-print">
-            <CheckCircle2 className="w-3 h-3" />
-            Ultima impresion: {lastPrint}
+        {/* Resultado ultima impresion */}
+        {lastResult && (
+          <div
+            className={`flex items-center gap-1.5 text-[10px] ${lastResult.ok ? 'text-emerald-600' : 'text-red-500'}`}
+            data-testid="brother-last-print"
+          >
+            {lastResult.ok ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+            {lastResult.ok ? 'Impresa' : 'Error'} a las {lastResult.time}
           </div>
         )}
+
+        {/* Info */}
+        <p className="text-[10px] text-muted-foreground text-center">
+          Accesible desde cualquier sesion del CRM
+        </p>
       </CardContent>
     </Card>
   );

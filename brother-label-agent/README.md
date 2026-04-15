@@ -1,10 +1,33 @@
-# Brother Label Agent v1.0.0
+# Brother Label Agent v2.0.0 — Centralizado
 
-Agente local de impresion directa para **Brother QL-800** con etiquetas **DK-11204** (17mm x 54mm).
+Agente de impresion para **Brother QL-800** con etiquetas **DK-11204** (17mm x 54mm).
+
+Arquitectura centralizada: la impresora del taller recibe trabajos de cualquier sesion del CRM.
 
 ---
 
-## Requisitos del PC
+## Como funciona
+
+```
+  PC/Movil (CRM Revix)        Servidor CRM (nube)           PC Taller (Agente)
+  +-----------------+         +------------------+          +------------------+
+  | Boton "Imprimir"|--HTTP-->| POST /print/send |          |                  |
+  |                 |         |   (MongoDB cola)  |<--poll---| agent.py         |
+  |                 |         |                  |          |   genera imagen  |
+  |                 |         | job: completed   |<--report-|   imprime QL-800 |
+  |  "Impresa OK"  |<--poll--|                  |          |                  |
+  +-----------------+         +------------------+          +------------------+
+```
+
+1. El usuario pulsa "Imprimir Etiqueta" en el CRM (desde cualquier PC o movil)
+2. El CRM guarda el trabajo en MongoDB (status: pending)
+3. El agente del taller consulta cada 3 segundos si hay trabajos pendientes
+4. El agente genera la etiqueta, la imprime y reporta el resultado
+5. El CRM muestra "Impresa correctamente" al usuario
+
+---
+
+## Requisitos del PC del taller
 
 | Componente | Detalle |
 |---|---|
@@ -12,119 +35,98 @@ Agente local de impresion directa para **Brother QL-800** con etiquetas **DK-112
 | Python | 3.10 o superior |
 | Impresora | Brother QL-800 conectada por USB |
 | Driver | Driver oficial Brother QL-800 instalado |
-| Etiquetas | DK-11204 (17 x 54 mm) cargadas en la impresora |
+| Etiquetas | DK-11204 (17 x 54 mm) cargadas |
+| Internet | Conexion a internet (para comunicar con el CRM) |
 
 ---
 
 ## Instalacion
 
-### 1. Descargar el agente
+### 1. Descargar
 
-Desde el CRM, acceda a **Herramientas Admin > Descarga Agente de Impresion** o descargue el ZIP desde la seccion correspondiente.
+Desde el CRM: en cualquier orden de trabajo, el panel "Impresion Directa" muestra un boton **Descargar Agente** si el agente no esta conectado.
 
-Descomprima el contenido en una carpeta, por ejemplo:
+O descargue el ZIP desde el menu del CRM.
 
-```
-C:\RevixAgent\
-```
+Descomprima en una carpeta, por ejemplo: `C:\RevixAgent\`
 
-### 2. Instalar dependencias
+### 2. Configurar
 
-Haga doble clic en **`install.bat`** o ejecute en terminal:
-
-```cmd
-cd C:\RevixAgent
-install.bat
-```
-
-Esto creara un entorno virtual de Python e instalara:
-- Flask (servidor HTTP local)
-- Pillow (generacion de imagenes)
-- python-barcode (Code128)
-- pywin32 (impresion via Windows GDI)
-
-### 3. Verificar la impresora
-
-Antes de iniciar el agente, compruebe que:
-
-1. La Brother QL-800 esta **encendida y conectada por USB**.
-2. Las etiquetas **DK-11204** estan correctamente cargadas.
-3. En **Panel de control > Dispositivos e impresoras**, aparece "Brother QL-800".
-
----
-
-## Uso diario
-
-### Iniciar el agente
-
-Haga doble clic en **`start.bat`**.
-
-Vera en la consola:
-
-```
-Brother Label Agent v1.0.0
-Puerto: 5555
-Impresora por defecto: Brother QL-800
-Formato de etiqueta: DK-11204 (17mm x 54mm)
-```
-
-### Dejar el agente abierto
-
-Minimice la ventana de consola. El agente debe permanecer ejecutandose mientras use el CRM para imprimir etiquetas.
-
-### Detener el agente
-
-Pulse **Ctrl+C** en la ventana de consola o simplemente cierrela.
-
----
-
-## Configuracion
-
-Edite el archivo **`config.json`**:
+Edite **`config.json`**:
 
 ```json
 {
     "port": 5555,
     "default_printer": "Brother QL-800",
     "label_format": "DK-11204",
-    "label_width_mm": 54,
-    "label_height_mm": 17
+
+    "crm_url": "https://SU-DOMINIO-CRM.com",
+    "agent_key": "revix-brother-agent-2026-key",
+    "agent_id": "taller-principal",
+    "poll_interval": 3,
+    "heartbeat_interval": 10
 }
 ```
 
 | Campo | Descripcion |
 |---|---|
-| `port` | Puerto HTTP local (por defecto 5555) |
+| `crm_url` | URL completa del CRM (sin barra final). Ejemplo: `https://revix.es` |
+| `agent_key` | Clave compartida con el servidor CRM. Debe coincidir exactamente. |
+| `agent_id` | Identificador de este puesto de impresion |
 | `default_printer` | Nombre exacto de la impresora en Windows |
+| `poll_interval` | Segundos entre consultas al CRM (por defecto 3) |
+| `heartbeat_interval` | Segundos entre envios de estado (por defecto 10) |
 
-> **Importante**: El nombre de la impresora debe coincidir **exactamente** con el que aparece en Panel de control > Dispositivos e impresoras.
+### 3. Instalar dependencias
+
+Doble clic en **`install.bat`** o:
+
+```cmd
+cd C:\RevixAgent
+install.bat
+```
+
+### 4. Iniciar
+
+Doble clic en **`start.bat`**. Vera:
+
+```
+Brother Label Agent v2.0.0 — Centralizado
+Impresora: Brother QL-800
+Formato:   DK-11204 (17mm x 54mm)
+CRM URL:   https://su-dominio.com
+Agent ID:  taller-principal
+Polling activo -> https://su-dominio.com (cada 3s)
+Heartbeat activo (cada 10s)
+```
+
+Minimice la ventana y deje el agente ejecutandose.
 
 ---
 
-## Endpoints del agente
+## Verificacion
 
-| Metodo | Ruta | Descripcion |
-|---|---|---|
-| GET | `/health` | Estado del agente y la impresora |
-| GET | `/printers` | Lista de impresoras instaladas |
-| POST | `/print` | Imprimir una etiqueta |
-| POST | `/test-print` | Imprimir etiqueta de prueba |
+1. Abra el CRM desde cualquier dispositivo
+2. Entre en una orden de trabajo
+3. El panel "Impresion Directa" debe mostrar: **Impresora conectada** (verde)
+4. Pulse **Imprimir Etiqueta**
+5. La etiqueta debe salir por la Brother QL-800 del taller
 
-### Ejemplo: Imprimir etiqueta OT
+---
 
-```bash
-curl -X POST http://127.0.0.1:5555/print ^
-  -H "Content-Type: application/json" ^
-  -d "{\"printerName\":\"Brother QL-800\",\"template\":\"ot_barcode_minimal\",\"jobId\":\"ot-001\",\"data\":{\"orderId\":\"abc123\",\"orderNumber\":\"OT-000482\",\"barcodeValue\":\"abc123\",\"deviceModel\":\"Samsung Galaxy S24\"}}"
-```
+## Seguridad
 
-### Ejemplo: Imprimir etiqueta de inventario
+- El agente se autentica con `agent_key` en cada peticion
+- Solo usuarios autenticados en el CRM pueden enviar trabajos de impresion
+- Cada impresion queda registrada en MongoDB: usuario, fecha, hora, resultado
+- El agente solo procesa trabajos del servidor CRM configurado
 
-```bash
-curl -X POST http://127.0.0.1:5555/print ^
-  -H "Content-Type: application/json" ^
-  -d "{\"printerName\":\"Brother QL-800\",\"template\":\"inventory_label\",\"jobId\":\"inv-001\",\"data\":{\"barcodeValue\":\"SKU-12345\",\"productName\":\"Pantalla iPhone 15 Pro\",\"price\":\"189.00 EUR\"}}"
-```
+---
+
+## Inicio automatico con Windows
+
+1. Pulse `Win + R`, escriba `shell:startup`, Enter
+2. Copie un acceso directo de `start.bat` en esa carpeta
 
 ---
 
@@ -132,52 +134,10 @@ curl -X POST http://127.0.0.1:5555/print ^
 
 | Problema | Solucion |
 |---|---|
-| "Impresora no encontrada" | Verifique que la QL-800 esta encendida y conectada. El nombre en `config.json` debe coincidir exactamente con Windows. |
-| "Error del spooler" | Reinicie el servicio "Cola de impresion" en Windows (`services.msc`). |
-| "pywin32 no disponible" | Ejecute `pip install pywin32` en el entorno virtual. |
-| Etiqueta sale cortada | Verifique que las DK-11204 estan bien colocadas y el sensor detecta las etiquetas. |
-| El CRM dice "Agente no detectado" | Asegurese de que `start.bat` esta ejecutandose. Compruebe que el puerto 5555 no esta bloqueado por firewall. |
-| Barcode no se escanea bien | Limpie el cabezal de la QL-800. Verifique que la cinta DK-11204 no esta agotada. |
+| CRM dice "Agente no conectado" | Verifique que `start.bat` esta ejecutandose y que `crm_url` y `agent_key` son correctos en `config.json` |
+| "Agent key rechazada" | La clave en `config.json` no coincide con la del servidor CRM |
+| Impresora no encontrada | Verifique que la QL-800 esta encendida y el nombre coincide en `config.json` |
+| Error del spooler | Reinicie "Cola de impresion" en `services.msc` |
+| Etiqueta sale cortada | Verifique DK-11204 bien colocadas |
 
----
-
-## Logs
-
-El agente escribe logs en **`agent.log`** en el mismo directorio. Revise este archivo si hay errores.
-
----
-
-## Inicio automatico con Windows (opcional)
-
-Para que el agente arranque automaticamente al encender el PC:
-
-1. Pulse `Win + R`, escriba `shell:startup`, pulse Enter.
-2. Copie un acceso directo de `start.bat` en la carpeta que se abrio.
-
----
-
-## Arquitectura tecnica
-
-```
-PC Windows (taller)
-+-------------------------------------------+
-|  Brother Label Agent (Flask, puerto 5555) |
-|    |                                       |
-|    +-> label_generator.py                 |
-|    |     Pillow + python-barcode          |
-|    |     DK-11204: 638x201 px @ 300 DPI   |
-|    |                                       |
-|    +-> printer_service.py                 |
-|         Win32 GDI (pywin32)               |
-|         -> Brother QL-800 (USB)           |
-+-------------------------------------------+
-         ^
-         | HTTP localhost:5555
-         |
-+-------------------------------------------+
-|  Navegador: CRM Revix                     |
-|    fetch("http://127.0.0.1:5555/print")   |
-+-------------------------------------------+
-```
-
-No hay comunicacion con el servidor del CRM para la impresion. El navegador se comunica directamente con el agente local.
+Logs detallados en **`agent.log`**.

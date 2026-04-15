@@ -6,4 +6,7 @@
 
 ## Técnico
 - Email: tecnico@techrepair.local
-- Password: (set during seed, check backend seed script)
+
+## Brother Print Agent
+- Agent Key: revix-brother-agent-2026-key
+- Agent ID: taller-principal (configurable)

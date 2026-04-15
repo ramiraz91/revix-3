@@ -1,129 +1,84 @@
 # Revix CRM/ERP - Product Requirements Document
 
 ## Original Problem Statement
-Sistema CRM/ERP para taller de reparacion de telefonia movil (Revix.es). Incluye gestion de ordenes de trabajo, clientes, inventario, facturacion, integracion con aseguradoras (Insurama/Sumbroker), logistica (GLS), y portal publico de seguimiento.
-
-## User Personas
-- **Master/Admin**: Gestion completa del sistema, analiticas, configuracion
-- **Tecnicos**: Gestion de ordenes, reparaciones, inventario
-- **Clientes publicos**: Seguimiento de reparaciones, solicitud de presupuestos
-
-## Core Requirements
-- Conexion EXCLUSIVA a MongoDB Atlas (`revix.d7soggd.mongodb.net`, base de datos: `production`)
-- Autenticacion JWT segura con bloqueo temporal por intentos fallidos
-- Integracion con portal de aseguradoras (Sumbroker API)
-- Sistema de logistica con GLS
-- Portal publico de seguimiento de reparaciones
-- Sistema de emails transaccionales (Resend)
-- Almacenamiento de imagenes en Cloudinary
-- Impresion directa de etiquetas Brother QL-800 via agente local
+Sistema CRM/ERP para taller de reparacion de telefonia movil (Revix.es). Incluye gestion de ordenes, clientes, inventario, facturacion, integracion con aseguradoras (Insurama/Sumbroker), logistica (GLS), portal publico de seguimiento, e impresion centralizada de etiquetas Brother QL-800.
 
 ## Tech Stack
 - **Frontend**: React 18, Tailwind CSS, Shadcn/UI, Framer Motion, JsBarcode
 - **Backend**: FastAPI, Motor (async MongoDB), BeautifulSoup4
 - **Database**: MongoDB Atlas (production)
-- **Storage**: Cloudinary (imagenes)
+- **Storage**: Cloudinary
 - **Email**: Resend
 - **Logistics**: GLS API
-- **AI/LLM**: Gemini 2.5 Flash (via Emergent LLM Key)
-- **Label Printing**: Agente local Windows (Flask + Pillow + python-barcode + pywin32)
+- **AI/LLM**: Gemini 2.5 Flash (Emergent LLM Key)
+- **Label Printing**: Agente local Windows (Flask + Pillow + python-barcode + pywin32) con cola MongoDB
 
 ---
 
 ## What's Been Implemented (Latest First)
 
-### 2026-04-15 - Agente Local Brother QL-800 + Impresion Directa DK-11204
-- **Agente local Windows** (`/app/brother-label-agent/`): Servidor Flask en `localhost:5555` para impresion directa
-  - Endpoints: GET /health, GET /printers, POST /print, POST /test-print
-  - Generacion de etiquetas DK-11204 (17x54mm) a 300 DPI (638x201 px)
-  - Impresion via Win32 GDI (pywin32) — sin depender del navegador
-  - Auto-rotacion de imagen segun orientacion del driver
-  - Deteccion de estado de impresora (online/offline/error spooler)
-  - Plantilla OT: Code128 barcode + numero OT + modelo dispositivo
-  - Plantilla Inventario: Code128 barcode SKU + nombre producto + precio
-  - Plantilla Test: Verificacion de impresora con borde y texto
-  - Scripts: install.bat, start.bat, config.json
-  - README.md con instrucciones completas de instalacion
-- **Frontend CRM**:
-  - Nuevo componente `BrotherPrintButton.jsx` con health check periodico (15s)
-  - Integrado en `OrdenDetalle.jsx` (columna derecha, debajo del barcode)
-  - Boton "Imprimir Etiqueta" directo (1 clic, sin dialogo del navegador)
-  - Boton "Probar Impresora" secundario
-  - Estado visible: conectado (verde), no detectado (rojo), error impresora (amarillo)
-  - Instrucciones cuando el agente no esta corriendo
-  - Integracion Brother en `EtiquetaInventario.jsx` como opcion principal
-- **Backend CRM**:
-  - `GET /api/print/agent/status`: Info del agente disponible
-  - `GET /api/print/agent/download`: Descarga del agente como ZIP (8 archivos)
-- **Justificacion tecnica**: Win32 GDI + Pillow en lugar de b-PAC porque:
-  - 0 dependencias adicionales vs P-touch Editor + SDK + COM
-  - Misma calidad 300 DPI
-  - Mas fiable (Windows API estandar vs COM automation)
-  - Mas facil de desplegar y depurar
-- **Testing**: 100% (iteration_13.json) - Backend + Frontend verificados
-- **Files**: `BrotherPrintButton.jsx`, `EtiquetaInventario.jsx`, `OrdenDetalle.jsx`, `print_routes.py`, `server.py`, `brother-label-agent/*`
+### 2026-04-15 - Sistema Centralizado de Impresion Brother QL-800
+- **Arquitectura**: Cola de impresion en MongoDB. Cualquier sesion del CRM envia trabajos al backend; agente del taller hace polling y imprime.
+- **Backend endpoints**:
+  - `POST /api/print/send` — Crea job en cola (JWT auth, registra usuario)
+  - `GET /api/print/status` — Estado agente/impresora (JWT auth)
+  - `GET /api/print/jobs` — Historial de impresiones (JWT auth)
+  - `GET /api/print/job/{id}` — Estado de un job concreto (JWT auth)
+  - `GET /api/print/pending` — Agente consulta trabajos pendientes (agent_key)
+  - `POST /api/print/complete` — Agente reporta resultado (X-Agent-Key)
+  - `POST /api/print/heartbeat` — Agente envia estado periodico (X-Agent-Key)
+  - `GET /api/print/agent/download` — Descarga ZIP del agente
+- **MongoDB colecciones**: `print_jobs` (cola), `print_agents` (heartbeat)
+- **Agente v2.0.0**: Polling cada 3s + heartbeat cada 10s + servidor HTTP local fallback
+- **Frontend**: BrotherPrintButton con estado en tiempo real, boton descarga, job polling
+- **Seguridad**: JWT para frontend, agent_key para agente, registro completo en MongoDB
+- **Sin dependencia de localhost**: funciona desde cualquier dispositivo con sesion CRM
+- **Testing**: 100% (iteration_14.json) — 21 backend + 13 frontend
 
 ### 2026-04-15 - Migracion QR a Codigos de Barras Code128
-- Reemplazo completo de react-qr-code por jsbarcode en todo el CRM
-- OrdenDetalle, OrdenTecnico, OrdenPDF actualizados con componente Barcode
-- Nuevo componente EtiquetaInventario con vista previa y selector de tamano
-- Inventario: printLabels actualizado de SVG falso a JsBarcode real
+- Reemplazo completo react-qr-code por jsbarcode
+- Nuevo EtiquetaInventario con vista previa
 - Testing: 100% (iteration_12.json)
 
 ### 2026-04-13 - Multiples Mejoras y Correcciones
-- Boton Refrescar Datos Insurama
-- Fix doble /crm/crm/
-- Metricas Dashboard corregidas (80 ordenes vs 56)
-- QC Checklist en PDF con trazabilidad baterias
-- Flujo de garantias (GarantiaModal + "Garantia no procede")
-- Paginacion en Contabilidad y Presupuestos Insurama
-- Eliminacion branding Emergent
-- IA diagnosticos solo texto tecnico
-- Fix pantalla blanca mensajes tecnico
+- Refrescar datos Insurama, fix /crm/crm, metricas corregidas
+- QC Checklist PDF, flujo garantias, paginacion, branding eliminado
+- IA diagnosticos, fix pantalla blanca, paginacion Contabilidad/Insurama
 
 ---
 
 ## Prioritized Backlog
 
-### P0 - Critico
-- (Todos resueltos)
+### P1
+- [ ] Sistema solicitud cambio de estado (Admin -> Master)
 
-### P1 - Alto
-- [ ] Sistema de solicitud de cambio de estado (Admin -> Master)
+### P2
+- [ ] Google Business Profile + Gemini Flash
+- [ ] Flujo gestion de incidencias
+- [ ] Acortar SKUs inventario
 
-### P2 - Medio
-- [ ] Google Business Profile + Gemini Flash integration
-- [ ] Flujo de gestion de incidencias
-- [ ] Acortar SKUs generados en inventario
-
-### P3 - Bajo
-- [ ] Refactorizar server.py (mover rutas a routers especificos)
+### P3
+- [ ] Refactorizar server.py
 
 ---
 
 ## Key Files
-- `/app/brother-label-agent/` - Agente local de impresion completo
-- `/app/frontend/src/components/BrotherPrintButton.jsx` - Boton impresion directa
-- `/app/frontend/src/components/Barcode.jsx` - Componente barcode reutilizable
-- `/app/frontend/src/components/EtiquetaOrden.jsx` - Etiqueta orden (web fallback)
-- `/app/frontend/src/components/EtiquetaInventario.jsx` - Etiqueta inventario
-- `/app/frontend/src/components/OrdenPDF.jsx` - PDF de orden
-- `/app/backend/routes/print_routes.py` - Endpoints descarga agente
+- `/app/backend/routes/print_routes.py` — Cola centralizada de impresion
+- `/app/brother-label-agent/` — Agente Windows completo (8 archivos)
+- `/app/frontend/src/components/BrotherPrintButton.jsx` — Boton impresion directa
+- `/app/frontend/src/components/EtiquetaInventario.jsx` — Etiqueta inventario con Brother
 
-## Credentials (Test)
+## Credentials
 - `master@revix.es` / `RevixMaster2026!`
+- Agent key: `revix-brother-agent-2026-key`
 
 ## Critical Notes
-- **NO modificar conexion a base de datos** - Forzado a Atlas
-- **Agente Brother**: Solo funciona en Windows con pywin32. En el servidor Linux funciona en modo simulacion.
-- **DK-11204**: Todo el sistema de etiquetas esta configurado para 17x54mm. No usar otros tamanos.
-- **Puerto 5555**: El agente local escucha en 127.0.0.1:5555. CORS habilitado para cualquier origen.
+- **Base de datos**: Solo MongoDB Atlas (revix.d7soggd.mongodb.net/production)
+- **DK-11204**: 17x54mm, 638x201px @300 DPI
+- **Agent key**: Debe coincidir en backend .env y agent config.json
+- **Heartbeat**: 30s timeout — agente se marca offline si no envia heartbeat
 
 ## 3rd Party Integrations
 - Emergent LLM Key (Gemini 2.5 Flash)
-- Cloudinary (imagenes)
-- Resend (emails)
-- GLS (logistica)
-- Sumbroker API (aseguradoras)
-- JsBarcode (codigos de barras Code128)
-- python-barcode + Pillow + pywin32 (agente local Brother)
+- Cloudinary, Resend, GLS, Sumbroker API
+- JsBarcode, python-barcode + Pillow + pywin32 (agente Brother)

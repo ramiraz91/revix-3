@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, MoreVertical, Edit, Trash2, Package, AlertTriangle, Filter, Printer, Check, ChevronLeft, ChevronRight, ArrowLeftRight, Tag, Image, Grid, List, ExternalLink, Layers, GitBranch } from 'lucide-react';
+import JsBarcode from 'jsbarcode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import { toast } from 'sonner';
 import CalidadPantallaBadge, { CalidadPantallaSelector } from '@/components/CalidadPantallaBadge';
 import KitsManager from '@/components/KitsManager';
 import ProductoVariantes from '@/components/ProductoVariantes';
+import { EtiquetaInventario } from '@/components/EtiquetaInventario';
 
 const PAGE_SIZE = 50;
 
@@ -87,6 +89,7 @@ export default function Inventario() {
   const [formData, setFormData] = useState(emptyRepuesto);
   const [selectedIds, setSelectedIds] = useState([]);
   const [labelQty, setLabelQty] = useState(1);
+  const [etiquetaProducto, setEtiquetaProducto] = useState(null);
   
   // Vista tipo tienda (grid con imágenes) vs tabla
   const [viewMode, setViewMode] = useState('table');  // 'table' | 'grid'
@@ -359,46 +362,34 @@ export default function Inventario() {
       return;
     }
 
-    // Función para generar código de barras Code128-like simplificado
-    const generateBarcodeSVG = (text) => {
-      let bars = '';
-      const barWidth = 1.5;
-      let x = 0;
-      
-      // Start pattern
-      bars += '<rect x="' + x + '" y="0" width="2" height="100%" fill="black"/>';
-      x += 4;
-      
-      for (let i = 0; i < text.length; i++) {
-        const charCode = text.charCodeAt(i);
-        const pattern = [
-          (charCode & 1) ? 2 : 1,
-          (charCode & 2) ? 1 : 2,
-          (charCode & 4) ? 2 : 1,
-          (charCode & 8) ? 1 : 2,
-        ];
-        
-        pattern.forEach((w, j) => {
-          if (j % 2 === 0) {
-            bars += '<rect x="' + x + '" y="0" width="' + (w * barWidth) + '" height="100%" fill="black"/>';
-          }
-          x += w * barWidth + 1;
+    // Generar código de barras Code128 real con JsBarcode → canvas → base64
+    const generateBarcodeDataURL = (text) => {
+      try {
+        const canvas = document.createElement('canvas');
+        JsBarcode(canvas, text, {
+          format: 'CODE128',
+          width: 1.5,
+          height: 40,
+          displayValue: false,
+          margin: 2,
+          background: '#ffffff',
+          lineColor: '#000000',
         });
-        x += 2;
+        return canvas.toDataURL('image/png');
+      } catch (e) {
+        console.error('Error generating barcode:', e);
+        return null;
       }
-      
-      bars += '<rect x="' + x + '" y="0" width="2" height="100%" fill="black"/>';
-      return bars;
     };
 
     const etiquetas = [];
     productos.forEach(producto => {
       const codigo = producto.sku || producto.id || 'SIN-SKU';
-      const precio = producto.precio_venta ? producto.precio_venta.toFixed(2) + '€' : '';
+      const precio = producto.precio_venta ? producto.precio_venta.toFixed(2) + '\u20AC' : '';
+      const barcodeUrl = generateBarcodeDataURL(codigo);
       for (let i = 0; i < cantidadPorProducto; i++) {
         const nombreCorto = (producto.nombre || '').substring(0, 50);
         const precioHtml = precio ? '<div class="precio">' + precio + '</div>' : '';
-        const barcodeHtml = generateBarcodeSVG(codigo);
         
         etiquetas.push(
           '<div class="etiqueta">' +
@@ -407,7 +398,7 @@ export default function Inventario() {
               precioHtml +
             '</div>' +
             '<div class="barcode-section">' +
-              '<svg class="barcode" viewBox="0 0 150 50">' + barcodeHtml + '</svg>' +
+              (barcodeUrl ? '<img class="barcode" src="' + barcodeUrl + '" alt="barcode" />' : '') +
               '<div class="codigo">' + codigo + '</div>' +
             '</div>' +
           '</div>'
@@ -440,8 +431,8 @@ export default function Inventario() {
           '.precio { font-size: 14px; font-weight: bold; color: #000; margin-top: 4px; }' +
           '@media print { .precio { font-size: 10pt; margin-top: 1mm; } }' +
           '.barcode-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }' +
-          '.barcode { width: 100%; height: 50px; max-width: 180px; }' +
-          '@media print { .barcode { height: 15mm; max-width: 50mm; } }' +
+          '.barcode { width: 100%; height: auto; max-width: 180px; }' +
+          '@media print { .barcode { max-width: 50mm; } }' +
           '.codigo { font-size: 10px; font-weight: bold; font-family: Courier New, Courier, monospace; letter-spacing: 1px; margin-top: 2px; text-align: center; }' +
           '@media print { .codigo { font-size: 7pt; margin-top: 0.5mm; } }' +
           '.instrucciones { padding: 20px; background: #f8f9fa; border-top: 1px solid #ddd; font-size: 13px; color: #666; }' +
@@ -1062,7 +1053,7 @@ export default function Inventario() {
                                   Cambiar Calidad
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem onClick={() => handlePrintSingleLabel(repuesto)}>
+                              <DropdownMenuItem onClick={() => setEtiquetaProducto(repuesto)}>
                                 <Printer className="w-4 h-4 mr-2" />
                                 Imprimir Etiqueta
                               </DropdownMenuItem>
@@ -1316,6 +1307,14 @@ export default function Inventario() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Etiqueta de Inventario */}
+      {etiquetaProducto && (
+        <EtiquetaInventario
+          producto={etiquetaProducto}
+          onClose={() => setEtiquetaProducto(null)}
+        />
+      )}
     </div>
   );
 }

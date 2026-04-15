@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import QRCode from 'react-qr-code';
+import { Barcode } from '@/components/Barcode';
 import { useReactToPrint } from 'react-to-print';
 import { 
   ArrowLeft, 
@@ -1622,18 +1622,23 @@ export default function OrdenDetalle() {
               <OrdenHistorialEstados historial={orden.historial_estados} statusConfig={statusConfig} />
             </div>
 
-            {/* Right Column - QR Code */}
+            {/* Right Column - Barcode */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-center">Código de Barras</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center">
-                  <div className="qr-container p-6 bg-white">
-                    <QRCode value={orden.numero_orden} size={200} />
+                  <div className="p-4 bg-white" data-testid="orden-barcode">
+                    <Barcode 
+                      value={orden.numero_orden} 
+                      width={2} 
+                      height={80} 
+                      fontSize={14}
+                      margin={5}
+                    />
                   </div>
-                  <p className="mt-4 font-mono text-sm text-muted-foreground">{orden.numero_orden}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Escanea para cambiar estado</p>
+                  <p className="text-xs text-muted-foreground mt-2">Escanea con pistola láser</p>
                 </CardContent>
               </Card>
               

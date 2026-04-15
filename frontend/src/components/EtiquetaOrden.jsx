@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import QRCode from 'react-qr-code';
+import { useRef, useState, useEffect } from 'react';
+import JsBarcode from 'jsbarcode';
 import { Printer, X, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,13 +17,43 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+// Componente de código de barras para etiquetas
+const BarcodeLabel = ({ value, width = 1.5, height = 30, fontSize = 10 }) => {
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (svgRef.current && value) {
+      try {
+        JsBarcode(svgRef.current, value, {
+          format: 'CODE128',
+          width: width,
+          height: height,
+          displayValue: true,
+          fontSize: fontSize,
+          textMargin: 1,
+          margin: 2,
+          background: '#ffffff',
+          lineColor: '#000000',
+        });
+      } catch (error) {
+        console.error('Error generating barcode:', error);
+      }
+    }
+  }, [value, width, height, fontSize]);
+
+  if (!value) return null;
+  return <svg ref={svgRef} />;
+};
+
 // Tamaños de etiquetas con configuración de contenido proporcional
 const LABEL_SIZES = {
   '50x30': { 
     width: '50mm', 
     height: '30mm', 
     name: '50x30mm (Pequeña)',
-    qrSize: 36,
+    barcodeWidth: 1.0,
+    barcodeHeight: 20,
+    barcodeFontSize: 8,
     headerSize: '7pt',
     orderSize: '8pt',
     labelSize: '5pt',
@@ -36,7 +66,9 @@ const LABEL_SIZES = {
     width: '60mm', 
     height: '40mm', 
     name: '60x40mm (Mediana)',
-    qrSize: 48,
+    barcodeWidth: 1.2,
+    barcodeHeight: 28,
+    barcodeFontSize: 9,
     headerSize: '9pt',
     orderSize: '10pt',
     labelSize: '6pt',
@@ -49,7 +81,9 @@ const LABEL_SIZES = {
     width: '70mm', 
     height: '50mm', 
     name: '70x50mm (Grande)',
-    qrSize: 56,
+    barcodeWidth: 1.4,
+    barcodeHeight: 35,
+    barcodeFontSize: 10,
     headerSize: '10pt',
     orderSize: '12pt',
     labelSize: '7pt',
@@ -62,7 +96,9 @@ const LABEL_SIZES = {
     width: '80mm', 
     height: '40mm', 
     name: '80x40mm (Alargada)',
-    qrSize: 48,
+    barcodeWidth: 1.3,
+    barcodeHeight: 30,
+    barcodeFontSize: 9,
     headerSize: '9pt',
     orderSize: '11pt',
     labelSize: '6pt',
@@ -77,6 +113,31 @@ export function EtiquetaOrden({ orden, onClose }) {
   const [labelSize, setLabelSize] = useState('60x40');
   const [printing, setPrinting] = useState(false);
   const etiquetaRef = useRef(null);
+  const [barcodeDataUrl, setBarcodeDataUrl] = useState(null);
+
+  // Generar código de barras como imagen para impresión
+  useEffect(() => {
+    if (orden?.numero_orden) {
+      const canvas = document.createElement('canvas');
+      const size = LABEL_SIZES[labelSize];
+      try {
+        JsBarcode(canvas, orden.numero_orden, {
+          format: 'CODE128',
+          width: size.barcodeWidth,
+          height: size.barcodeHeight,
+          displayValue: true,
+          fontSize: size.barcodeFontSize,
+          textMargin: 1,
+          margin: 2,
+          background: '#ffffff',
+          lineColor: '#000000',
+        });
+        setBarcodeDataUrl(canvas.toDataURL('image/png'));
+      } catch (error) {
+        console.error('Error generating barcode:', error);
+      }
+    }
+  }, [orden?.numero_orden, labelSize]);
 
   if (!orden) return null;
 
@@ -86,12 +147,6 @@ export function EtiquetaOrden({ orden, onClose }) {
   const handlePrintLabel = () => {
     setPrinting(true);
     
-    const printContent = etiquetaRef.current;
-    if (!printContent) {
-      setPrinting(false);
-      return;
-    }
-
     // Crear un iframe oculto para impresión aislada
     const printFrame = document.createElement('iframe');
     printFrame.style.position = 'absolute';
@@ -141,12 +196,13 @@ export function EtiquetaOrden({ orden, onClose }) {
         gap: 2mm;
         flex: 1;
       }
-      .qr-section {
+      .barcode-section {
         flex-shrink: 0;
+        text-align: center;
       }
-      .qr-section svg {
-        width: ${size.qrSize}px !important;
-        height: ${size.qrSize}px !important;
+      .barcode-section img {
+        max-width: 100%;
+        height: auto;
       }
       .info-section {
         flex: 1;
@@ -197,10 +253,6 @@ export function EtiquetaOrden({ orden, onClose }) {
       }
     `;
 
-    // Renderizar QR como string SVG
-    const qrSvg = etiquetaRef.current.querySelector('.qr-code-container svg');
-    const qrHtml = qrSvg ? qrSvg.outerHTML : '';
-
     // Calcular caracteres máximos para avería según tamaño
     const maxDamageChars = labelSize === '50x30' ? 40 : labelSize === '70x50' ? 100 : 60;
 
@@ -217,11 +269,10 @@ export function EtiquetaOrden({ orden, onClose }) {
           <div class="label-container">
             <div class="header">NEXORA</div>
             <div class="content">
-              <div class="qr-section">
-                ${qrHtml}
+              <div class="barcode-section">
+                ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Código de barras" />` : ''}
               </div>
               <div class="info-section">
-                <div class="order-number">${orden.numero_orden}</div>
                 <div class="info-row">
                   <div class="info-label">Modelo</div>
                   <div class="info-value">${orden.dispositivo?.modelo || '-'}</div>
@@ -325,19 +376,18 @@ export function EtiquetaOrden({ orden, onClose }) {
 
             {/* Content */}
             <div className="flex gap-2 flex-1">
-              {/* QR */}
-              <div className="flex-shrink-0 qr-code-container">
-                <QRCode value={orden.numero_orden} size={size.qrSize} />
+              {/* Código de barras */}
+              <div className="flex-shrink-0 barcode-container">
+                <BarcodeLabel 
+                  value={orden.numero_orden} 
+                  width={size.barcodeWidth}
+                  height={size.barcodeHeight}
+                  fontSize={size.barcodeFontSize}
+                />
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p 
-                  className="font-mono font-bold truncate"
-                  style={{ fontSize: size.orderSize, marginBottom: '1mm' }}
-                >
-                  {orden.numero_orden}
-                </p>
                 <div style={{ lineHeight: 1.2 }}>
                   <div style={{ marginBottom: '0.5mm' }}>
                     <p style={{ fontSize: size.labelSize, color: '#666', textTransform: 'uppercase' }}>Modelo</p>
@@ -424,10 +474,7 @@ export function EtiquetaPequena({ orden }) {
       </div>
       
       <div className="flex items-center gap-2 mb-2">
-        <QRCode value={orden.numero_orden} size={40} />
-        <div className="text-[10px]">
-          <p className="font-bold">{orden.numero_orden}</p>
-        </div>
+        <BarcodeLabel value={orden.numero_orden} width={1} height={25} fontSize={8} />
       </div>
       
       <div className="text-[9px] space-y-1">

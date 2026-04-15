@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import QRCode from 'react-qr-code';
+import { Barcode } from '@/components/Barcode';
 import { 
   ArrowLeft, 
   Lock,
@@ -267,11 +267,17 @@ export default function OrdenTecnico() {
               <CardTitle className="text-center">Código de Barras</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center">
-              <div className="qr-container p-6 bg-white">
-                <QRCode value={orden.numero_orden} size={180} />
+              <div className="p-4 bg-white" data-testid="tecnico-barcode">
+                <Barcode 
+                  value={orden.numero_orden} 
+                  width={2} 
+                  height={70} 
+                  fontSize={12}
+                  margin={5}
+                />
               </div>
-              <p className="mt-4 font-mono text-sm text-muted-foreground">
-                {orden.numero_orden}
+              <p className="text-xs text-muted-foreground mt-2">
+                Escanea con pistola láser
               </p>
             </CardContent>
           </Card>

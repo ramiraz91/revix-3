@@ -1,5 +1,44 @@
-import { forwardRef, useState, useEffect } from 'react';
+import { forwardRef, useState, useEffect, useRef } from 'react';
 import { empresaAPI, getUploadUrl } from '@/lib/api';
+import JsBarcode from 'jsbarcode';
+
+// Componente para generar código de barras en el PDF
+const BarcodeImage = ({ value, width = 1.5, height = 40 }) => {
+  const canvasRef = useRef(null);
+  const [dataUrl, setDataUrl] = useState(null);
+
+  useEffect(() => {
+    if (value) {
+      const canvas = document.createElement('canvas');
+      try {
+        JsBarcode(canvas, value, {
+          format: 'CODE128',
+          width: width,
+          height: height,
+          displayValue: true,
+          fontSize: 10,
+          textMargin: 2,
+          margin: 5,
+          background: '#ffffff',
+          lineColor: '#000000',
+        });
+        setDataUrl(canvas.toDataURL('image/png'));
+      } catch (error) {
+        console.error('Error generating barcode:', error);
+      }
+    }
+  }, [value, width, height]);
+
+  if (!dataUrl) return null;
+  
+  return (
+    <img 
+      src={dataUrl} 
+      alt={`Código: ${value}`}
+      style={{ maxWidth: '100%', height: 'auto' }}
+    />
+  );
+};
 
 const S = {
   page: {
@@ -669,17 +708,25 @@ const OrdenPDF = forwardRef(function OrdenPDF(
           ) : <div />}
 
           <div style={{ textAlign: 'center' }}>
-            <span style={{ ...S.label, display: 'block', textAlign: 'center' }}>Seguimiento</span>
-            {orden?.qr_code ? (
-              <img
-                src={orden.qr_code.startsWith('data:') ? orden.qr_code : `data:image/png;base64,${orden.qr_code}`}
-                alt="QR"
-                style={{ width: '22mm', height: '22mm' }}
+            <span style={{ ...S.label, display: 'block', textAlign: 'center' }}>Código de Identificación</span>
+            {!isBlank ? (
+              <BarcodeImage 
+                value={orden?.numero_orden || orden?.token_seguimiento || orden?.id?.substring(0, 12)} 
+                width={1.2}
+                height={35}
               />
             ) : (
-              <p style={{ fontFamily: 'monospace', fontSize: '9px', fontWeight: '600', margin: 0 }}>
-                {orden?.token_seguimiento || orden?.numero_orden}
-              </p>
+              <div style={{ 
+                width: '45mm', 
+                height: '15mm', 
+                border: '1px dashed #ccc',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto'
+              }}>
+                <span style={{ fontSize: '7px', color: '#999' }}>Código de barras</span>
+              </div>
             )}
           </div>
         </div>

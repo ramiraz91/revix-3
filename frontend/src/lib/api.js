@@ -503,7 +503,7 @@ export const insuramaAPI = {
   testConexion: () => API_SLOW.post('/insurama/test-conexion'),
   
   // Presupuestos (lectura) - uses cache, fast response
-  listarPresupuestos: (limit = 20) => API.get(`/insurama/presupuestos?limit=${limit}`),
+  listarPresupuestos: (page = 1, pageSize = 20) => API.get(`/insurama/presupuestos?page=${page}&page_size=${pageSize}`),
   obtenerPresupuesto: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}`),
   obtenerCompetidores: (codigo) => API.get(`/insurama/presupuesto/${codigo}/competidores`),
   

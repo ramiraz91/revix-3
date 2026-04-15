@@ -535,6 +535,8 @@ def _normalizar_tipo(tipo):
 @router.get("/presupuestos")
 async def listar_presupuestos_insurama(
     limit: int = 20,
+    page: int = 1,
+    page_size: int = 20,
     background_tasks: BackgroundTasks = None,
     user: dict = Depends(require_admin)
 ):
@@ -545,25 +547,34 @@ async def listar_presupuestos_insurama(
         
         if cache and cache.get("datos"):
             cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(cache["updated_at"])
-            datos = cache["datos"][:limit]
+            all_data = cache["datos"]
+            total = len(all_data)
+            
+            # Aplicar paginación
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            datos = all_data[start_idx:end_idx]
             
             # Si la caché es antigua, sincronizar en background
             if cache_age > timedelta(minutes=CACHE_TTL_MINUTES) and background_tasks:
-                background_tasks.add_task(_sync_presupuestos_cache, limit)
+                background_tasks.add_task(_sync_presupuestos_cache, max(limit, 100))
             
             return {
                 "presupuestos": datos,
-                "total": len(datos),
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size,
                 "from_cache": True,
                 "cache_age_seconds": int(cache_age.total_seconds()),
             }
         
         # 2. Sin caché - hacer petición directa pero también guardar en caché
         client = await get_sumbroker_client()
-        budgets = await client.list_store_budgets(limit=limit)
+        budgets = await client.list_store_budgets(limit=max(limit, 100))
         
         if budgets is None:
-            return {"presupuestos": [], "total": 0, "error": "No se pudieron obtener los presupuestos"}
+            return {"presupuestos": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "error": "No se pudieron obtener los presupuestos"}
         
         resultado = []
         for b in budgets:
@@ -583,7 +594,20 @@ async def listar_presupuestos_insurama(
             upsert=True
         )
         
-        return {"presupuestos": resultado, "total": len(resultado), "from_cache": False}
+        # Aplicar paginación a los resultados
+        total = len(resultado)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        datos_paginados = resultado[start_idx:end_idx]
+        
+        return {
+            "presupuestos": datos_paginados, 
+            "total": total, 
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+            "from_cache": False
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -591,8 +615,20 @@ async def listar_presupuestos_insurama(
         # Última opción: servir caché aunque sea vieja
         cache = await db.insurama_cache.find_one({"tipo": "presupuestos_lista"}, {"_id": 0})
         if cache and cache.get("datos"):
-            return {"presupuestos": cache["datos"][:limit], "total": len(cache["datos"][:limit]), "from_cache": True, "stale": True}
-        return {"presupuestos": [], "total": 0, "error": str(e)}
+            all_data = cache["datos"]
+            total = len(all_data)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            return {
+                "presupuestos": all_data[start_idx:end_idx], 
+                "total": total, 
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size,
+                "from_cache": True, 
+                "stale": True
+            }
+        return {"presupuestos": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "error": str(e)}
 
 @router.post("/sync")
 async def forzar_sincronizacion(background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):

@@ -19,7 +19,11 @@ import {
   History,
   Lightbulb,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -56,6 +61,12 @@ export default function Insurama() {
   const [loading, setLoading] = useState(true);
   const [presupuestos, setPresupuestos] = useState([]);
   const [loadingPresupuestos, setLoadingPresupuestos] = useState(false);
+  
+  // Paginación de presupuestos
+  const [presupuestosPagina, setPresupuestosPagina] = useState(1);
+  const [presupuestosPorPagina, setPresupuestosPorPagina] = useState(20);
+  const [presupuestosTotal, setPresupuestosTotal] = useState(0);
+  const [presupuestosTotalPages, setPresupuestosTotalPages] = useState(1);
   
   // Pestaña principal activa
   const [mainTab, setMainTab] = useState('dashboard');
@@ -118,11 +129,13 @@ export default function Insurama() {
   };
 
   // Función separada para cargar presupuestos sin verificar config (ya verificado)
-  const fetchPresupuestosDirecto = async () => {
+  const fetchPresupuestosDirecto = async (page = presupuestosPagina, pageSize = presupuestosPorPagina) => {
     setLoadingPresupuestos(true);
     try {
-      const res = await insuramaAPI.listarPresupuestos(15);
+      const res = await insuramaAPI.listarPresupuestos(page, pageSize);
       setPresupuestos(res.data.presupuestos || []);
+      setPresupuestosTotal(res.data.total || 0);
+      setPresupuestosTotalPages(res.data.total_pages || 1);
     } catch (error) {
       console.error('Error cargando presupuestos:', error);
       // No mostrar toast para errores de API lenta - es esperado
@@ -136,8 +149,15 @@ export default function Insurama() {
       toast.warning('Configura las credenciales de Sumbroker primero');
       return;
     }
-    fetchPresupuestosDirecto();
+    fetchPresupuestosDirecto(presupuestosPagina, presupuestosPorPagina);
   };
+
+  // Efecto para recargar cuando cambia la página
+  useEffect(() => {
+    if (config?.configurado && !loading) {
+      fetchPresupuestosDirecto(presupuestosPagina, presupuestosPorPagina);
+    }
+  }, [presupuestosPagina, presupuestosPorPagina]);
 
   const handleTestConnection = async () => {
     setTestingConnection(true);
@@ -1112,11 +1132,90 @@ export default function Insurama() {
         {/* Tab: Lista de Presupuestos */}
         <TabsContent value="presupuestos">
           {config?.conexion_ok ? (
-            <InsuramaPresupuestosTable 
-              presupuestos={presupuestos}
-              loading={loadingPresupuestos}
-              onVerDetalle={handleVerDetalle}
-            />
+            <div className="space-y-4">
+              {/* Controles de paginación superior */}
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">
+                  Total: <strong>{presupuestosTotal}</strong> presupuestos
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Mostrar:</span>
+                  <Select 
+                    value={presupuestosPorPagina.toString()} 
+                    onValueChange={(v) => { 
+                      setPresupuestosPorPagina(parseInt(v)); 
+                      setPresupuestosPagina(1); 
+                    }}
+                  >
+                    <SelectTrigger className="w-[80px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <InsuramaPresupuestosTable 
+                presupuestos={presupuestos}
+                loading={loadingPresupuestos}
+                onVerDetalle={handleVerDetalle}
+              />
+              
+              {/* Paginación inferior */}
+              <div className="flex items-center justify-between px-2 py-3 border-t bg-gray-50 rounded-b-lg">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((presupuestosPagina - 1) * presupuestosPorPagina) + 1} - {Math.min(presupuestosPagina * presupuestosPorPagina, presupuestosTotal)} de {presupuestosTotal}
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPresupuestosPagina(1)} 
+                    disabled={presupuestosPagina === 1 || loadingPresupuestos}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPresupuestosPagina(p => Math.max(1, p - 1))} 
+                    disabled={presupuestosPagina === 1 || loadingPresupuestos}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <span className="px-3 text-sm">
+                    Página <strong>{presupuestosPagina}</strong> de <strong>{presupuestosTotalPages}</strong>
+                  </span>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPresupuestosPagina(p => Math.min(presupuestosTotalPages, p + 1))} 
+                    disabled={presupuestosPagina >= presupuestosTotalPages || loadingPresupuestos}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPresupuestosPagina(presupuestosTotalPages)} 
+                    disabled={presupuestosPagina >= presupuestosTotalPages || loadingPresupuestos}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : (
             <Card>
               <CardContent className="py-12 text-center">

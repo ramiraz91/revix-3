@@ -1,7 +1,7 @@
 # Revix CRM/ERP - Product Requirements Document
 
 ## Original Problem Statement
-CRM/ERP para taller de reparacion de telefonia movil (Revix.es). Gestion de ordenes, clientes, inventario, facturacion, aseguradoras, logistica, portal publico, impresion centralizada Brother QL-800.
+CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ## Tech Stack
 - Frontend: React 18, Tailwind CSS, Shadcn/UI, JsBarcode
@@ -13,33 +13,52 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es). Gestion de orde
 
 ## Latest — 2026-04-15
 
-### Panel Historial de Impresiones
-- Nueva pagina `/crm/historial-impresion` accesible desde menu Herramientas Admin
-- KPIs: estado agente, total trabajos, impresas, errores, pendientes
-- Tabla con fecha, usuario, plantilla (OT/Inventario), referencia, estado, fecha impresion
-- Filtro por estado, paginacion, boton reimprimir
-- Seccion de errores recientes
-- Boton "Descargar Agente" y "Actualizar"
+### Refactorizacion server.py: 3455 -> 988 lineas (72% reduccion)
+Extraidos 7 modulos de rutas:
+- `dashboard_routes.py` (698 lines): stats, metricas avanzadas, alertas, operativo, tecnico
+- `master_routes.py` (1180 lines): metricas tecnicos, facturacion, ISO, analiticas, finanzas
+- `ia_routes.py` (151 lines): mejorar texto, diagnosticos, consultas, historial
+- `restos_routes.py` (185 lines): despiece de dispositivos
+- `calendario_routes.py` (103 lines): eventos, asignacion ordenes, disponibilidad
+- `notificaciones_routes.py` (136 lines): CRUD notificaciones, email config
+- `config_empresa_routes.py` (83 lines): configuracion sistema y empresa
 
-### Brother Agent v2.1.0 Produccion
-- Waitress (produccion) reemplaza Flask dev server
-- Cola serializada (PrintWorker), reinicio automatico, logs rotativos
-- Servicio Windows (service.py), install-service.bat
-- DEVMODE forzado DK-11204, barcode con numero_autorizacion
-- 10 archivos en ZIP
+server.py ahora solo contiene: app setup, middleware, uploads, seguimiento publico, presupuestos, startup/shutdown.
 
-### Barcodes con numero de autorizacion
-- OrdenDetalle, OrdenTecnico, OrdenPDF, EtiquetaOrden, Brother print
-- Fallback a numero_orden si no hay autorizacion
+### SKUs Descriptivos Cortos
+- Formato `CAT-MODELO-TIPO`: BAT-IP15PM-COM, PANT-S24U-ORI
+- Frontend + backend sincronizados
+
+### Brother QL-800 Centralizado v2.1.0
+- Waitress (produccion), cola serializada, servicio Windows
+- Panel historial de impresiones
+- Barcode con numero de autorizacion
 
 ---
 
+## Architecture
+```
+/app/backend/
+  server.py (988 lines) - Core: app, middleware, uploads, seguimiento, startup
+  routes/
+    auth_routes.py        - Autenticacion JWT
+    data_routes.py        - CRUD clientes, repuestos
+    ordenes_routes.py     - Ordenes de trabajo
+    dashboard_routes.py   - Dashboard y metricas      [NUEVO]
+    master_routes.py      - Analiticas, ISO, finanzas  [NUEVO]
+    ia_routes.py          - Asistente IA               [NUEVO]
+    restos_routes.py      - Despiece                   [NUEVO]
+    calendario_routes.py  - Calendario                 [NUEVO]
+    notificaciones_routes.py - Notificaciones          [NUEVO]
+    config_empresa_routes.py - Config empresa           [NUEVO]
+    print_routes.py       - Impresion Brother
+    insurama_routes.py    - Aseguradoras
+    + 12 mas...
+```
+
 ## Backlog
-- P1: Sistema solicitud cambio de estado
 - P2: Google Business Profile + Gemini Flash
-- P2: Flujo gestion incidencias
-- P2: Acortar SKUs inventario
-- P3: Refactorizar server.py
+- P2: Flujo gestion de incidencias
 
 ## Credentials
 - master@revix.es / RevixMaster2026!

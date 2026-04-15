@@ -27,10 +27,10 @@ if not exist "venv" (
 echo [2/3] Activando entorno e instalando dependencias...
 call venv\Scripts\activate.bat
 pip install --upgrade pip >nul 2>&1
-pip install flask flask-cors Pillow python-barcode pywin32
+pip install flask flask-cors Pillow python-barcode requests pywin32
 
 echo [3/3] Verificando instalacion...
-python -c "import flask; import PIL; import barcode; import win32print; print('Todas las dependencias OK')"
+python -c "import flask; import PIL; import barcode; import requests; import win32print; print('Todas las dependencias OK')"
 if errorlevel 1 (
     echo [AVISO] Alguna dependencia fallo. Revise los errores anteriores.
 ) else (

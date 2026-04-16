@@ -701,9 +701,17 @@ async def crear_orden(orden: OrdenTrabajoCreate, user: dict = Depends(require_au
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
+    # Resolver nombre del creador
+    creator_user = await db.users.find_one({"email": user.get('email')}, {"_id": 0, "nombre": 1, "apellidos": 1})
+    creator_name = user.get('email', 'sistema')
+    if creator_user:
+        cn = creator_user.get('nombre', '')
+        ca = creator_user.get('apellidos', '')
+        creator_name = f"{cn} {ca}".strip() or creator_name
+
     orden_obj = OrdenTrabajo(**orden.model_dump())
     orden_obj.qr_code = generate_barcode(orden_obj.numero_orden)
-    orden_obj.historial_estados = [{"estado": OrderStatus.PENDIENTE_RECIBIR.value, "fecha": datetime.now(timezone.utc).isoformat(), "usuario": user.get('email', 'sistema')}]
+    orden_obj.historial_estados = [{"estado": OrderStatus.PENDIENTE_RECIBIR.value, "fecha": datetime.now(timezone.utc).isoformat(), "usuario": creator_name}]
     
     doc = orden_obj.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -1300,6 +1308,8 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
     campos_admin_y_tecnico = [
         'diagnostico_tecnico',       # Admin puede editar/revisar el diagnóstico
         'indicaciones_tecnico',      # Admin da instrucciones al técnico
+        'tecnico_asignado',          # Asignación de técnico
+        'tecnico_nombre',            # Nombre del técnico asignado
     ]
     
     # Campos de QC que el admin PUEDE marcar como completados al finalizar
@@ -1624,12 +1634,19 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         if materiales_sin_validar:
             nota_forzado = f" (FORZADO sin validar {len(materiales_sin_validar)} materiales)"
     
-    # Usar email del usuario autenticado para garantizar trazabilidad
-    usuario_cambio = user.get('email', request.usuario or 'sistema')
+    # Resolver nombre del usuario para trazabilidad (nombre, no email)
+    db_user = await db.users.find_one({"email": user.get('email')}, {"_id": 0, "nombre": 1, "apellidos": 1})
+    usuario_display = user.get('email', 'sistema')
+    if db_user:
+        nombre = db_user.get('nombre', '')
+        apellidos = db_user.get('apellidos', '')
+        usuario_display = f"{nombre} {apellidos}".strip() or user.get('email', 'sistema')
+
     historial.append({
         "estado": request.nuevo_estado.value, 
         "fecha": now.isoformat(), 
-        "usuario": usuario_cambio,
+        "usuario": usuario_display,
+        "usuario_email": user.get('email', ''),
         "rol": user.get('role', 'unknown'),
         "mensaje": request.mensaje.strip(),
         "nota": nota_forzado if nota_forzado else None,

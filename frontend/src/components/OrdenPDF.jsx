@@ -98,6 +98,15 @@ const OrdenPDF = forwardRef(function OrdenPDF(
   const isNoPrices = mode === 'no_prices' || isBlank;
   const isFull   = mode === 'full';
 
+  // Estado visible: si garantía no procede, mostrarlo explícitamente
+  const estadoVisible = (() => {
+    if (isBlank) return '—';
+    if (orden?.es_garantia && orden?.garantia_resultado === 'no_procede') {
+      return 'Garantia No Procede';
+    }
+    return statusLabels[orden?.estado] || orden?.estado || '—';
+  })();
+
   const val = (v, fb = '—') => {
     if (isBlank) return '_____';
     return (v == null || v === '') ? fb : v;
@@ -182,7 +191,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
               {isBlank ? 'OT-________' : (orden?.numero_orden || 'OT-000000')}
             </p>
             <p style={{ fontSize: '9px', color: '#555', margin: '1mm 0', textTransform: 'uppercase', fontWeight: '600' }}>
-              {isBlank ? '—' : (statusLabels[orden?.estado] || orden?.estado || '—')}
+              {estadoVisible}
             </p>
             <p style={{ fontSize: '7.5px', color: '#999', margin: 0 }}>{fmtDate(orden?.created_at)}</p>
             {orden?.numero_autorizacion && !isBlank && (
@@ -245,7 +254,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
             <div style={{ marginTop: '2mm', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2mm' }}>
               <div>
                 <span style={S.label}>Técnico</span>
-                <span style={S.value}>{val(orden?.tecnico_asignado)}</span>
+                <span style={S.value}>{val(orden?.tecnico_nombre || orden?.tecnico_asignado)}</span>
               </div>
               <div>
                 <span style={S.label}>Tipo</span>
@@ -318,7 +327,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
                 : (orden?.diagnostico_tecnico || 'Pendiente de diagnóstico')}
             </p>
             {orden?.tecnico_asignado && !isBlank && (
-              <p style={{ margin: '1mm 0 0', fontSize: '7.5px', color: '#666' }}>— {orden.tecnico_asignado}</p>
+              <p style={{ margin: '1mm 0 0', fontSize: '7.5px', color: '#666' }}>— {orden.tecnico_nombre || orden.tecnico_asignado}</p>
             )}
           </div>
 
@@ -404,7 +413,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
               )}
               <p style={{ margin: '1.5mm 0 0 0' }}>
                 <span style={{ fontSize: '6px', color: '#666' }}>Técnico responsable:</span>{' '}
-                {isBlank ? '_____' : val(orden?.tecnico_asignado)}
+                {isBlank ? '_____' : val(orden?.tecnico_nombre || orden?.tecnico_asignado)}
                 {' '}·{' '}
                 <span style={{ fontSize: '6px', color: '#666' }}>Fecha QC:</span>{' '}
                 {isBlank ? '_____' : fmtDT(orden?.fecha_fin_reparacion || orden?.updated_at)}

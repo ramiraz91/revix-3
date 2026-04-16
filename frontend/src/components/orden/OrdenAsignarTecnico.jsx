@@ -46,14 +46,20 @@ export function OrdenAsignarTecnico({ ordenId, tecnicoAsignado, onAsignar }) {
       return;
     }
     
+    const tecObj = tecnicos.find(t => t.email === tecnicoSeleccionado);
+    const nombreCompleto = tecObj 
+      ? `${tecObj.nombre || ''}${tecObj.apellidos ? ' ' + tecObj.apellidos : ''}`.trim() || tecObj.email
+      : tecnicoSeleccionado;
+
     setLoading(true);
     try {
       await ordenesAPI.actualizar(ordenId, { 
-        tecnico_asignado: tecnicoSeleccionado 
+        tecnico_asignado: tecnicoSeleccionado,
+        tecnico_nombre: nombreCompleto,
       });
-      toast.success(`Orden asignada a ${tecnicoSeleccionado}`);
+      toast.success(`Orden asignada a ${nombreCompleto}`);
       setEditando(false);
-      if (onAsignar) onAsignar(tecnicoSeleccionado);
+      if (onAsignar) onAsignar(tecnicoSeleccionado, nombreCompleto);
     } catch (err) {
       console.error('Error asignando técnico:', err);
       toast.error('Error al asignar técnico');
@@ -66,7 +72,8 @@ export function OrdenAsignarTecnico({ ordenId, tecnicoAsignado, onAsignar }) {
     setLoading(true);
     try {
       await ordenesAPI.actualizar(ordenId, { 
-        tecnico_asignado: null 
+        tecnico_asignado: null,
+        tecnico_nombre: null,
       });
       toast.success('Técnico desasignado');
       setEditando(false);

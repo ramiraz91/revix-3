@@ -87,8 +87,16 @@ export function OrdenDetalleHeader({
                 <h1 className="text-2xl font-bold tracking-tight font-mono">{orden.numero_orden}</h1>
               )}
               <Badge className={`badge-status status-${orden.estado}`}>
-                {currentStatus?.label}
+                {orden.es_garantia && orden.garantia_resultado === 'no_procede'
+                  ? 'Garantia No Procede'
+                  : currentStatus?.label}
               </Badge>
+              {orden.es_garantia && orden.garantia_resultado === 'no_procede' && (
+                <Badge variant="outline" className="gap-1 border-orange-400 text-orange-600 bg-orange-50">
+                  <AlertTriangle className="w-3 h-3" />
+                  No cubierto
+                </Badge>
+              )}
               {orden.bloqueada && (
                 <Badge variant="destructive" className="gap-1">
                   <Lock className="w-3 h-3" />

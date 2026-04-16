@@ -102,7 +102,7 @@ const OrdenPDF = forwardRef(function OrdenPDF(
   const estadoVisible = (() => {
     if (isBlank) return '—';
     if (orden?.es_garantia && orden?.garantia_resultado === 'no_procede') {
-      return 'Garantia No Procede';
+      return 'FUERA DE GARANTIA';
     }
     return statusLabels[orden?.estado] || orden?.estado || '—';
   })();

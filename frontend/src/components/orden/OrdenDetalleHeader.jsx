@@ -88,7 +88,7 @@ export function OrdenDetalleHeader({
               )}
               <Badge className={`badge-status status-${orden.estado}`}>
                 {orden.es_garantia && orden.garantia_resultado === 'no_procede'
-                  ? 'Garantia No Procede'
+                  ? 'Fuera de Garantia'
                   : currentStatus?.label}
               </Badge>
               {orden.es_garantia && orden.garantia_resultado === 'no_procede' && (

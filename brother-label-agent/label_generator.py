@@ -131,11 +131,9 @@ class LabelGenerator:
         bc_img = self._make_barcode(barcode_value, usable_w, bc_h)
         img.paste(bc_img, (MX, bc_y))
 
-        # 2) Numero de OT + autorizacion centrado
+        # 2) Numero de autorizacion como texto principal
         ot_y = bc_y + bc_h + 3
-        ot_text = order_number or ""
-        if barcode_value and barcode_value != order_number:
-            ot_text = f"{order_number}  |  {barcode_value}"
+        ot_text = barcode_value or order_number or ""
         ot_text = self._truncate(ot_text, draw, FONT_OT, usable_w)
         ot_x = self._center_x(ot_text, draw, FONT_OT, LABEL_W)
         draw.text((ot_x, ot_y), ot_text, fill="black", font=FONT_OT)

@@ -18,6 +18,7 @@ import math
 import random
 import httpx
 import logging
+import os
 from bson import ObjectId
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -92,10 +93,16 @@ app.add_middleware(HTTPSRedirectMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://revix.es",
+        "https://www.revix.es",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        os.environ.get("REACT_APP_BACKEND_URL", ""),
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Agent-Key"],
 )
 
 # Security headers middleware
@@ -107,9 +114,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Rate limiting middleware
+from middleware.security import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)
 
 # Performance monitoring middleware
 from middleware.performance import PerformanceMiddleware, metrics, query_profiler

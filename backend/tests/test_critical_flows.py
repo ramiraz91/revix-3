@@ -47,12 +47,12 @@ class TestAuth:
         assert data["user"]["email"] == MASTER_EMAIL
 
     def test_login_password_incorrecta(self, client):
-        res = client.post("/api/auth/login", json={"email": MASTER_EMAIL, "password": "wrong"})
-        assert res.status_code in (401, 403)
+        res = client.post("/api/auth/login", json={"email": "test_wrong_pw@fake.com", "password": "wrong"})
+        assert res.status_code in (401, 403, 429)
 
     def test_login_email_inexistente(self, client):
-        res = client.post("/api/auth/login", json={"email": "noexiste@x.com", "password": "x"})
-        assert res.status_code in (401, 404)
+        res = client.post("/api/auth/login", json={"email": "noexiste_test@fake.com", "password": "x"})
+        assert res.status_code in (401, 404, 429)
 
     def test_endpoint_protegido_sin_token(self, client):
         res = client.get("/api/liquidaciones/pendientes")

@@ -17,7 +17,8 @@ def create_token(user_id: str, email: str, role: str) -> str:
         "user_id": user_id,
         "email": email,
         "role": role,
-        "exp": datetime.now(timezone.utc).timestamp() + 86400 * 7
+        "iat": datetime.now(timezone.utc).timestamp(),
+        "exp": datetime.now(timezone.utc).timestamp() + 86400  # 24 horas
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

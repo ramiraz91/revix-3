@@ -123,6 +123,8 @@ async def login(credentials: UserLogin, request: Request):
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
         _record_failed_attempt(ip, email)
+        from middleware.security import security_logger
+        security_logger.log_failed_login(ip, email)
         remaining = _attempts_remaining(ip, email)
         raise HTTPException(
             status_code=401,
@@ -136,6 +138,8 @@ async def login(credentials: UserLogin, request: Request):
     
     if not password_ok:
         _record_failed_attempt(ip, email)
+        from middleware.security import security_logger
+        security_logger.log_failed_login(ip, email)
         remaining = _attempts_remaining(ip, email)
         raise HTTPException(
             status_code=401,
@@ -143,6 +147,11 @@ async def login(credentials: UserLogin, request: Request):
         )
 
     _clear_attempts(ip, email)
+    
+    # Log de seguridad
+    from middleware.security import security_logger
+    security_logger.log_successful_login(ip, email)
+    
     token = create_token(user['id'], user['email'], user['role'])
     return {"token": token, "user": {"id": user['id'], "email": user['email'], "nombre": user['nombre'], "apellidos": user.get('apellidos', ''), "role": user['role'], "avatar_url": user.get('avatar_url')}}
 

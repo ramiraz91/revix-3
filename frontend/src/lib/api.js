@@ -339,6 +339,7 @@ export const importarAPI = {
 export const seguimientoAPI = {
   verificar: (token, telefono, consentimientos = {}) => API.post('/seguimiento/verificar', { token, telefono, ...consentimientos }),
   obtenerLink: (ordenId) => API.get(`/ordenes/${ordenId}/link-seguimiento`),
+  restablecerToken: (ordenId) => API.post(`/ordenes/${ordenId}/restablecer-seguimiento`),
   recuperar: (data) => API.post('/seguimiento/recuperar', data),
 };
 

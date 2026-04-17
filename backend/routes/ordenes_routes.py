@@ -3083,6 +3083,41 @@ async def obtener_link_seguimiento(orden_id: str, user: dict = Depends(require_a
         "numero_orden": orden.get('numero_orden')
     }
 
+
+@router.post("/ordenes/{orden_id}/restablecer-seguimiento")
+async def restablecer_token_seguimiento(orden_id: str, user: dict = Depends(require_admin)):
+    """Genera un nuevo token de seguimiento para la orden."""
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    new_token = str(uuid.uuid4())[:12].upper().replace("-", "")
+    # Format as XXXX-XXXX-XXX
+    new_token = f"{new_token[:4]}-{new_token[4:8]}-{new_token[8:11]}"
+    
+    await db.ordenes.update_one(
+        {"id": orden_id},
+        {"$set": {
+            "token_seguimiento": new_token,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    cliente = await db.clientes.find_one({"id": orden.get('cliente_id')}, {"_id": 0})
+    telefono_hint = ""
+    if cliente and cliente.get('telefono'):
+        tel = cliente['telefono']
+        telefono_hint = f"***{tel[-4:]}" if len(tel) >= 4 else "****"
+    
+    return {
+        "token": new_token,
+        "telefono_hint": telefono_hint,
+        "orden_id": orden_id,
+        "numero_orden": orden.get('numero_orden'),
+        "message": "Token restablecido correctamente"
+    }
+
+
 # ==================== DIAGNÓSTICO ====================
 
 @router.post("/ordenes/{orden_id}/diagnostico")

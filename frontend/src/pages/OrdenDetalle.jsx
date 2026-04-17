@@ -807,7 +807,9 @@ export default function OrdenDetalle() {
 
   const copyLinkToClipboard = () => {
     if (!linkSeguimiento) return;
-    const link = `${window.location.origin}/seguimiento?codigo=${linkSeguimiento.token}`;
+    // Siempre usar dominio de producción para enlaces de seguimiento
+    const baseUrl = 'https://revix.es';
+    const link = `${baseUrl}/consulta?codigo=${linkSeguimiento.token}`;
     navigator.clipboard.writeText(link);
     toast.success('Link copiado al portapapeles');
   };
@@ -2197,7 +2199,7 @@ export default function OrdenDetalle() {
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-xs text-blue-600 mb-2">Link completo:</p>
                 <p className="font-mono text-sm break-all text-blue-800">
-                  {window.location.origin}/seguimiento?codigo={linkSeguimiento.token}
+                  https://revix.es/consulta?codigo={linkSeguimiento.token}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -2205,9 +2207,26 @@ export default function OrdenDetalle() {
                   <Copy className="w-4 h-4 mr-2" />
                   Copiar Link
                 </Button>
-                <Button variant="outline" onClick={() => window.open(`/seguimiento?codigo=${linkSeguimiento.token}`, '_blank')}>
+                <Button variant="outline" onClick={() => window.open(`https://revix.es/consulta?codigo=${linkSeguimiento.token}`, '_blank')}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="text-amber-600 hover:text-amber-700"
+                  onClick={async () => {
+                    try {
+                      const res = await seguimientoAPI.restablecerToken(id);
+                      setLinkSeguimiento(res.data);
+                      toast.success('Token de seguimiento restablecido');
+                    } catch {
+                      toast.error('Error al restablecer');
+                    }
+                  }}
+                  data-testid="reset-token-btn"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Restablecer
                 </Button>
               </div>
               <Separator />

@@ -111,7 +111,7 @@ async def obtener_resumen_logistica(user: dict = Depends(require_admin)):
                         fecha_fin = datetime.fromisoformat(fecha_fin.replace('Z', '+00:00'))
                     if fecha_fin < hace_48h:
                         envios_retraso += 1
-                except:
+                except Exception:
                     pass
         
         # Completados hoy (recibidos o enviados hoy)
@@ -216,7 +216,7 @@ async def listar_recogidas(
                     else:
                         horas = (now - created_dt).total_seconds() / 3600
                         en_retraso = horas > 48
-                except:
+                except Exception:
                     pass
             
             items.append({
@@ -337,7 +337,7 @@ async def listar_envios(
                     else:
                         horas = (now - fin_dt).total_seconds() / 3600
                         en_retraso = horas > 48
-                except:
+                except Exception:
                     pass
             
             # Filtrar por retraso si se solicita
@@ -403,7 +403,7 @@ async def obtener_logistica_orden(orden_id: str, user: dict = Depends(require_au
                 horas = (now - created_dt).total_seconds() / 3600
                 recogida["horas_transcurridas"] = round(horas, 1)
                 recogida["en_retraso"] = horas > 48
-            except:
+            except Exception:
                 pass
         
         # Info de envío
@@ -423,7 +423,7 @@ async def obtener_logistica_orden(orden_id: str, user: dict = Depends(require_au
                 horas = (now - fin_dt).total_seconds() / 3600
                 envio["horas_transcurridas"] = round(horas, 1)
                 envio["en_retraso"] = horas > 48
-            except:
+            except Exception:
                 pass
         
         return {

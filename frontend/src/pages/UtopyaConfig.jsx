@@ -84,7 +84,7 @@ export default function UtopyaConfig() {
         setSyncing(true);
         setSyncProgress(res.data);
       }
-    } catch (error) {}
+    } catch (err) { console.error('UtopyaConfig error:', err); }
   };
   
   // Polling para progreso
@@ -136,7 +136,7 @@ export default function UtopyaConfig() {
     try {
       const res = await utopyaAPI.getStats();
       setStats(res.data);
-    } catch (error) {}
+    } catch (err) { console.error('UtopyaConfig error:', err); }
   };
 
   const handleSaveConfig = async () => {

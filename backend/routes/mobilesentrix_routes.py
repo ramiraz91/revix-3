@@ -271,7 +271,7 @@ class MobileSentrixClient:
                 if response.status_code == 200:
                     try:
                         return {"success": True, "data": response.json()}
-                    except:
+                    except Exception:
                         return {"success": True, "data": {"raw": response.text[:500]}}
                 elif response.status_code == 401:
                     return {"success": False, "error": "Access Token inválido o expirado. Necesitas re-autorizar.", "status": 401}

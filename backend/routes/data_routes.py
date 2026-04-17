@@ -405,7 +405,8 @@ async def crear_repuesto(repuesto: RepuestoCreate):
     
     # Auto-generar SKU descriptivo si no se proporciona
     if not doc.get('sku'):
-        import re, unicodedata
+        import re
+        import unicodedata
         cat_prefix = {
             'Pantallas': 'PANT', 'Baterías': 'BAT', 'Conectores': 'CON',
             'Cámaras': 'CAM', 'Altavoces': 'ALT', 'Flex': 'FLX',

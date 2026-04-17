@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from config import db, logger
 from auth import require_auth, require_admin
+from models import EventoCalendario, TipoEvento, Notificacion
 
 router = APIRouter(tags=["calendario"])
 

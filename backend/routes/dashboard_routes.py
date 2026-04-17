@@ -418,19 +418,19 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
             if orden.get("created_at"):
                 try:
                     fecha_creacion = datetime.fromisoformat(orden["created_at"].replace("Z", "+00:00"))
-                except:
+                except Exception:
                     pass
             
             # 2. Intentar obtener fecha de envío (fin del proceso)
             if orden.get("fecha_enviado"):
                 try:
                     fecha_envio = datetime.fromisoformat(orden["fecha_enviado"].replace("Z", "+00:00"))
-                except:
+                except Exception:
                     pass
             elif orden.get("updated_at"):
                 try:
                     fecha_envio = datetime.fromisoformat(orden["updated_at"].replace("Z", "+00:00"))
-                except:
+                except Exception:
                     pass
             
             # 3. Buscar en historial
@@ -442,7 +442,7 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
                 
                 try:
                     fecha_parsed = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
-                except:
+                except Exception:
                     continue
                 
                 # Fecha de inicio = primer estado de trabajo
@@ -461,13 +461,13 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
             if not fecha_inicio and orden.get("fecha_recibida_centro"):
                 try:
                     fecha_inicio = datetime.fromisoformat(orden["fecha_recibida_centro"].replace("Z", "+00:00"))
-                except:
+                except Exception:
                     pass
             
             if not fecha_inicio and orden.get("fecha_inicio_reparacion"):
                 try:
                     fecha_inicio = datetime.fromisoformat(orden["fecha_inicio_reparacion"].replace("Z", "+00:00"))
-                except:
+                except Exception:
                     pass
             
             # 5. Si no hay fecha_inicio, usar fecha_creacion
@@ -507,7 +507,7 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
             updated = datetime.fromisoformat(orden.get("updated_at", "").replace("Z", "+00:00"))
             dias_sin_cambio = (now - updated).days
             orden["dias_demora"] = dias_sin_cambio
-        except:
+        except Exception:
             orden["dias_demora"] = 0
     
     return {
@@ -667,7 +667,7 @@ async def obtener_dashboard_tecnico(user: dict = Depends(require_auth)):
                 # Solo incluir si es positivo y razonable (menos de 30 días = 720 horas)
                 if 0 < diff < 720:
                     tiempos_reparacion.append(diff)
-        except:
+        except Exception:
             pass
     
     promedio_horas = sum(tiempos_reparacion) / len(tiempos_reparacion) if tiempos_reparacion else 0

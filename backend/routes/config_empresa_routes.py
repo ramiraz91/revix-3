@@ -9,8 +9,9 @@ import uuid
 import aiofiles
 
 from config import db, UPLOAD_DIR, logger
+import config as cfg
 from auth import require_auth, require_admin, require_master
-from models import ConfiguracionNotificaciones, EmpresaConfig
+from models import ConfiguracionNotificaciones, EmpresaConfig, TextosLegales
 
 router = APIRouter(tags=["configuracion"])
 

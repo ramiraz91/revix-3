@@ -42,7 +42,6 @@ async def obtener_resto(resto_id: str, user: dict = Depends(require_admin)):
 @router.post("/restos")
 async def crear_resto(data: dict, user: dict = Depends(require_admin)):
     """Crea un nuevo registro de resto/despiece"""
-    from models import Resto
     resto = Resto(
         orden_id=data.get('orden_id', ''),
         numero_orden=data.get('numero_orden', ''),
@@ -93,7 +92,6 @@ async def añadir_pieza_resto(resto_id: str, data: dict, user: dict = Depends(re
     if not resto:
         raise HTTPException(status_code=404, detail="Resto no encontrado")
     
-    from models import PiezaResto
     pieza = PiezaResto(
         nombre=data.get('nombre', ''),
         estado=data.get('estado', 'bueno'),
@@ -144,7 +142,6 @@ async def enviar_orden_a_restos(orden_id: str, data: dict, user: dict = Depends(
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    from models import Resto
     resto = Resto(
         orden_id=orden_id,
         numero_orden=orden['numero_orden'],
@@ -178,7 +175,7 @@ async def enviar_orden_a_restos(orden_id: str, data: dict, user: dict = Depends(
     await log_audit("resto", doc['id'], user, "envio_a_restos", f"Dispositivo de orden {orden['numero_orden']} enviado a restos con código {doc['codigo_resto']}")
     
     return {
-        "message": f"Dispositivo enviado a restos",
+        "message": "Dispositivo enviado a restos",
         "codigo_resto": doc['codigo_resto'],
         "resto": doc
     }

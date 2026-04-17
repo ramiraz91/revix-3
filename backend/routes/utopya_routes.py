@@ -428,7 +428,7 @@ async def scrape_utopya_products(email: str, password: str, selected_categories:
                 elif ean and len(ean) >= 5 and ean not in ['N/D', 'N/A', '-', 'No disponible']:
                     sku = ean.replace('-', '').replace(' ', '').upper()
                 else:
-                    sku = f"UTO-{hashlib.md5(product['nombre'].encode()).hexdigest()[:8].upper()}"
+                    sku = f"UTO-{hashlib.sha256(product['nombre'].encode()).hexdigest()[:8].upper()}"
                 
                 precio_compra = product.get("precio", 0)
                 precio_venta = round(precio_compra * (1 + margen / 100), 2)

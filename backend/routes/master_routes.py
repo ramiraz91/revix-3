@@ -10,6 +10,19 @@ import csv
 import io
 import math
 import random
+import uuid
+
+try:
+    from bson import ObjectId
+except ImportError:
+    ObjectId = str
+
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+except ImportError:
+    A4 = (595.27, 841.89)
+    canvas = None
 
 from config import db, EMERGENT_LLM_KEY, logger
 import config as cfg

@@ -140,7 +140,7 @@ async def actualizar_faq(faq_id: str, data: FAQUpdate, user: dict = Depends(requ
         raise HTTPException(status_code=404, detail="FAQ no encontrada")
     
     if data.categoria and data.categoria not in CATEGORIAS_FAQ:
-        raise HTTPException(status_code=400, detail=f"Categoría inválida")
+        raise HTTPException(status_code=400, detail="Categoría inválida")
     
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()

@@ -309,7 +309,6 @@ async def toggle_usuario_activo(usuario_id: str, user: dict = Depends(require_ad
 
 # ==================== GESTIÓN DE CONTRASEÑA ====================
 
-from pydantic import BaseModel
 
 class PasswordChangeRequest(BaseModel):
     nueva_password: str
@@ -424,7 +423,7 @@ async def solicitar_recuperacion(data: RecuperarPasswordRequest, request: Reques
                 to=email,
                 subject="Recuperación de contraseña — Revix",
                 titulo=f"Recupera el acceso, {user.get('nombre', '')}",
-                contenido=f"""
+                contenido="""
                     <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
                     <p>Haz clic en el botón para crear una nueva contraseña. El enlace es válido durante <strong>1 hora</strong>.</p>
                     <p style="color:#64748b;font-size:13px;margin-top:16px;">Si no solicitaste este cambio, puedes ignorar este email con total seguridad.</p>

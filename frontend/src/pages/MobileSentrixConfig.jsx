@@ -286,7 +286,7 @@ export default function MobileSentrixConfig() {
         setSyncingCatalogo(true);
         setSyncProgress(res.data);
       }
-    } catch (error) {}
+    } catch (error) { console.error('Sync progress error:', error); }
   };
 
   const handleToggleSyncCategory = (catId) => {

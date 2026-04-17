@@ -189,7 +189,7 @@ Responde SOLO con el JSON, sin texto adicional."""
             import os as temp_os
             try:
                 temp_os.unlink(tmp_path)
-            except:
+            except Exception:
                 pass
         
         # Parsear respuesta JSON

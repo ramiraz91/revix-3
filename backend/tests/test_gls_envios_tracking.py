@@ -12,7 +12,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://backend-perf-test.pr
 
 # Test credentials from the request
 MASTER_EMAIL = "master@revix.es"
-MASTER_PASSWORD = "RevixMaster2026!"
+MASTER_PASSWORD = os.environ.get("TEST_MASTER_PASSWORD", "RevixMaster2026!")
 
 # Order with shipments
 TEST_ORDER_ID = "57988501-4faa-4633-88ca-f0c96e6d75ce"

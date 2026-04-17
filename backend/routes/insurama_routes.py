@@ -79,7 +79,7 @@ async def obtener_config_insurama(user: dict = Depends(require_admin)):
     try:
         from agent.scheduler import is_agent_running
         agent_activo = is_agent_running()
-    except:
+    except Exception:
         pass
     
     if not config:
@@ -432,7 +432,7 @@ async def _alimentar_historial_mercado(client, presupuestos):
                     last_update = datetime.fromisoformat(existente["updated_at"])
                     if (datetime.now(timezone.utc) - last_update) < timedelta(hours=6):
                         continue  # Ya actualizado recientemente
-                except:
+                except Exception:
                     pass
             
             try:

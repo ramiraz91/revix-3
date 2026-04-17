@@ -34,7 +34,7 @@ def auth_token():
     """Get JWT token for authenticated requests"""
     response = requests.post(f"{BASE_URL}/api/auth/login", json={
         "email": "master@revix.es",
-        "password": "RevixMaster2026!"
+        "password": os.environ.get("TEST_MASTER_PASSWORD", "RevixMaster2026!")
     })
     if response.status_code == 200:
         data = response.json()

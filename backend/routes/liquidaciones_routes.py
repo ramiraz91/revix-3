@@ -58,7 +58,7 @@ async def obtener_liquidaciones_pendientes(user: dict = Depends(require_master))
         pipeline = [
             {"$match": {
                 "estado": "enviado",
-                "numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}
+                "numero_autorizacion": {"$exists": True, "$nin": [None, ""]}
             }},
             {"$lookup": {
                 "from": "liquidaciones",
@@ -362,7 +362,7 @@ async def importar_liquidacion_excel(
                     if val:
                         try:
                             importe = float(str(val).replace(",", ".").replace("€", "").strip())
-                        except:
+                        except Exception:
                             pass
                 
                 # Parsear fechas
@@ -603,7 +603,7 @@ async def obtener_impagados(user: dict = Depends(require_master)):
                     fecha_cierre = datetime.fromisoformat(imp["fecha_cierre"].replace("Z", "+00:00"))
                     dias = (datetime.now(timezone.utc) - fecha_cierre).days
                     imp["dias_retraso"] = dias
-                except:
+                except Exception:
                     imp["dias_retraso"] = 60
         
         return {

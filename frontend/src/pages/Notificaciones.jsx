@@ -120,7 +120,7 @@ export default function Notificaciones() {
           prev.map(n => n.id === notificacion.id ? { ...n, leida: true } : n)
         );
         window.dispatchEvent(new Event('notificaciones-updated'));
-      } catch (e) { /* silent */ }
+      } catch (e) { console.error('Notification action error:', e); }
     }
     if (notificacion.orden_id) {
       navigate(`/crm/ordenes/${notificacion.orden_id}`);

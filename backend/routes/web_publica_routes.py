@@ -411,7 +411,7 @@ async def solicitar_presupuesto(data: PresupuestoForm, request: Request):
         send_email(
             to="help@revix.es",
             subject=f"🔔 Nueva petición: {data.marca} {data.modelo} - {numero_peticion}",
-            titulo=f"Nueva solicitud de presupuesto",
+            titulo="Nueva solicitud de presupuesto",
             contenido=f"""
                 <p><strong>Número:</strong> {numero_peticion}</p>
                 <p><strong>Dispositivo:</strong> {data.marca} {data.modelo} ({data.tipo_dispositivo})</p>

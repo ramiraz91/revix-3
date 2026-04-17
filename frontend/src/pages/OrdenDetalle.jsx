@@ -239,7 +239,7 @@ export default function OrdenDetalle() {
       try {
         const garantiasRes = await ordenesAPI.obtenerGarantias(id);
         setOrdenesGarantia(garantiasRes.data || []);
-      } catch (e) {}
+      } catch (e) { console.error('Error cargando garantias:', e); }
     } catch (error) {
       toast.error('Error al cargar la orden');
       console.error(error);

@@ -21,7 +21,7 @@ TEST_ORDER_ID = "037899f0-1df6-4b7a-bd9c-5a54a163996f"  # Provided test order
 
 # Test credentials
 MASTER_EMAIL = "master@revix.es"
-MASTER_PASSWORD = "RevixMaster2026!"
+MASTER_PASSWORD = os.environ.get("TEST_MASTER_PASSWORD", "RevixMaster2026!")
 
 
 @pytest.fixture(scope="module")

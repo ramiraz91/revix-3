@@ -60,13 +60,13 @@ async def obtener_liquidaciones_pendientes(user: dict = Depends(require_master))
             {
                 "$match": {
                     "estado": "enviado",
-                    "codigo_insurama": {"$exists": True, "$ne": None, "$ne": ""}
+                    "numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}
                 }
             },
             {
                 "$lookup": {
                     "from": "liquidaciones",
-                    "localField": "codigo_insurama",
+                    "localField": "numero_autorizacion",
                     "foreignField": "codigo_siniestro",
                     "as": "liquidacion"
                 }
@@ -76,11 +76,11 @@ async def obtener_liquidaciones_pendientes(user: dict = Depends(require_master))
                     "_id": 0,
                     "orden_id": "$id",
                     "numero_orden": 1,
-                    "codigo_insurama": 1,
+                    "numero_autorizacion": 1,
                     "cliente_nombre": 1,
-                    "dispositivo_marca": 1,
-                    "dispositivo_modelo": 1,
+                    "dispositivo": 1,
                     "total": 1,
+                    "presupuesto_total": 1,
                     "fecha_envio": 1,
                     "fecha_creacion": "$created_at",
                     "liquidacion": {"$arrayElemAt": ["$liquidacion", 0]}
@@ -101,10 +101,10 @@ async def obtener_liquidaciones_pendientes(user: dict = Depends(require_master))
             item = {
                 "orden_id": orden.get("orden_id"),
                 "numero_orden": orden.get("numero_orden"),
-                "codigo_siniestro": orden.get("codigo_insurama"),
+                "codigo_siniestro": orden.get("numero_autorizacion"),
                 "cliente": orden.get("cliente_nombre"),
-                "dispositivo": f"{orden.get('dispositivo_marca', '')} {orden.get('dispositivo_modelo', '')}".strip(),
-                "importe": orden.get("total", 0),
+                "dispositivo": f"{orden.get('dispositivo', {}).get('marca', '')} {orden.get('dispositivo', {}).get('modelo', '')}".strip() if isinstance(orden.get('dispositivo'), dict) else str(orden.get('dispositivo', '')),
+                "importe": orden.get("presupuesto_total") or orden.get("total", 0),
                 "fecha_envio": orden.get("fecha_envio"),
                 "estado_liquidacion": liq.get("estado") if liq else "pendiente",
                 "fecha_pago": liq.get("fecha_pago") if liq else None,
@@ -375,10 +375,10 @@ async def importar_liquidacion_excel(
                     ya_pagados.append({"codigo": codigo, "importe": importe, "fecha_pago": existente.get("fecha_pago")})
                     continue
                 
-                # 2. Buscar la orden en el sistema por código Insurama
+                # 2. Buscar la orden en el sistema por código de autorización
                 orden = await db.ordenes.find_one(
-                    {"codigo_insurama": {"$regex": f"^{codigo}$", "$options": "i"}},
-                    {"_id": 0, "id": 1, "numero_orden": 1, "ordenes_garantia": 1, "estado": 1, "cliente_nombre": 1}
+                    {"numero_autorizacion": {"$regex": f"^{codigo}$", "$options": "i"}},
+                    {"_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1, "ordenes_garantia": 1, "estado": 1, "cliente_nombre": 1}
                 )
                 
                 if not orden:

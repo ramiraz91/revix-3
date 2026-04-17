@@ -806,6 +806,22 @@ async def create_default_users():
 
     # FRONTEND_URL forzado a producción en config.py — no sobreescribir
 
+
+    # Crear/verificar indices de MongoDB (idempotente)
+    try:
+        from scripts.create_indexes import safe_index
+        await safe_index(db.ordenes, "id", unique=True, name="idx_ordenes_id")
+        await safe_index(db.ordenes, [("estado", 1), ("created_at", -1)], name="idx_ordenes_estado_fecha")
+        await safe_index(db.ordenes, "numero_autorizacion", name="idx_ordenes_auth", sparse=True)
+        await safe_index(db.ordenes, "token_seguimiento", name="idx_ordenes_token")
+        await safe_index(db.clientes, "id", unique=True, name="idx_clientes_id")
+        await safe_index(db.users, "email", unique=True, name="idx_users_email")
+        await safe_index(db.print_jobs, "job_id", unique=True, name="idx_pj_jobid")
+        await safe_index(db.print_jobs, "status", name="idx_pj_status")
+        logger.info("Indices MongoDB verificados")
+    except Exception as e:
+        logger.warning(f"Error creando indices: {e}")
+
     # Database initialization - wrapped in try/except to not crash the server
     try:
         # Create default users

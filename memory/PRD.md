@@ -6,55 +6,34 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 ## Tech Stack
 - Frontend: React 18, Tailwind CSS, Shadcn/UI, JsBarcode
 - Backend: FastAPI, Motor (async MongoDB)
-- Database: MongoDB Atlas (production)
+- Database: MongoDB Atlas (production) — 27 indices optimizados
 - Label Printing: Agente Windows (Waitress + Pillow + python-barcode + pywin32)
 
 ---
 
-## Latest — 2026-04-15
+## Latest — 2026-04-17
 
-### Refactorizacion server.py: 3455 -> 988 lineas (72% reduccion)
-Extraidos 7 modulos de rutas:
-- `dashboard_routes.py` (698 lines): stats, metricas avanzadas, alertas, operativo, tecnico
-- `master_routes.py` (1180 lines): metricas tecnicos, facturacion, ISO, analiticas, finanzas
-- `ia_routes.py` (151 lines): mejorar texto, diagnosticos, consultas, historial
-- `restos_routes.py` (185 lines): despiece de dispositivos
-- `calendario_routes.py` (103 lines): eventos, asignacion ordenes, disponibilidad
-- `notificaciones_routes.py` (136 lines): CRUD notificaciones, email config
-- `config_empresa_routes.py` (83 lines): configuracion sistema y empresa
+### Estabilidad y Calidad de Codigo
+- **27 indices MongoDB** creados: ordenes (7), clientes (3), users (3), repuestos (3), liquidaciones (2), print_jobs (3), notificaciones (3), audit_log (3). Se verifican en cada startup.
+- **24 tests automaticos** (pytest): auth, ordenes, dashboard, clientes, liquidaciones, impresion, seguimiento, verificacion URLs produccion. 100% passed.
+- **Lint backend**: 94 errores -> 40 (cosmeticos). 0 undefined names, 0 bare excepts.
+- **Empty catch blocks**: Corregidos con console.error() en 4 paginas frontend.
+- **MD5 -> SHA-256** en utopya_routes.py
+- **Wildcard import eliminado** en email_service.py
+- **Usuarios duplicados** en MongoDB limpiados (master-001 x2 -> x1)
+- **URLs produccion**: FRONTEND_URL hardcodeado a https://revix.es en config.py, helpers.py, auth_routes.py, ordenes_routes.py. Eliminado override dinamico de startup.
 
-server.py ahora solo contiene: app setup, middleware, uploads, seguimiento publico, presupuestos, startup/shutdown.
-
-### SKUs Descriptivos Cortos
-- Formato `CAT-MODELO-TIPO`: BAT-IP15PM-COM, PANT-S24U-ORI
-- Frontend + backend sincronizados
-
-### Brother QL-800 Centralizado v2.1.0
-- Waitress (produccion), cola serializada, servicio Windows
-- Panel historial de impresiones
-- Barcode con numero de autorizacion
+### Indices MongoDB creados
+- ordenes: id(unique), numero_autorizacion, origen, created_at, tecnico_asignado, estado+auth, estado+fecha
+- clientes: id(unique), email, nombre
+- users: id(unique), email(unique), role
+- repuestos: id(unique), sku, categoria
+- liquidaciones: codigo_siniestro, estado
+- print_jobs: job_id(unique), status, requested_at
+- notificaciones: usuario_id, created_at, leida
+- audit_log: entity_id, timestamp, entity_type+entity_id
 
 ---
-
-## Architecture
-```
-/app/backend/
-  server.py (988 lines) - Core: app, middleware, uploads, seguimiento, startup
-  routes/
-    auth_routes.py        - Autenticacion JWT
-    data_routes.py        - CRUD clientes, repuestos
-    ordenes_routes.py     - Ordenes de trabajo
-    dashboard_routes.py   - Dashboard y metricas      [NUEVO]
-    master_routes.py      - Analiticas, ISO, finanzas  [NUEVO]
-    ia_routes.py          - Asistente IA               [NUEVO]
-    restos_routes.py      - Despiece                   [NUEVO]
-    calendario_routes.py  - Calendario                 [NUEVO]
-    notificaciones_routes.py - Notificaciones          [NUEVO]
-    config_empresa_routes.py - Config empresa           [NUEVO]
-    print_routes.py       - Impresion Brother
-    insurama_routes.py    - Aseguradoras
-    + 12 mas...
-```
 
 ## Backlog
 - P2: Google Business Profile + Gemini Flash

@@ -285,6 +285,7 @@ export default function Liquidaciones() {
   const pagados = filtrarItems(data?.pagados || []);
   const reclamados = filtrarItems(data?.reclamados || []);
   const impagados = data?.impagados || [];
+  const garantiasAbiertas = filtrarItems(data?.garantias_abiertas || []);
 
   if (loading) {
     return (
@@ -350,7 +351,7 @@ export default function Liquidaciones() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-amber-600">
@@ -394,7 +395,22 @@ export default function Liquidaciones() {
               <span className="text-sm font-medium">Impagados (+60d)</span>
             </div>
             <p className="text-2xl font-bold mt-1">{data?.resumen?.total_impagados || 0}</p>
-            <p className="text-xs text-muted-foreground">Requieren reclamación</p>
+            <p className="text-xs text-muted-foreground">Requieren reclamacion</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-purple-600">
+              <Shield className="w-5 h-5" />
+              <span className="text-sm font-medium">Con Garantia</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{data?.resumen?.total_con_garantia || 0}</p>
+            <p className="text-xs text-muted-foreground">
+              {(data?.resumen?.importe_garantias || 0).toFixed(2)}EUR costes
+              {(data?.resumen?.total_garantias_abiertas || 0) > 0 && (
+                <span className="text-amber-600 ml-1">({data.resumen.total_garantias_abiertas} abiertas)</span>
+              )}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -447,8 +463,14 @@ export default function Liquidaciones() {
           </TabsTrigger>
           <TabsTrigger value="reclamados" className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            En Reclamación ({reclamados.length})
+            Reclamacion ({reclamados.length})
           </TabsTrigger>
+          {garantiasAbiertas.length > 0 && (
+            <TabsTrigger value="garantias" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Garantias ({garantiasAbiertas.length})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="historial" className="flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4" />
             Historial
@@ -489,6 +511,25 @@ export default function Liquidaciones() {
             showAcciones
             showNotas
           />
+        </TabsContent>
+
+        {/* Tab Garantías Abiertas */}
+        <TabsContent value="garantias">
+          <Card className="border-amber-200 bg-amber-50/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-amber-800 flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Ordenes con garantia abierta — No liquidar hasta resolucion
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LiquidacionesTable
+                items={garantiasAbiertas}
+                onEditarGarantia={abrirGarantiaModal}
+                showNotas
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab Historial */}
@@ -786,7 +827,19 @@ function LiquidacionesTable({
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-mono font-medium">{item.codigo_siniestro}</TableCell>
+                  <TableCell className="font-mono font-medium">
+                    {item.codigo_siniestro}
+                    {item.tiene_garantia && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                        <Shield className="w-2.5 h-2.5" />GAR
+                      </span>
+                    )}
+                    {item.garantia_abierta && (
+                      <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                        ABIERTA
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>{item.cliente || '-'}</TableCell>
                   <TableCell className="max-w-[150px] truncate">{item.dispositivo || '-'}</TableCell>
                   <TableCell className="text-right font-medium">{(item.importe || 0).toFixed(2)}€</TableCell>

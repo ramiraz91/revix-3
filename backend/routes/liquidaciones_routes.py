@@ -51,98 +51,120 @@ class ImportarLiquidacionRequest(BaseModel):
 @router.get("/pendientes")
 async def obtener_liquidaciones_pendientes(user: dict = Depends(require_master)):
     """
-    Obtiene los siniestros enviados (validados por admin) que están pendientes de liquidar.
-    Estos son las órdenes con estado 'enviado' que tienen código de Insurama.
+    Obtiene siniestros enviados pendientes de liquidar.
+    Agrupa por numero_autorizacion para evitar duplicados padre/garantia.
     """
     try:
-        # Buscar órdenes con estado "enviado" que tengan código de Insurama
         pipeline = [
-            {
-                "$match": {
-                    "estado": "enviado",
-                    "numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "liquidaciones",
-                    "localField": "numero_autorizacion",
-                    "foreignField": "codigo_siniestro",
-                    "as": "liquidacion"
-                }
-            },
-            {
-                "$project": {
-                    "_id": 0,
-                    "orden_id": "$id",
-                    "numero_orden": 1,
-                    "numero_autorizacion": 1,
-                    "cliente_nombre": 1,
-                    "dispositivo": 1,
-                    "total": 1,
-                    "presupuesto_total": 1,
-                    "fecha_envio": 1,
-                    "fecha_creacion": "$created_at",
-                    "liquidacion": {"$arrayElemAt": ["$liquidacion", 0]}
-                }
-            },
+            {"$match": {
+                "estado": "enviado",
+                "numero_autorizacion": {"$exists": True, "$ne": None, "$ne": ""}
+            }},
+            {"$lookup": {
+                "from": "liquidaciones",
+                "localField": "numero_autorizacion",
+                "foreignField": "codigo_siniestro",
+                "as": "liquidacion"
+            }},
+            {"$project": {
+                "_id": 0, "orden_id": "$id", "numero_orden": 1,
+                "numero_autorizacion": 1, "cliente_nombre": 1, "dispositivo": 1,
+                "total": 1, "presupuesto_total": 1, "fecha_envio": 1,
+                "fecha_creacion": "$created_at", "es_garantia": 1,
+                "garantia_resultado": 1, "tipo_servicio": 1, "ordenes_garantia": 1,
+                "liquidacion": {"$arrayElemAt": ["$liquidacion", 0]}
+            }},
             {"$sort": {"fecha_envio": -1}}
         ]
-        
+
         ordenes = await db.ordenes.aggregate(pipeline).to_list(500)
-        
-        # Separar por estado de liquidación
-        pendientes = []
-        pagados = []
-        reclamados = []
-        
-        for orden in ordenes:
-            liq = orden.get("liquidacion")
+
+        # Agrupar por numero_autorizacion
+        auth_groups = {}
+        for o in ordenes:
+            auth = o.get("numero_autorizacion")
+            auth_groups.setdefault(auth, []).append(o)
+
+        pendientes, pagados, reclamados, garantias_abiertas = [], [], [], []
+
+        for auth_code, group in auth_groups.items():
+            padre = next((o for o in group if not o.get("es_garantia")), None)
+            garantia = next((o for o in group if o.get("es_garantia")), None)
+
+            ref = padre or garantia
+            liq = ref.get("liquidacion")
+
+            disp = ref.get("dispositivo")
+            dispositivo_str = f"{disp.get('marca','')} {disp.get('modelo','')}".strip() if isinstance(disp, dict) else str(disp or '')
+
+            importe_padre = (padre.get("presupuesto_total") or padre.get("total", 0) or 0) if padre else 0
+
+            tiene_garantia = garantia is not None
+            importe_garantia = (garantia.get("presupuesto_total") or garantia.get("total", 0) or 0) if garantia else 0
+            garantia_info = {"orden_id": garantia.get("orden_id"), "numero_orden": garantia.get("numero_orden"), "importe": importe_garantia, "resultado": garantia.get("garantia_resultado")} if garantia else None
+
+            garantia_abierta = False
+            if padre:
+                gar_ids = padre.get("ordenes_garantia") or []
+                if gar_ids:
+                    n = await db.ordenes.count_documents({"id": {"$in": gar_ids}, "estado": {"$nin": ["enviado", "cancelado"]}})
+                    garantia_abierta = n > 0
+
             item = {
-                "orden_id": orden.get("orden_id"),
-                "numero_orden": orden.get("numero_orden"),
-                "codigo_siniestro": orden.get("numero_autorizacion"),
-                "cliente": orden.get("cliente_nombre"),
-                "dispositivo": f"{orden.get('dispositivo', {}).get('marca', '')} {orden.get('dispositivo', {}).get('modelo', '')}".strip() if isinstance(orden.get('dispositivo'), dict) else str(orden.get('dispositivo', '')),
-                "importe": orden.get("presupuesto_total") or orden.get("total", 0),
-                "fecha_envio": orden.get("fecha_envio"),
+                "orden_id": ref.get("orden_id"),
+                "numero_orden": ref.get("numero_orden"),
+                "codigo_siniestro": auth_code,
+                "cliente": ref.get("cliente_nombre"),
+                "dispositivo": dispositivo_str,
+                "importe": importe_padre,
+                "importe_garantia": importe_garantia,
+                "fecha_envio": ref.get("fecha_envio"),
                 "estado_liquidacion": liq.get("estado") if liq else "pendiente",
                 "fecha_pago": liq.get("fecha_pago") if liq else None,
-                "tiene_garantia": liq.get("tiene_garantia", False) if liq else False,
-                "codigo_garantia": liq.get("codigo_garantia") if liq else None,
-                "costes_garantia": liq.get("costes_garantia", 0) if liq else 0,
+                "tiene_garantia": tiene_garantia,
+                "garantia_abierta": garantia_abierta,
+                "garantia_info": garantia_info,
+                "codigo_garantia": liq.get("codigo_garantia") if liq else (garantia_info["numero_orden"] if garantia_info else None),
+                "costes_garantia": liq.get("costes_garantia", 0) if liq else importe_garantia,
                 "mes_liquidacion": liq.get("mes_liquidacion") if liq else None,
-                "notas": liq.get("notas") if liq else None
+                "notas": liq.get("notas") if liq else None,
+                "es_solo_garantia": padre is None and garantia is not None,
             }
-            
+
             estado = item["estado_liquidacion"]
-            if estado == "pagado":
+            if garantia_abierta:
+                garantias_abiertas.append(item)
+            elif estado == "pagado":
                 pagados.append(item)
-            elif estado in ["reclamado", "en_resolucion"]:
+            elif estado in ("reclamado", "en_resolucion"):
                 reclamados.append(item)
             else:
                 pendientes.append(item)
-        
-        # Detectar impagados (más de 60 días desde envío)
+
         fecha_limite = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
         impagados = [p for p in pendientes if p.get("fecha_envio") and p["fecha_envio"] < fecha_limite]
-        
+
+        all_items = pendientes + pagados + reclamados + garantias_abiertas
         return {
             "pendientes": pendientes,
             "pagados": pagados,
             "reclamados": reclamados,
             "impagados": impagados,
+            "garantias_abiertas": garantias_abiertas,
             "resumen": {
                 "total_pendientes": len(pendientes),
                 "total_pagados": len(pagados),
                 "total_reclamados": len(reclamados),
                 "total_impagados": len(impagados),
-                "importe_pendiente": sum(p.get("importe", 0) for p in pendientes),
-                "importe_pagado": sum(p.get("importe", 0) for p in pagados),
-                "importe_reclamado": sum(p.get("importe", 0) for p in reclamados)
+                "total_garantias_abiertas": len(garantias_abiertas),
+                "total_con_garantia": sum(1 for p in all_items if p.get("tiene_garantia")),
+                "importe_pendiente": round(sum(p.get("importe", 0) for p in pendientes), 2),
+                "importe_pagado": round(sum(p.get("importe", 0) for p in pagados), 2),
+                "importe_reclamado": round(sum(p.get("importe", 0) for p in reclamados), 2),
+                "importe_garantias": round(sum(p.get("costes_garantia", 0) for p in all_items), 2),
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Error obteniendo liquidaciones pendientes: {e}")
         raise HTTPException(status_code=500, detail=str(e))

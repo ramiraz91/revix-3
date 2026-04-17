@@ -2127,7 +2127,7 @@ async def iniciar_re_presupuesto(orden_id: str, request: RePresupuestoRequest, u
                 import config as smtp_cfg
                 
                 token = orden.get("token_seguimiento", "")
-                link = f"{smtp_cfg.FRONTEND_URL}/web/consulta?codigo={token}"
+                link = f"https://revix.es/consulta?codigo={token}"
                 
                 contenido = f"""
                 <p>Hola {cliente.get('nombre', '')},</p>

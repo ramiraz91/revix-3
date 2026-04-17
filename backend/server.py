@@ -744,7 +744,7 @@ async def recuperar_credenciales_seguimiento(request: RecuperarCredencialesReque
         
         ordenes_html = ""
         for o in ordenes:
-            link = f"{cfg.FRONTEND_URL}/web/consulta?codigo={o.get('token_seguimiento', '')}"
+            link = f"https://revix.es/consulta?codigo={o.get('token_seguimiento', '')}"
             ordenes_html += f"""<tr>
                 <td style="padding:8px;border:1px solid #e2e8f0;">{o.get('numero_orden','')}</td>
                 <td style="padding:8px;border:1px solid #e2e8f0;">{o.get('dispositivo',{}).get('modelo','')}</td>
@@ -804,17 +804,7 @@ async def create_default_users():
     else:
         logger.warning("Resend no configurado - falta RESEND_API_KEY")
 
-    # Cargar FRONTEND_URL desde DB si existe
-    try:
-        empresa_config = await db.configuracion.find_one({"tipo": "empresa"}, {"_id": 0})
-        if empresa_config and empresa_config.get("datos", {}).get("url_web"):
-            url_web = empresa_config["datos"]["url_web"].rstrip("/")
-            cfg.FRONTEND_URL = url_web
-            import email_service as es
-            es.FRONTEND_URL = url_web
-            logger.info("FRONTEND_URL cargado desde config empresa: %s", url_web)
-    except Exception as e:
-        logger.error(f"Error cargando FRONTEND_URL desde DB: {e}")
+    # FRONTEND_URL forzado a producción en config.py — no sobreescribir
 
     # Database initialization - wrapped in try/except to not crash the server
     try:

@@ -234,7 +234,7 @@ async def crear_usuario(usuario: UserCreate, user: dict = Depends(require_admin)
                 <p style="color: #e74c3c;"><strong>⚠️ Importante:</strong> Te recomendamos cambiar esta contraseña temporal en tu primer acceso.</p>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{FRONTEND_URL}/login" style="background: #0055FF; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                    <a href="https://revix.es/crm/login" style="background: #0055FF; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
                         Acceder al Sistema
                     </a>
                 </div>
@@ -366,7 +366,7 @@ async def enviar_reset_password(usuario_id: str, user: dict = Depends(require_ma
                 <p><strong>Contraseña temporal:</strong> <code style="background:#f1f5f9;padding:4px 10px;border-radius:4px;font-size:16px;letter-spacing:1px">{temp_password}</code></p>
                 <p style="color:#64748b;font-size:13px;margin-top:16px;">Por seguridad, te recomendamos cambiar esta contraseña desde tu perfil en cuanto accedas al sistema.</p>
             """,
-            link_url=FRONTEND_URL,
+            link_url="https://revix.es/crm/login",
             link_text="Acceder al sistema"
         )
         email_enviado = True
@@ -419,7 +419,7 @@ async def solicitar_recuperacion(data: RecuperarPasswordRequest, request: Reques
         try:
             from services.email_service import send_email
             from config import FRONTEND_URL
-            reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+            reset_url = f"https://revix.es/crm/reset-password?token={reset_token}"
             send_email(
                 to=email,
                 subject="Recuperación de contraseña — Revix",

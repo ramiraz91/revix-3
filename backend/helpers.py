@@ -416,7 +416,7 @@ def generate_modern_email_html(
     email_type: 'created', 'recibida', 'en_taller', 'reparado', 'enviado', 'fecha_estimada'
     """
     token = orden.get('token_seguimiento', '')
-    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
+    link = f"https://revix.es/consulta?codigo={token}"
     estado = orden.get('estado', 'pendiente_recibir')
     dispositivo = orden.get('dispositivo', {})
     
@@ -592,9 +592,9 @@ def generate_modern_email_html(
                     ¿Tienes alguna pregunta? Estamos aquí para ayudarte.
                 </p>
                 <div class="footer-links">
-                    <a href="{cfg.FRONTEND_URL}/contacto">Contacto</a>
-                    <a href="{cfg.FRONTEND_URL}/consulta">Portal de Seguimiento</a>
-                    <a href="{cfg.FRONTEND_URL}/garantia">Garantía</a>
+                    <a href="https://revix.es/contacto">Contacto</a>
+                    <a href="https://revix.es/consulta">Portal de Seguimiento</a>
+                    <a href="https://revix.es/garantia">Garantía</a>
                 </div>
                 <p class="footer-copyright">
                     © 2025 Revix. Todos los derechos reservados.
@@ -652,7 +652,7 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
 
     # Enviar SMS si está habilitado
     sms_enabled = email_cfg.get("sms_enabled", True)
-    link = f"{cfg.FRONTEND_URL}/consulta?codigo={token}"
+    link = f"https://revix.es/consulta?codigo={token}"
     
     if notification_type == "created":
         sms_message = f"Revix: Orden {numero_orden} registrada. Sigue tu reparación: {link}"

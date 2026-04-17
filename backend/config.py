@@ -77,7 +77,8 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'notificaciones@revix.es')
 RESEND_CONFIGURED = bool(RESEND_API_KEY)
 
 # ── URLs ──────────────────────────────────────────────────────────────────────
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://revix.es')
+# FRONTEND_URL forzado a producción — NO usar env variable de la plataforma
+FRONTEND_URL = 'https://revix.es'
 
 # ── Directorios ───────────────────────────────────────────────────────────────
 UPLOAD_DIR = ROOT_DIR / "uploads"

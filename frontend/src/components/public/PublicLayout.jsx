@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, X, ArrowUpRight } from 'lucide-react';
 import Logo from './Logo';
-import ChatBot from './ChatBot';
+import FloatingChat from './FloatingChat';
 
 const navLinks = [
   { path: '/', label: 'Inicio', end: true },
@@ -232,7 +232,7 @@ export default function PublicLayout() {
         </div>
       </footer>
 
-      <ChatBot />
+      <FloatingChat />
     </div>
   );
 }

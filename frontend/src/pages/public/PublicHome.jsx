@@ -171,7 +171,7 @@ export default function PublicHome() {
                 { value: 70, suffix: '%', label: 'Reparaciones en menos de 1,6 d' },
               ].map((s) => (
                 <div key={s.label} className="text-center lg:text-left">
-                  <p className="text-5xl sm:text-6xl font-[800] tracking-[-0.04em] text-[#111111] leading-none">
+                  <p className="text-4xl sm:text-5xl lg:text-6xl font-[800] tracking-[-0.04em] text-[#111111] leading-none">
                     <CountUp to={s.value} decimals={s.decimals || 0} suffix={s.suffix} />
                   </p>
                   <p className="mt-3 text-sm text-[#6E6E73] max-w-[18ch] mx-auto lg:mx-0 leading-snug">{s.label}</p>
@@ -215,8 +215,8 @@ export default function PublicHome() {
             <div className="relative rounded-[2rem] overflow-hidden bg-[#111111] aspect-[4/3]">
               <img src={SEGUIMIENTO_IMG} alt="Seguimiento en tiempo real" className="w-full h-full object-cover opacity-70" loading="lazy" />
               {/* Mockup overlay */}
-              <div className="absolute inset-0 flex items-center justify-center p-10">
-                <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 space-y-4">
+              <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-10">
+                <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-5 sm:p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-widest text-[#6E6E73]">OT-2026-4832</p>
                     <span className="text-xs bg-[#EEF4FF] text-[#0055FF] font-semibold px-2.5 py-1 rounded-full">En reparación</span>
@@ -389,9 +389,9 @@ export default function PublicHome() {
       {/* ═════════ CTA FINAL ═════════ */}
       <Section tone="subtle">
         <FadeUp>
-          <div className="rounded-[2rem] bg-[#111111] px-8 sm:px-16 py-20 sm:py-28 text-center relative overflow-hidden">
-            <div className="absolute -top-20 -right-20 w-80 h-80 bg-[#0055FF]/30 rounded-full blur-3xl" aria-hidden />
-            <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#0055FF]/20 rounded-full blur-3xl" aria-hidden />
+          <div className="rounded-[2rem] bg-[#111111] px-6 sm:px-16 py-16 sm:py-28 text-center relative overflow-hidden">
+            <div className="absolute -top-20 -right-20 w-80 h-80 bg-[#0055FF]/30 rounded-full blur-3xl pointer-events-none" aria-hidden />
+            <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#0055FF]/20 rounded-full blur-3xl pointer-events-none" aria-hidden />
             <div className="relative">
               <h2 className="font-[700] tracking-[-0.035em] text-3xl sm:text-5xl leading-[1.05] text-white max-w-3xl mx-auto">
                 Tu móvil merece una segunda vida.

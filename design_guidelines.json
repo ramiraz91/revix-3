@@ -1,181 +1,99 @@
 {
-  "identity": {
-    "name": "E1",
-    "role": "Creative Designer",
-    "philosophy": "Fusion over Imitation. Clinical Precision meets Swiss Design.",
-    "anti_patterns": [
-      "Generic 'Bootstrap' look",
-      "Overused gradients",
-      "Center-aligned everything",
-      "Low contrast text"
-    ]
+  "theme": "Light",
+  "archetype": "High-End Minimalist (Apple Care Style) / Archetype 4 Modified",
+  "design_principles": [
+    "Maximum whitespace. Information must breathe.",
+    "Huge, authoritative headings using Plus Jakarta Sans (700-800 weight).",
+    "Clean, concise body copy with Inter. Avoid walls of text.",
+    "Realistic, high-quality product photography with clean lighting.",
+    "Generous vertical padding (py-24 or py-32).",
+    "Primary CTAs are bold Brand Blue (#0055FF), completely rounded (pill-shaped).",
+    "Subtle micro-animations (framer-motion fade-in-up) for smooth entrances.",
+    "Clear hierarchy: one primary message per fold."
+  ],
+  "colors": {
+    "brand_primary": "#0055FF",
+    "brand_primary_hover": "#0044CC",
+    "background_default": "#FFFFFF",
+    "background_subtle": "#F5F5F7",
+    "text_primary": "#111111",
+    "text_secondary": "#6E6E73",
+    "border_light": "#E5E5EA"
   },
   "typography": {
-    "font_family": {
-      "headings": "Plus Jakarta Sans, sans-serif",
-      "body": "Inter, sans-serif",
-      "mono": "JetBrains Mono, monospace"
-    },
-    "scale": {
-      "h1": "text-4xl font-bold tracking-tight",
-      "h2": "text-3xl font-semibold tracking-tight",
-      "h3": "text-2xl font-semibold tracking-tight",
-      "body": "text-base leading-relaxed",
-      "small": "text-sm text-muted-foreground",
-      "mono": "text-xs font-mono tracking-wide"
-    },
-    "rules": [
-      "Use 'Plus Jakarta Sans' for all headings (h1-h3).",
-      "Use 'Inter' for all body text, inputs, and table data.",
-      "Use 'JetBrains Mono' for IMEI, Serial Numbers, and Order IDs.",
-      "Headings must be tight: tracking-tight.",
-      "Labels must be uppercase and small: text-[11px] uppercase tracking-wider font-medium text-muted-foreground."
-    ]
-  },
-  "colors": {
-    "theme": "light",
-    "palette": {
-      "background": "#FFFFFF",
-      "foreground": "#0F172A",
-      "primary": "#0055FF",
-      "primary_foreground": "#FFFFFF",
-      "secondary": "#F1F5F9",
-      "secondary_foreground": "#0F172A",
-      "muted": "#F8FAFC",
-      "muted_foreground": "#64748B",
-      "accent": "#F1F5F9",
-      "accent_foreground": "#0F172A",
-      "border": "#E2E8F0",
-      "input": "#E2E8F0",
-      "ring": "#0055FF",
-      "success": "#10B981",
-      "warning": "#F59E0B",
-      "error": "#EF4444",
-      "info": "#3B82F6"
-    },
-    "usage": {
-      "primary": "Main actions (Save, Create), Active states, Brand elements.",
-      "secondary": "Secondary actions (Cancel, Back), Backgrounds for sidebars/headers.",
-      "muted": "Backgrounds for cards, subtle sections.",
-      "border": "Dividers, Input borders, Card borders.",
-      "text": "Use 'foreground' for main text, 'muted_foreground' for secondary text."
+    "heading_font": "Plus Jakarta Sans",
+    "body_font": "Inter",
+    "scales": {
+      "h1": "text-5xl sm:text-6xl md:text-7xl font-[800] tracking-tighter text-[#111111]",
+      "h2": "text-4xl sm:text-5xl font-[700] tracking-tight text-[#111111]",
+      "h3": "text-2xl sm:text-3xl font-[600] tracking-tight text-[#111111]",
+      "body": "text-lg sm:text-xl font-[400] text-[#6E6E73] leading-relaxed",
+      "small": "text-sm font-[600] text-[#6E6E73] uppercase tracking-widest"
     }
   },
-  "layout": {
-    "grid_system": "Bento Grid Mode B (High Density)",
-    "spacing": {
-      "container_padding": "p-6 md:p-8 lg:p-10",
-      "element_gap": "gap-4 md:gap-6",
-      "section_gap": "gap-8 md:gap-12"
+  "spacing_and_layout": {
+    "section_padding": "py-24 sm:py-32",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "border_radius": {
+      "button": "rounded-full",
+      "card": "rounded-3xl",
+      "image": "rounded-3xl",
+      "input": "rounded-2xl"
     },
-    "structure": {
-      "sidebar": "Fixed left, w-64, border-r border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60.",
-      "main_content": "ml-64 min-h-screen bg-muted/30",
-      "card": "bg-background border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
-    }
-  },
-  "components": {
-    "buttons": {
-      "default": "h-10 px-4 py-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-      "primary": "bg-primary text-primary-foreground hover:bg-primary/90",
-      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-      "ghost": "hover:bg-accent hover:text-accent-foreground",
-      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-    },
-    "inputs": {
-      "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-    },
-    "cards": {
-      "style": "rounded-xl border bg-card text-card-foreground shadow-sm",
-      "header": "flex flex-col space-y-1.5 p-6",
-      "content": "p-6 pt-0",
-      "footer": "flex items-center p-6 pt-0"
-    },
-    "tables": {
-      "style": "w-full caption-bottom text-sm",
-      "header": "[&_tr]:border-b",
-      "row": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
-      "cell": "p-4 align-middle [&:has([role=checkbox])]:pr-0"
-    },
-    "badges": {
-      "style": "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-      "variants": {
-        "default": "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        "secondary": "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        "destructive": "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        "outline": "text-foreground"
-      }
-    }
-  },
-  "visual_enhancers": {
-    "glassmorphism": "backdrop-blur-md bg-white/70 border-white/20 shadow-sm",
-    "gradients": "Use subtle gradients only for active states or highlights. No full-screen gradients.",
-    "shadows": "shadow-sm for cards, shadow-md for dropdowns/modals. Avoid heavy drop shadows.",
-    "borders": "1px solid border-border. Use 'divide-y' and 'divide-x' utilities for lists and grids."
-  },
-  "images": {
-    "login_background": {
-      "url": "https://images.unsplash.com/photo-1760462787994-adc5d5b14cd8?crop=entropy&cs=srgb&fm=jpg&q=85",
-      "alt": "Minimalist tech workspace",
-      "usage": "Full screen background for login page with overlay"
-    },
-    "technician_hero": {
-      "url": "https://images.unsplash.com/photo-1603114595741-e60bf9486e04?crop=entropy&cs=srgb&fm=jpg&q=85",
-      "alt": "Technician soldering",
-      "usage": "Hero image for 'About' or 'Service' section"
-    },
-    "inventory_placeholder": {
-      "url": "https://images.unsplash.com/photo-1653548147224-411e742e689b?crop=entropy&cs=srgb&fm=jpg&q=85",
-      "alt": "Disassembled phone parts",
-      "usage": "Placeholder for inventory items without images"
-    },
-    "empty_state": {
-      "url": "https://images.unsplash.com/photo-1760462787799-eccd2ccdb2dd?crop=entropy&cs=srgb&fm=jpg&q=85",
-      "alt": "Clean desk empty state",
-      "usage": "Displayed when no data is available (e.g., no orders)"
+    "shadows": {
+      "card_hover": "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
+      "soft": "shadow-sm"
     }
   },
   "motion": {
-    "transitions": "transition-all duration-200 ease-in-out",
-    "hover_effects": "hover:translate-y-[-2px] hover:shadow-md",
-    "loading": "animate-pulse bg-muted rounded"
+    "page_transition": "framer-motion initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: 'easeOut' }}",
+    "hover_lift": "transition-transform duration-300 hover:-translate-y-1"
   },
-  "accessibility": {
-    "contrast": "Ensure text contrast ratio is at least 4.5:1.",
-    "focus_states": "Visible focus rings on all interactive elements.",
-    "aria_labels": "Required for all icon-only buttons."
+  "components": {
+    "button_primary": "bg-[#0055FF] text-white rounded-full px-8 py-4 font-semibold hover:bg-[#0044CC] transition-colors inline-flex items-center justify-center",
+    "button_secondary": "bg-[#F5F5F7] text-[#111111] rounded-full px-8 py-4 font-semibold hover:bg-[#E5E5EA] transition-colors inline-flex items-center justify-center",
+    "card": "bg-white rounded-3xl p-8 sm:p-12 border border-[#E5E5EA] transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+  },
+  "pages_blueprint": {
+    "PublicLayout": "Minimalist header with glassmorphism (backdrop-blur-xl bg-white/70). Logo on left, clean links center, primary CTA right. Footer expansive and clean.",
+    "PublicHome": "Hero with stark minimal design, huge text. 3-column bento for 'Why us', 'Services', and 'B2B/Insurama' section.",
+    "PublicServicios": "Grid of services with large clean icons/images and minimal text. Hover states to show details.",
+    "PublicContacto": "Two-column layout. Left: Clean typography with contact info. Right: Minimal form with rounded-2xl inputs.",
+    "PublicPresupuesto": "Step-by-step or clean stacked form. Very spacious inputs.",
+    "PublicAseguradoras": "B2B focused. Darker or distinct section headers to highlight SLAs, integrations (Insurama) and high-volume capabilities.",
+    "PublicPartners": "Similar structure to Aseguradoras, focused on repair shops and revendedores.",
+    "PublicGarantia": "Text-heavy but highly readable. Wide margins, H2s breaking up paragraphs.",
+    "PublicGarantiaExtendida": "Product page feel. Hero showcasing peace of mind. Pricing/Tier cards.",
+    "PublicFAQs": "Clean accordion list (Shadcn Accordion) with ample vertical padding between items.",
+    "Seguimiento": "Functional portal. Center the form on screen, huge input for the code, very clear status indicators (like Apple order tracking)."
+  },
+  "image_urls": {
+    "hero_home": {
+      "url": "https://images.unsplash.com/photo-1595284842948-0d0530153883?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwyfHxzbWFydHBob25lJTIwcmVwYWlyJTIwcHJvZmVzc2lvbmFsJTIwY2xlYW4lMjBkZXNrfGVufDB8fHx8MTc3NjUzNzk3OHww&ixlib=rb-4.1.0&q=85",
+      "description": "Clean, professional desk with smartphone repair setup (Apple Care style)."
+    },
+    "service_screen": {
+      "url": "https://images.unsplash.com/photo-1746017302148-3c180b6d4735?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwzfHxwaG9uZSUyMHNjcmVlbiUyMHJlcGFpciUyMGNsb3NldXB8ZW58MHx8fHwxNzc2NTM3OTc4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Broken phone screen closeup for service catalog."
+    },
+    "b2b_partners": {
+      "url": "https://images.unsplash.com/photo-1758599543152-a73184816eba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwyfHxidXNpbmVzcyUyMHRlY2hub2xvZ3klMjBoYW5kc2hha2V8ZW58MHx8fHwxNzc2NTM3OTc4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Professional handshake for B2B pages (Aseguradoras & Partners)."
+    },
+    "warranty_budget": {
+      "url": "https://images.unsplash.com/photo-1636589343867-f1d643baf04c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxicm9rZW4lMjBzbWFydHBob25lJTIwZ2xhc3N8ZW58MHx8fHwxNzc2NTM3OTc4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Broken smartphone glass on clean surface for budget/warranty."
+    }
   },
   "instructions_to_main_agent": [
-    "Implement the 'Bento Grid' layout for the main dashboard.",
-    "Use the defined color palette variables in 'tailwind.config.js'.",
-    "Ensure all forms use 'react-hook-form' and 'zod' for validation.",
-    "Use 'lucide-react' for icons.",
-    "Create a 'Layout' component that includes the Sidebar and Header.",
-    "The 'QR Scanner' should be a prominent feature, accessible from the mobile view.",
-    "Inventory items should have a 'Low Stock' visual indicator (e.g., red border or badge).",
-    "Work Orders must show a clear status progress bar.",
-    "Use 'sonner' for all toast notifications.",
-    "Do not use 'Inter' for headings; use 'Plus Jakarta Sans'.",
-    "Ensure the app is fully responsive (mobile-first)."
-  ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy",
-    "Use glass-morphism effects with backdrop filters (12-24px blur)",
-    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
-    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
-    "Prioritize using pre-existing components from src/components/ui when applicable",
-    "Create new components that match the style and conventions of existing components when needed",
-    "Examine existing components to understand the project's component patterns before creating new ones",
-    "Components MUST use named exports (export const ComponentName = ...)",
-    "Pages MUST use default exports (export default function PageName() {...})",
-    "Use 'sonner' for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+    "Redesign all 10 public pages and the PublicLayout based on these guidelines.",
+    "Ensure total visual coherence across all pages (Apple Care minimalist style).",
+    "Use lucide-react for all iconography. No emojis.",
+    "Apply 'data-testid' to all interactive elements and CTAs.",
+    "DO NOT touch the CRM pages or backend routes.",
+    "Preserve existing functionality for the chatbot and /consulta (Seguimiento) form.",
+    "For the Revix Logo, implement it as a typography-based React component: <span className='font-[800] text-black'>Revix<span className='text-[#0055FF]'>.</span>es</span>. Since the user asked for high quality PNG/SVG logo, you will not generate these files physically as you cannot, but explicitly provide an SVG representation in a standalone component (e.g. Logo.jsx) they can use directly.",
+    "Mobile-first: Test large headings using fluid typography or Tailwind's responsive prefixes (e.g., text-4xl sm:text-6xl).",
+    "Forms: Use Shadcn inputs but give them rounded-2xl shapes (override default radius) to match the Apple aesthetic."
   ]
 }

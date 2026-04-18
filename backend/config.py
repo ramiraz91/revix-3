@@ -50,21 +50,13 @@ client = AsyncIOMotorClient(
 db = client[db_name]
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
-JWT_SECRET    = os.environ.get('JWT_SECRET', 'techrepair-secret-key-2026')
+JWT_SECRET    = os.environ.get('JWT_SECRET')
 JWT_ALGORITHM = "HS256"
 
-if JWT_SECRET == 'techrepair-secret-key-2026':
-    import warnings
-    warnings.warn(
-        "⚠️ SEGURIDAD: JWT_SECRET usa el valor por defecto. "
-        "Define JWT_SECRET en .env para producción.",
-        UserWarning
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET debe estar definido en variables de entorno (backend/.env)."
     )
-    # En producción (ENV=production), abortar si no hay JWT_SECRET real
-    if os.environ.get('ENV', '').lower() == 'production':
-        raise RuntimeError(
-            "JWT_SECRET debe definirse en variables de entorno en producción"
-        )
 
 # ── Servicios externos ────────────────────────────────────────────────────────
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')

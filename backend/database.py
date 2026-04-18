@@ -21,27 +21,26 @@ load_dotenv(override=False)
 logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DE BASE DE DATOS CON FALLBACK DE SEGURIDAD
+# CONFIGURACIÓN DE BASE DE DATOS
 # ══════════════════════════════════════════════════════════════════════════════
-# Prioridad:
-# 1. Variables de entorno (MONGO_URL, DB_NAME) - para Kubernetes/Emergent
-# 2. Fallback: BD privada de Revix en MongoDB Atlas
+# Las credenciales se cargan EXCLUSIVAMENTE desde variables de entorno
+# (definidas en backend/.env). Esto garantiza 12-factor compliance y permite
+# a Emergent/Kubernetes inyectar credenciales de producción de forma segura.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Fallback de seguridad - BD privada de Revix
-_FALLBACK_MONGO_URL = "mongodb+srv://revix_app:xTGydIpZKsgfTtuV@revix.d7soggd.mongodb.net/production?retryWrites=true&w=majority&appName=Revix"
-_FALLBACK_DB_NAME = "production"
+MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL")
+DB_NAME = os.getenv("DB_NAME")
 
-# Usar variable de entorno SI existe, sino usar el fallback
-MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL") or _FALLBACK_MONGO_URL
-DB_NAME = os.getenv("DB_NAME") or _FALLBACK_DB_NAME
+if not MONGO_URL:
+    raise RuntimeError(
+        "MONGO_URL no está definido. Configúralo en backend/.env o como variable de entorno."
+    )
+if not DB_NAME:
+    raise RuntimeError(
+        "DB_NAME no está definido. Configúralo en backend/.env o como variable de entorno."
+    )
 
-# Log de la conexión (sin exponer credenciales)
-_using_fallback = (MONGO_URL == _FALLBACK_MONGO_URL)
-if _using_fallback:
-    logger.info("📦 Usando BD de fallback (Revix Atlas privado)")
-else:
-    logger.info("📦 Usando BD desde variables de entorno")
+logger.info("📦 MongoDB cargado desde variables de entorno")
 
 # ── Clientes ──────────────────────────────────────────────────────────────────
 

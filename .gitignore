@@ -95,11 +95,8 @@ frontend/node_modules/.cache/default-development/14.pack
 frontend/node_modules/.cache/default-development/13.pack
 
 # Environment files
-*.env
-*.env.*
-.env.local
-.env.development
-.env.production
+# NOTE: .env files MUST be committed to enable Emergent deployment to
+# inject production values. Do NOT add *.env patterns here.
 frontend/node_modules/.cache/default-development/15.pack
 frontend/node_modules/.cache/default-development/16.pack
 frontend/node_modules/.cache/default-development/18.pack

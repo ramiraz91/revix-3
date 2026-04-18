@@ -26,6 +26,7 @@ function LegacyCRMRedirect() {
 
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import useBrandingByRoute from "@/hooks/useBrandingByRoute";
 import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -123,6 +124,7 @@ function OrdenRoute() {
 
 function AppRoutes() {
   const { user } = useAuth();
+  useBrandingByRoute();
   
   return (
     <Routes>

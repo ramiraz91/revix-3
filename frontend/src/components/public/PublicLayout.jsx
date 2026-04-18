@@ -94,10 +94,17 @@ export default function PublicLayout() {
           <div className="hidden lg:flex items-center gap-3">
             <Link
               to="/consulta"
-              className="text-sm font-medium text-[#3A3A3C] hover:text-[#111111] px-4 py-2"
+              className="text-sm font-medium text-[#3A3A3C] hover:text-[#111111] px-3 py-2"
               data-testid="nav-seguimiento"
             >
               Mi reparación
+            </Link>
+            <Link
+              to="/login"
+              className="text-sm font-medium text-[#3A3A3C] hover:text-[#111111] px-3 py-2"
+              data-testid="nav-login"
+            >
+              Acceder
             </Link>
             <Link
               to="/presupuesto"
@@ -150,6 +157,12 @@ export default function PublicLayout() {
                     className="w-full text-center px-4 py-3 rounded-full bg-[#F5F5F7] font-semibold text-[#111111]"
                   >
                     Mi reparación
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="w-full text-center px-4 py-3 rounded-full bg-white border border-[#E5E5EA] font-semibold text-[#111111]"
+                  >
+                    Acceder
                   </Link>
                   <Link
                     to="/presupuesto"

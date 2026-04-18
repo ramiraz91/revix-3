@@ -188,8 +188,11 @@ export default function PublicLayout() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
             <div className="lg:col-span-4">
               <Logo size="md" />
-              <p className="mt-5 text-sm text-[#6E6E73] max-w-xs leading-relaxed">
-                Servicio técnico especializado en reparación de telefonía móvil. Para particulares, aseguradoras y partners.
+              <p className="mt-4 text-sm font-semibold text-[#0055FF] tracking-tight">
+                Repara. Reutiliza. Recicla.
+              </p>
+              <p className="mt-4 text-sm text-[#6E6E73] max-w-xs leading-relaxed">
+                Servicio técnico especializado en reparación de telefonía móvil. Más de 10 años dando una segunda vida a tus dispositivos.
               </p>
             </div>
             {footerCols.map((col) => (

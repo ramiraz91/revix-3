@@ -117,3 +117,7 @@ frontend/node_modules/.cache/default-development/43.pack
 frontend/node_modules/.cache/default-development/45.pack
 frontend/node_modules/.cache/default-development/42.pack
 frontend/node_modules/.cache/default-development/46.pack
+
+# Test credentials (should never be deployed)
+memory/test_credentials.md
+

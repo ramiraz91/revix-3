@@ -272,7 +272,7 @@ export default function ClienteDetalle() {
                         {disp.servicios.slice(0, 3).map((serv, i) => (
                           <Link 
                             key={i} 
-                            to={`/ordenes/${serv.numero_orden}`}
+                            to={`/ordenes/${serv.id || serv.numero_orden}`}
                             className="text-xs px-2 py-1 bg-white rounded border hover:bg-slate-100"
                           >
                             {serv.numero_orden}

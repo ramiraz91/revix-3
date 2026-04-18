@@ -119,7 +119,7 @@ async def obtener_historial_cliente(cliente_id: str, user: dict = Depends(requir
         if imei:
             if imei not in dispositivos:
                 dispositivos[imei] = {"modelo": disp.get('modelo'), "color": disp.get('color'), "imei": imei, "servicios": [], "total_reparaciones": 0, "reemplazado": False, "irreparable": False}
-            dispositivos[imei]['servicios'].append({"numero_orden": orden.get('numero_orden'), "estado": orden.get('estado'), "fecha": orden.get('created_at'), "daños": disp.get('daños'), "es_garantia": orden.get('es_garantia', False)})
+            dispositivos[imei]['servicios'].append({"id": orden.get('id'), "numero_orden": orden.get('numero_orden'), "estado": orden.get('estado'), "fecha": orden.get('created_at'), "daños": disp.get('daños'), "es_garantia": orden.get('es_garantia', False)})
             dispositivos[imei]['total_reparaciones'] += 1
             if orden.get('estado') == 'reemplazo':
                 dispositivos[imei]['reemplazado'] = True

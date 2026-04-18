@@ -209,35 +209,46 @@ export default function OrdenDetalle() {
   const fetchOrden = async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
-      const [ordenRes, repuestosRes, mensajesRes, metricasRes] = await Promise.all([
-        ordenesAPI.obtener(id),
+      // 1) Cargar la orden primero (acepta UUID o numero_orden)
+      const ordenRes = await ordenesAPI.obtener(id);
+      const ordenData = ordenRes.data;
+      const realId = ordenData?.id;
+
+      // Si la URL vino con numero_orden, redirigir a la URL canónica con UUID
+      if (realId && realId !== id) {
+        navigate(`/crm/ordenes/${realId}`, { replace: true });
+        return;
+      }
+
+      // 2) Cargar el resto de datos usando el UUID real
+      const [repuestosRes, mensajesRes, metricasRes] = await Promise.all([
         repuestosAPI.listar({ page_size: 100 }),
-        ordenesAPI.obtenerMensajes(id),
-        ordenesAPI.obtenerMetricas(id)
+        ordenesAPI.obtenerMensajes(realId),
+        ordenesAPI.obtenerMetricas(realId)
       ]);
-      setOrden(ordenRes.data);
+      setOrden(ordenData);
       setCpiData({
-        tipo_ot: ordenRes.data?.cpi_tipo_ot || 'b2c',
-        opcion: ordenRes.data?.cpi_opcion || derivarOpcionCPI(ordenRes.data),
-        metodo: ordenRes.data?.cpi_metodo || '',
-        observaciones: ordenRes.data?.cpi_observaciones || '',
+        tipo_ot: ordenData?.cpi_tipo_ot || 'b2c',
+        opcion: ordenData?.cpi_opcion || derivarOpcionCPI(ordenData),
+        metodo: ordenData?.cpi_metodo || '',
+        observaciones: ordenData?.cpi_observaciones || '',
         // backward compat
-        requiere_borrado: Boolean(ordenRes.data?.cpi_requiere_borrado),
-        autorizacion_cliente: Boolean(ordenRes.data?.cpi_autorizacion_cliente),
-        resultado: ordenRes.data?.cpi_resultado || '',
+        requiere_borrado: Boolean(ordenData?.cpi_requiere_borrado),
+        autorizacion_cliente: Boolean(ordenData?.cpi_autorizacion_cliente),
+        resultado: ordenData?.cpi_resultado || '',
       });
       // La API devuelve {items: [], total: X, ...} - extraer items
       setRepuestos(repuestosRes.data.items || []);
       setMensajes(mensajesRes.data);
       setMetricas(metricasRes.data);
       
-      if (ordenRes.data.cliente_id) {
-        const clienteRes = await clientesAPI.obtener(ordenRes.data.cliente_id);
+      if (ordenData.cliente_id) {
+        const clienteRes = await clientesAPI.obtener(ordenData.cliente_id);
         setCliente(clienteRes.data);
       }
       
       try {
-        const garantiasRes = await ordenesAPI.obtenerGarantias(id);
+        const garantiasRes = await ordenesAPI.obtenerGarantias(realId);
         setOrdenesGarantia(garantiasRes.data || []);
       } catch (e) { console.error('Error cargando garantias:', e); }
     } catch (error) {

@@ -94,12 +94,11 @@ app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://revix.es",
-        "https://www.revix.es",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        os.environ.get("REACT_APP_BACKEND_URL", ""),
-    ],
+        o.strip() for o in os.environ.get(
+            "CORS_ORIGINS",
+            "https://revix.es,https://www.revix.es,http://localhost:3000,http://127.0.0.1:3000"
+        ).split(",") if o.strip()
+    ] + ([os.environ.get("REACT_APP_BACKEND_URL")] if os.environ.get("REACT_APP_BACKEND_URL") else []),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Agent-Key"],

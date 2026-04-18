@@ -60,6 +60,11 @@ if JWT_SECRET == 'techrepair-secret-key-2026':
         "Define JWT_SECRET en .env para producción.",
         UserWarning
     )
+    # En producción (ENV=production), abortar si no hay JWT_SECRET real
+    if os.environ.get('ENV', '').lower() == 'production':
+        raise RuntimeError(
+            "JWT_SECRET debe definirse en variables de entorno en producción"
+        )
 
 # ── Servicios externos ────────────────────────────────────────────────────────
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
@@ -77,8 +82,15 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'notificaciones@revix.es')
 RESEND_CONFIGURED = bool(RESEND_API_KEY)
 
 # ── URLs ──────────────────────────────────────────────────────────────────────
-# FRONTEND_URL forzado a producción — NO usar env variable de la plataforma
-FRONTEND_URL = 'https://revix.es'
+# FRONTEND_URL: lee de env var, pero filtra URLs de preview/localhost para
+# evitar que emails salgan con enlaces rotos si la plataforma inyecta una
+# URL de preview. Default seguro: https://revix.es
+_env_frontend = os.environ.get('FRONTEND_URL', '').strip()
+_unsafe_patterns = ('preview.emergentagent.com', 'localhost', '127.0.0.1', 'emergent.host')
+if _env_frontend and not any(p in _env_frontend for p in _unsafe_patterns):
+    FRONTEND_URL = _env_frontend.rstrip('/')
+else:
+    FRONTEND_URL = 'https://revix.es'
 
 # ── Directorios ───────────────────────────────────────────────────────────────
 UPLOAD_DIR = ROOT_DIR / "uploads"

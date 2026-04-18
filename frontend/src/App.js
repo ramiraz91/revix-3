@@ -88,6 +88,7 @@ import PublicGarantia from "@/pages/public/PublicGarantia";
 import PublicGarantiaExtendida from "@/pages/public/PublicGarantiaExtendida";
 import PublicPartners from "@/pages/public/PublicPartners";
 import PublicFAQs from "@/pages/public/PublicFAQs";
+import PublicBrand from "@/pages/public/PublicBrand";
 
 // Protected Route component
 function ProtectedRoute({ children, adminOnly = false, masterOnly = false }) {
@@ -141,6 +142,8 @@ function AppRoutes() {
         <Route path="consulta" element={<Seguimiento />} />
         <Route path="faqs" element={<PublicFAQs />} />
         <Route path="preguntas-frecuentes" element={<PublicFAQs />} />
+        <Route path="marca" element={<PublicBrand />} />
+        <Route path="brand" element={<PublicBrand />} />
       </Route>
 
       {/* Redirecciones de compatibilidad con URLs antiguas */}

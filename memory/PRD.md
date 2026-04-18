@@ -13,6 +13,21 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ## Latest — 2026-04-18
 
+### Rediseño completo de la web pública (Apple Care style)
+- 10 páginas públicas rediseñadas: Home, Servicios, Presupuesto, Contacto, Aseguradoras, Partners, Garantía, Garantía Extendida, FAQs, Consulta (Seguimiento).
+- Nueva página `/marca` con descarga de logos (SVG vectorizado + PNG 2048px + versión dark + isologo para favicons).
+- Assets generados: `revix-logo.svg/png`, `revix-logo-dark.svg/png`, `revix-isologo.svg/png` en `/app/frontend/public/brand/`.
+- Sistema de primitives UI compartido (`components/public/ui.jsx`) + componente `Logo.jsx` tipográfico.
+- Layout público nuevo con glassmorphism header, footer limpio de 4 columnas.
+- Paleta: #0055FF brand, #111111 texto, #F5F5F7 fondos sutiles.
+- Tipografía: Plus Jakarta Sans 800 headings + Inter body.
+- Motion: framer-motion fade-up on scroll.
+- Todas las funcionalidades preservadas: formularios de contacto/presupuesto, portal `/consulta`, chatbot flotante, login de CRM.
+
+### Branding dinámico título/favicon
+- Hook `useBrandingByRoute.js`: rutas públicas muestran "Revix.es" + favicon "R" azul.
+- Rutas CRM (/crm, /login...) muestran "NEXORA - CRM/ERP" + favicon Nexora.
+
 ### Aislamiento Preview/Producción
 - Preview ahora usa BD `revix_preview` (mismo cluster Atlas, DB separada).
 - Producción sigue en BD `production`, intocable desde este entorno.

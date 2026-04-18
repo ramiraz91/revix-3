@@ -243,89 +243,75 @@ export default function Seguimiento() {
   const logoUrl = empresaConfig?.logo?.url || empresaConfig?.logo_url;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <Smartphone className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">Portal de Seguimiento</h1>
-            <p className="text-xs text-muted-foreground">Consulta el estado de tu reparación</p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-white">
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-6 sm:px-8 pt-32 pb-20">
         {!orden ? (
           /* Search Form */
-          <div className="space-y-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Consulta el estado de tu reparación</h2>
-              <p className="text-muted-foreground">
-                Introduce el código de seguimiento y tu teléfono para ver el estado
+          <div className="space-y-10">
+            <div className="text-center max-w-2xl mx-auto">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0055FF] mb-4">Portal de seguimiento</p>
+              <h1 className="font-[800] text-[#111111] tracking-[-0.04em] text-4xl sm:text-6xl leading-[1.02]">
+                ¿Cómo va tu reparación?
+              </h1>
+              <p className="mt-6 text-lg text-[#6E6E73] leading-relaxed">
+                Introduce tu código y teléfono y te mostramos el estado en tiempo real.
               </p>
             </div>
 
-            <Card className="max-w-md mx-auto">
-              <CardContent className="pt-6">
-                <form onSubmit={handleBuscar} className="space-y-4">
-                  <div>
-                    <Label htmlFor="token">Código de Seguimiento</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="token"
-                        placeholder="Ej: ABC123DEF456"
-                        value={token}
-                        onChange={(e) => setToken(e.target.value.toUpperCase())}
-                        className="pl-10 font-mono uppercase"
-                        data-testid="token-input"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      El código que recibiste al crear tu orden
-                    </p>
+            <div className="max-w-md mx-auto bg-[#F5F5F7] rounded-3xl p-8 sm:p-10">
+              <form onSubmit={handleBuscar} className="space-y-5" data-testid="form-seguimiento">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#111111]" htmlFor="token">Código de seguimiento</label>
+                  <div className="relative mt-2">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6E6E73]" strokeWidth={2} />
+                    <input
+                      id="token"
+                      placeholder="Ej: ABC123DEF456"
+                      value={token}
+                      onChange={(e) => setToken(e.target.value.toUpperCase())}
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl bg-white border border-transparent focus:border-[#0055FF] focus:ring-4 focus:ring-[#0055FF]/10 outline-none font-mono uppercase text-base"
+                      data-testid="token-input"
+                    />
                   </div>
+                </div>
 
-                  <div>
-                    <Label htmlFor="telefono">Teléfono</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="telefono"
-                        type="tel"
-                        placeholder="Tu número de teléfono"
-                        value={telefono}
-                        onChange={(e) => setTelefono(e.target.value)}
-                        className="pl-10"
-                        data-testid="telefono-input"
-                      />
-                    </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#111111]" htmlFor="telefono">Teléfono</label>
+                  <div className="relative mt-2">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6E6E73]" strokeWidth={2} />
+                    <input
+                      id="telefono"
+                      type="tel"
+                      placeholder="Tu número de teléfono"
+                      value={telefono}
+                      onChange={(e) => setTelefono(e.target.value)}
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl bg-white border border-transparent focus:border-[#0055FF] focus:ring-4 focus:ring-[#0055FF]/10 outline-none text-base"
+                      data-testid="telefono-input"
+                    />
                   </div>
+                </div>
 
-                  {error && (
-                    <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      {error}
-                    </div>
-                  )}
+                {error && (
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-2xl">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
 
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={loading}
-                    data-testid="buscar-btn"
-                  >
-                    {loading ? 'Buscando...' : 'Ver estado de mi reparación'}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#0055FF] text-white font-semibold rounded-full px-7 py-4 hover:bg-[#0044CC] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  data-testid="buscar-btn"
+                >
+                  {loading ? 'Buscando...' : 'Ver estado de mi reparación'}
+                  <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+                </button>
+              </form>
+            </div>
 
-            <div className="text-center text-sm text-muted-foreground space-y-3">
+            <div className="text-center text-sm text-[#6E6E73] space-y-3">
               <p>¿No tienes el código?</p>
               {!showRecoverForm ? (
                 <Button variant="link" onClick={() => setShowRecoverForm(true)} className="text-blue-600">

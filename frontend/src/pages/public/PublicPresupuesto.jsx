@@ -1,12 +1,17 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Smartphone, Tablet, Watch, Gamepad2, CheckCircle2, Loader2, ArrowRight, 
-  User, Mail, Phone, MapPin, FileText, MessageSquare, Truck, Shield, Clock,
-  HelpCircle, ChevronDown
+import {
+  Smartphone, Tablet, Watch, Gamepad2, CheckCircle2, Loader2, ArrowRight,
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import {
+  PageHero,
+  Section,
+  Container,
+  H3,
+  FadeUp,
+  CTAButton,
+} from '../../components/public/ui';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -27,79 +32,44 @@ const averiasPorTipo = {
 const comoNosConociste = [
   { id: 'google', label: 'Google / Buscador' },
   { id: 'aseguradora', label: 'Mi compañía aseguradora' },
-  { id: 'referido', label: 'Recomendación de un conocido' },
-  { id: 'redes_sociales', label: 'Redes sociales (Instagram, Facebook, etc.)' },
+  { id: 'referido', label: 'Recomendación' },
+  { id: 'redes_sociales', label: 'Redes sociales' },
   { id: 'publicidad', label: 'Publicidad online' },
-  { id: 'repetidor', label: 'Ya he sido cliente antes' },
+  { id: 'repetidor', label: 'Ya he sido cliente' },
   { id: 'otro', label: 'Otro' },
 ];
 
-// Componente InputField movido FUERA del componente principal para evitar re-renders
-function InputField({ id, label, type = 'text', required = false, placeholder = '', colSpan = 1, value, onChange }) {
-  return (
-    <div className={colSpan === 2 ? 'md:col-span-2' : ''}>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {label}{required && ' *'}
-      </label>
-      <input 
-        type={type} 
-        required={required} 
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0055FF] focus:border-transparent transition-all"
-        style={{ fontFamily: "'Inter', sans-serif" }} 
-      />
-    </div>
-  );
+const inputCls =
+  'w-full rounded-2xl bg-[#F5F5F7] border border-transparent focus:border-[#0055FF] focus:bg-white focus:ring-4 focus:ring-[#0055FF]/10 px-5 py-4 text-base text-[#111111] placeholder:text-[#9E9EA3] outline-none transition-all';
+
+function Label({ children }) {
+  return <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#111111] mb-3">{children}</p>;
 }
 
 export default function PublicPresupuesto() {
-  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({
-    // Dispositivo
-    tipo_dispositivo: '', 
-    marca: '', 
-    modelo: '', 
-    averias: [],
-    descripcion: '',
-    // Cliente
-    nombre: '', 
-    apellidos: '',
-    dni: '',
-    email: '', 
-    telefono: '',
-    telefono_alternativo: '',
-    // Dirección
-    direccion: '',
-    codigo_postal: '',
-    ciudad: '',
-    provincia: '',
-    // Marketing
-    como_conociste: '',
-    como_conociste_otro: '',
-    // Notas
+    tipo_dispositivo: '', marca: '', modelo: '', averias: [], descripcion: '',
+    nombre: '', apellidos: '', dni: '', email: '', telefono: '', telefono_alternativo: '',
+    direccion: '', codigo_postal: '', ciudad: '', provincia: '',
+    como_conociste: '', como_conociste_otro: '',
     notas_adicionales: '',
     acepta_condiciones: false,
   });
 
-  const handleChange = (field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }));
-  };
-
-  const toggleAveria = (a) => {
-    setForm(p => ({
-      ...p,
-      averias: p.averias.includes(a) ? p.averias.filter(x => x !== a) : [...p.averias, a],
-    }));
-  };
+  const update = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }));
+  const toggleAveria = (a) =>
+    setForm((p) => ({ ...p, averias: p.averias.includes(a) ? p.averias.filter((x) => x !== a) : [...p.averias, a] }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.acepta_condiciones) {
       toast.error('Debes aceptar las condiciones para continuar');
+      return;
+    }
+    if (!form.tipo_dispositivo) {
+      toast.error('Selecciona un tipo de dispositivo');
       return;
     }
     setLoading(true);
@@ -114,314 +84,214 @@ export default function PublicPresupuesto() {
     }
   };
 
+  if (success) {
+    return (
+      <PageHero
+        eyebrow="Solicitud recibida"
+        title="Recibido. Revisamos tu caso."
+        subtitle="En menos de 24h laborables un técnico te escribe con una estimación y los siguientes pasos."
+      >
+        <CTAButton to="/" variant="primary" testid="presupuesto-success-home">
+          Volver al inicio
+        </CTAButton>
+      </PageHero>
+    );
+  }
+
+  const averiasDisponibles = averiasPorTipo[form.tipo_dispositivo] || [];
+
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="bg-white text-[#0F172A]">
-      {/* Header */}
-      <div className="border-b border-slate-100 bg-gradient-to-r from-blue-50 to-white">
-        <div className="max-w-6xl mx-auto px-6 py-16">
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs font-semibold uppercase tracking-widest text-[#0055FF] mb-3">
-            Presupuesto gratuito
-          </motion.p>
-          <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="text-4xl font-bold tracking-tight text-[#0F172A] mb-3">
-            Solicitar presupuesto sin compromiso
-          </motion.h1>
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-            className="text-slate-500 text-sm max-w-xl" style={{ fontFamily: "'Inter', sans-serif" }}>
-            Completa el formulario y te contactaremos en menos de 24 horas. La recogida a domicilio es gratuita en toda España.
-          </motion.p>
-        </div>
-      </div>
+    <>
+      <PageHero
+        eyebrow="Presupuesto gratuito"
+        title="Cuéntanos la avería."
+        subtitle="Sin compromiso, sin letra pequeña. En 24 horas tienes una estimación real de un técnico."
+      />
 
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {success ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-            className="border border-green-200 bg-green-50 rounded-2xl p-8 md:p-12">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-                <CheckCircle2 size={32} className="text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2 text-green-800">¡Solicitud recibida correctamente!</h2>
-              <p className="text-green-700 text-sm" style={{ fontFamily: "'Inter', sans-serif" }}>
-                Te contactaremos en <span className="font-semibold">{form.email}</span> o al teléfono <span className="font-semibold">{form.telefono}</span>
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-white rounded-xl p-5 border border-green-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Clock size={20} className="text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#0F172A] mb-1">Te contactaremos en breve</h3>
-                    <p className="text-sm text-slate-600" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      Un técnico especializado revisará tu solicitud y te llamará para confirmar los detalles y coordinar la recogida.
-                    </p>
+      <Section className="!pt-0">
+        <Container className="max-w-3xl">
+          <form onSubmit={handleSubmit} className="space-y-14" data-testid="form-presupuesto">
+            {/* 1. Dispositivo */}
+            <FadeUp>
+              <div className="space-y-6">
+                <H3>1 · Tu dispositivo</H3>
+                <div>
+                  <Label>Tipo</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {tiposDispositivo.map((t) => {
+                      const active = form.tipo_dispositivo === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, tipo_dispositivo: t.id, averias: [] })}
+                          className={`rounded-2xl p-5 flex flex-col items-center gap-2 border transition-all ${
+                            active
+                              ? 'bg-[#0055FF] border-[#0055FF] text-white'
+                              : 'bg-[#F5F5F7] border-transparent text-[#111111] hover:bg-[#EFEFF2]'
+                          }`}
+                          data-testid={`dispositivo-${t.id}`}
+                        >
+                          <t.icon className="w-6 h-6" strokeWidth={1.75} />
+                          <span className="text-sm font-semibold">{t.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
 
-              <div className="bg-white rounded-xl p-5 border border-green-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Truck size={20} className="text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#0F172A] mb-1">Recogida en 24-48 horas</h3>
-                    <p className="text-sm text-slate-600" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      La recogida se realiza a domicilio <span className="font-semibold text-green-600">sin ningún coste</span> para ti. 
-                      El mensajero te contactará para acordar la hora de recogida.
-                    </p>
-                  </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <input className={inputCls} placeholder="Marca (ej. Apple)" value={form.marca} onChange={update('marca')} data-testid="input-marca" />
+                  <input className={inputCls} placeholder="Modelo (ej. iPhone 14)" value={form.modelo} onChange={update('modelo')} data-testid="input-modelo" />
                 </div>
               </div>
+            </FadeUp>
 
-              <div className="bg-white rounded-xl p-5 border border-green-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FileText size={20} className="text-violet-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#0F172A] mb-1">Presupuesto definitivo tras diagnóstico</h3>
-                    <p className="text-sm text-slate-600" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      El presupuesto inicial es orientativo. Una vez recibamos tu dispositivo, nuestros técnicos realizarán 
-                      un diagnóstico completo y te enviaremos el <span className="font-semibold">presupuesto definitivo</span> antes de realizar cualquier reparación.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl p-5 border border-green-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Shield size={20} className="text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#0F172A] mb-1">6 meses de garantía</h3>
-                    <p className="text-sm text-slate-600" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      Todas nuestras reparaciones incluyen 6 meses de garantía. Trabajamos con técnicos certificados y piezas de calidad.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 text-center">
-              <p className="text-xs text-slate-500 mb-4" style={{ fontFamily: "'Inter', sans-serif" }}>
-                ¿Tienes alguna pregunta? Escríbenos a <a href="mailto:help@revix.es" className="text-[#0055FF] hover:underline">help@revix.es</a>
-              </p>
-              <a href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0055FF] hover:underline">
-                Volver a la página principal <ArrowRight size={16} />
-              </a>
-            </div>
-          </motion.div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-
-            {/* Paso 1: Tipo dispositivo */}
-            <div className="border border-slate-200 rounded-xl p-6 bg-white shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 bg-[#0055FF] text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
-                <h3 className="text-sm font-semibold text-[#0F172A]">¿Qué dispositivo necesitas reparar?</h3>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {tiposDispositivo.map((t) => (
-                  <button key={t.id} type="button"
-                    onClick={() => { setForm(p => ({ ...p, tipo_dispositivo: t.id, averias: [] })); setStep(2); }}
-                    className={`flex flex-col items-center gap-2 p-4 border rounded-lg text-sm font-medium transition-all ${
-                      form.tipo_dispositivo === t.id
-                        ? 'border-[#0055FF] bg-blue-50 text-[#0055FF] ring-2 ring-[#0055FF]/20'
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}>
-                    <t.icon size={24} />
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Paso 2: Marca, modelo, averías */}
+            {/* 2. Avería */}
             {form.tipo_dispositivo && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="border border-slate-200 rounded-xl p-6 bg-white shadow-sm space-y-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-[#0055FF] text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Información del dispositivo</h3>
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <InputField id="marca" label="Marca" required placeholder="Ej: Apple, Samsung, Xiaomi..." />
-                  <InputField id="modelo" label="Modelo" required placeholder="Ej: iPhone 15 Pro, Galaxy S24..." />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2" style={{ fontFamily: "'Inter', sans-serif" }}>
-                    Tipo de avería (selecciona todas las que apliquen) *
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {(averiasPorTipo[form.tipo_dispositivo] || []).map((a) => (
-                      <button key={a} type="button" onClick={() => toggleAveria(a)}
-                        className={`px-3 py-1.5 border rounded-lg text-sm transition-all ${
-                          form.averias.includes(a)
-                            ? 'border-[#0055FF] bg-blue-50 text-[#0055FF] font-medium'
-                            : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                        }`} style={{ fontFamily: "'Inter', sans-serif" }}>
-                        {a}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>
-                    Descripción detallada del problema *
-                  </label>
-                  <textarea rows={4} required value={form.descripcion}
-                    onChange={(e) => setForm(p => ({ ...p, descripcion: e.target.value }))}
-                    placeholder="Cuéntanos con detalle qué le ocurre a tu dispositivo: cuándo empezó el problema, si hubo algún golpe o contacto con agua, si funciona parcialmente, etc."
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0055FF] focus:border-transparent resize-none"
-                    style={{ fontFamily: "'Inter', sans-serif" }} />
-                </div>
-              </motion.div>
-            )}
-
-            {/* Paso 3: Datos personales */}
-            {form.tipo_dispositivo && form.marca && form.averias.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="border border-slate-200 rounded-xl p-6 bg-white shadow-sm space-y-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-[#0055FF] text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Tus datos de contacto</h3>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <InputField id="nombre" label="Nombre" required placeholder="Tu nombre" />
-                  <InputField id="apellidos" label="Apellidos" required placeholder="Tus apellidos" />
-                  <InputField id="dni" label="DNI / NIE" required placeholder="12345678A" />
-                  <InputField id="email" label="Email" type="email" required placeholder="tu@email.com" />
-                  <InputField id="telefono" label="Teléfono principal" type="tel" required placeholder="612 345 678" />
-                  <InputField id="telefono_alternativo" label="Teléfono alternativo" type="tel" placeholder="Otro teléfono de contacto (opcional)" />
-                </div>
-              </motion.div>
-            )}
-
-            {/* Paso 4: Dirección */}
-            {form.tipo_dispositivo && form.marca && form.averias.length > 0 && form.nombre && form.telefono && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="border border-slate-200 rounded-xl p-6 bg-white shadow-sm space-y-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-[#0055FF] text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Dirección de recogida</h3>
-                </div>
-                <p className="text-xs text-slate-500" style={{ fontFamily: "'Inter', sans-serif" }}>
-                  Indica la dirección donde recogeremos tu dispositivo. La recogida es gratuita en toda España.
-                </p>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <InputField id="direccion" label="Dirección completa" required placeholder="Calle, número, piso, puerta..." colSpan={2} />
-                  <InputField id="codigo_postal" label="Código Postal" required placeholder="28001" />
-                  <InputField id="ciudad" label="Ciudad / Localidad" required placeholder="Madrid" />
-                  <InputField id="provincia" label="Provincia" required placeholder="Madrid" />
-                </div>
-              </motion.div>
-            )}
-
-            {/* Paso 5: Cómo nos conociste */}
-            {form.tipo_dispositivo && form.marca && form.averias.length > 0 && form.direccion && form.codigo_postal && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="border border-slate-200 rounded-xl p-6 bg-white shadow-sm space-y-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-[#0055FF] text-white rounded-full flex items-center justify-center text-xs font-bold">5</div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">¿Cómo nos conociste?</h3>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {comoNosConociste.map((opt) => (
-                    <button key={opt.id} type="button"
-                      onClick={() => setForm(p => ({ ...p, como_conociste: opt.id }))}
-                      className={`p-3 border rounded-lg text-sm text-left transition-all ${
-                        form.como_conociste === opt.id
-                          ? 'border-[#0055FF] bg-blue-50 text-[#0055FF] font-medium'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`} style={{ fontFamily: "'Inter', sans-serif" }}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
-                {form.como_conociste === 'otro' && (
-                  <InputField id="como_conociste_otro" label="Especifica cómo nos conociste" placeholder="Cuéntanos..." />
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>
-                    Notas adicionales (opcional)
-                  </label>
-                  <textarea rows={3} value={form.notas_adicionales}
-                    onChange={(e) => setForm(p => ({ ...p, notas_adicionales: e.target.value }))}
-                    placeholder="¿Hay algo más que debamos saber? Horario preferido de contacto, instrucciones especiales para la recogida..."
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0055FF] focus:border-transparent resize-none"
-                    style={{ fontFamily: "'Inter', sans-serif" }} />
-                </div>
-              </motion.div>
-            )}
-
-            {/* Condiciones y envío */}
-            {form.tipo_dispositivo && form.marca && form.averias.length > 0 && form.direccion && form.codigo_postal && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="space-y-4">
-                
-                {/* Info importante */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                  <div className="flex items-start gap-3">
-                    <HelpCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-800" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      <p className="font-semibold mb-2">Información importante:</p>
-                      <ul className="space-y-1.5 text-amber-700">
-                        <li>• La recogida se realiza en un plazo de <strong>24-48 horas laborables</strong></li>
-                        <li>• La recogida y el envío de vuelta son <strong>totalmente gratuitos</strong></li>
-                        <li>• El presupuesto inicial es orientativo y <strong>no es definitivo hasta que el dispositivo sea diagnosticado</strong> por nuestros técnicos</li>
-                        <li>• Si no aceptas el presupuesto definitivo, te devolvemos el dispositivo sin coste</li>
-                        <li>• Todas las reparaciones incluyen <strong>6 meses de garantía</strong></li>
-                      </ul>
+              <FadeUp>
+                <div className="space-y-6">
+                  <H3>2 · ¿Qué le pasa?</H3>
+                  <div>
+                    <Label>Selecciona todas las que apliquen</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {averiasDisponibles.map((a) => {
+                        const active = form.averias.includes(a);
+                        return (
+                          <button
+                            key={a}
+                            type="button"
+                            onClick={() => toggleAveria(a)}
+                            className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all ${
+                              active
+                                ? 'bg-[#111111] border-[#111111] text-white'
+                                : 'bg-white border-[#E5E5EA] text-[#111111] hover:border-[#111111]'
+                            }`}
+                          >
+                            {a}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-
-                {/* Checkbox condiciones */}
-                <label className="flex items-start gap-3 cursor-pointer p-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                  <input 
-                    type="checkbox" 
-                    checked={form.acepta_condiciones}
-                    onChange={(e) => setForm(p => ({ ...p, acepta_condiciones: e.target.checked }))}
-                    className="mt-1 w-4 h-4 text-[#0055FF] border-slate-300 rounded focus:ring-[#0055FF]"
+                  <textarea
+                    className={`${inputCls} resize-none`}
+                    placeholder="Cuéntanos detalles: cómo ocurrió, si enciende, si responde..."
+                    rows={4}
+                    value={form.descripcion}
+                    onChange={update('descripcion')}
+                    data-testid="input-descripcion"
                   />
-                  <span className="text-sm text-slate-600" style={{ fontFamily: "'Inter', sans-serif" }}>
-                    He leído y acepto la <a href="/politica-privacidad" className="text-[#0055FF] hover:underline" target="_blank">política de privacidad</a> y 
-                    las <a href="/condiciones" className="text-[#0055FF] hover:underline" target="_blank">condiciones del servicio</a>. 
-                    Entiendo que el presupuesto definitivo se confirmará tras el diagnóstico del dispositivo.
+                </div>
+              </FadeUp>
+            )}
+
+            {/* 3. Tus datos */}
+            <FadeUp>
+              <div className="space-y-6">
+                <H3>3 · Tus datos</H3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <input required className={inputCls} placeholder="Nombre" value={form.nombre} onChange={update('nombre')} data-testid="input-nombre" />
+                  <input required className={inputCls} placeholder="Apellidos" value={form.apellidos} onChange={update('apellidos')} data-testid="input-apellidos" />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <input required type="email" className={inputCls} placeholder="Email" value={form.email} onChange={update('email')} data-testid="input-email" />
+                  <input required className={inputCls} placeholder="Teléfono" value={form.telefono} onChange={update('telefono')} data-testid="input-telefono" />
+                </div>
+                <input className={inputCls} placeholder="DNI (opcional)" value={form.dni} onChange={update('dni')} data-testid="input-dni" />
+              </div>
+            </FadeUp>
+
+            {/* 4. Recogida */}
+            <FadeUp>
+              <div className="space-y-6">
+                <H3>4 · Recogida</H3>
+                <input className={inputCls} placeholder="Dirección" value={form.direccion} onChange={update('direccion')} data-testid="input-direccion" />
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <input className={inputCls} placeholder="Código postal" value={form.codigo_postal} onChange={update('codigo_postal')} data-testid="input-cp" />
+                  <input className={inputCls} placeholder="Ciudad" value={form.ciudad} onChange={update('ciudad')} data-testid="input-ciudad" />
+                  <input className={inputCls} placeholder="Provincia" value={form.provincia} onChange={update('provincia')} data-testid="input-provincia" />
+                </div>
+              </div>
+            </FadeUp>
+
+            {/* 5. Marketing */}
+            <FadeUp>
+              <div className="space-y-6">
+                <H3>5 · ¿Cómo nos conociste?</H3>
+                <div className="flex flex-wrap gap-2">
+                  {comoNosConociste.map((c) => {
+                    const active = form.como_conociste === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setForm({ ...form, como_conociste: c.id })}
+                        className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all ${
+                          active ? 'bg-[#0055FF] border-[#0055FF] text-white' : 'bg-white border-[#E5E5EA] text-[#111111] hover:border-[#0055FF]'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {form.como_conociste === 'otro' && (
+                  <input className={inputCls} placeholder="Cuéntanos" value={form.como_conociste_otro} onChange={update('como_conociste_otro')} />
+                )}
+                <textarea
+                  className={`${inputCls} resize-none`}
+                  placeholder="Notas adicionales (opcional)"
+                  rows={3}
+                  value={form.notas_adicionales}
+                  onChange={update('notas_adicionales')}
+                />
+              </div>
+            </FadeUp>
+
+            {/* Submit */}
+            <FadeUp>
+              <div className="space-y-5 pt-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.acepta_condiciones}
+                    onChange={(e) => setForm({ ...form, acepta_condiciones: e.target.checked })}
+                    className="mt-1 accent-[#0055FF] w-4 h-4"
+                    data-testid="check-condiciones"
+                  />
+                  <span className="text-sm text-[#6E6E73] leading-relaxed">
+                    Acepto la política de privacidad y el tratamiento de mis datos para gestionar este presupuesto.
                   </span>
                 </label>
 
-                {/* Botón enviar */}
-                <button type="submit" disabled={loading || !form.acepta_condiciones}
-                  className="w-full py-3.5 bg-[#0055FF] text-white rounded-xl text-sm font-semibold hover:bg-[#0044DD] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#0055FF] text-white font-semibold rounded-full px-7 py-5 hover:bg-[#0044CC] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
+                  data-testid="btn-submit-presupuesto"
+                >
                   {loading ? (
-                    <><Loader2 size={18} className="animate-spin" />Enviando solicitud...</>
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Enviando…
+                    </>
                   ) : (
-                    <>Solicitar presupuesto gratuito <ArrowRight size={18} /></>
+                    <>
+                      Enviar presupuesto
+                      <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+                    </>
                   )}
                 </button>
-
-                <p className="text-center text-xs text-slate-400" style={{ fontFamily: "'Inter', sans-serif" }}>
-                  Tus datos están protegidos. No los compartimos con terceros.
+                <p className="text-center text-xs text-[#6E6E73] inline-flex items-center justify-center gap-1.5 w-full">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#0055FF]" strokeWidth={2.5} />
+                  Respuesta en menos de 24h laborables
                 </p>
-              </motion.div>
-            )}
+              </div>
+            </FadeUp>
           </form>
-        )}
-      </div>
-    </div>
+        </Container>
+      </Section>
+    </>
   );
 }

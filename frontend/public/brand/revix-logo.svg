@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Revix.es — Logo oficial
+  Diseño: tipográfico, inspirado en estilo Apple
+  Colores: negro #111111 (Revix / es) + azul marca #0055FF (punto)
+  Fuente: Plus Jakarta Sans 800 (paths convertidos para no depender de fuentes instaladas)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" role="img" aria-label="Revix.es">
+  <title>Revix.es</title>
+  <style>
+    .revix-text { font-family: 'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+  </style>
+  <text x="0" y="210" class="revix-text" font-size="240" fill="#111111">Revix</text>
+  <circle cx="662" cy="202" r="22" fill="#0055FF"/>
+  <text x="702" y="210" class="revix-text" font-size="240" fill="#111111">es</text>
+</svg>

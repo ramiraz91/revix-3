@@ -1,12 +1,24 @@
-# Test Credentials
+# Test Credentials — Revix CRM/ERP
 
-## Master/Admin
-- Email: master@revix.es
-- Password: RevixMaster2026!
+## Entorno PREVIEW (BD: `revix_preview`, aislada de producción)
 
-## Técnico
-- Email: tecnico@techrepair.local
+| Email | Password | Rol |
+|---|---|---|
+| master@revix.es | RevixMaster2026! | master |
+| tecnico1@revix.es | Tecnico1Demo! | tecnico |
+| tecnico2@revix.es | Tecnico2Demo! | tecnico |
 
-## Brother Print Agent
-- Agent Key: revix-brother-agent-2026-key
-- Agent ID: taller-principal (configurable)
+Datos demo: 2 clientes (Ana García, Luis Martínez), 3 órdenes (OT-DEMO-001/002/003).
+
+Re-seedear (idempotente):
+```
+cd /app/backend && python -m scripts.seed_preview
+```
+
+## Agent key (print agent Brother QL-800)
+`revix-brother-agent-2026-key`
+
+## Entorno PRODUCCIÓN
+- BD: `production` (mismo cluster Atlas).
+- NO se toca desde este entorno de desarrollo/preview.
+- Credenciales reales gestionadas por el cliente.

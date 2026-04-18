@@ -13,6 +13,12 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ## Latest — 2026-04-18
 
+### Aislamiento Preview/Producción
+- Preview ahora usa BD `revix_preview` (mismo cluster Atlas, DB separada).
+- Producción sigue en BD `production`, intocable desde este entorno.
+- Seed idempotente `scripts/seed_preview.py`: 3 usuarios + 2 clientes + 3 órdenes demo.
+- El seed aborta si detecta `DB_NAME=production` (salvaguarda).
+
 ### Deployment Readiness — PASS
 - Deployment Agent: **status: pass** — listo para despliegue a producción.
 - FRONTEND_URL ahora lee de env var con filtro anti-preview-URL (default: https://revix.es).

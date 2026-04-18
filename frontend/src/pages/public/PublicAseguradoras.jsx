@@ -13,7 +13,7 @@ import {
 } from '../../components/public/ui';
 
 const ventajas = [
-  { icon: Plug, title: 'Integración Insurama', desc: 'Recepción y cierre de siniestros directamente en nuestro sistema, sin intermediarios ni emails.' },
+  { icon: Plug, title: 'Integración directa', desc: 'Recepción y cierre de siniestros directamente en nuestro sistema, sin intermediarios ni emails.' },
   { icon: Clock, title: 'SLA por reparación', desc: 'Recogida, diagnóstico y entrega con tiempos medidos y reportados por ticket.' },
   { icon: Headphones, title: 'Call center dedicado', desc: 'Un equipo asignado exclusivamente a tu operativa. Sin colas ni tickets al vacío.' },
   { icon: LineChart, title: 'Reporting mensual', desc: 'Volumen, desviaciones, coste medio y NPS. En abierto, sin cajas negras.' },
@@ -23,7 +23,7 @@ const ventajas = [
 ];
 
 const fases = [
-  { icon: Radar, step: '01', title: 'Minuto 1 — Recepción', desc: 'Apertura automática del siniestro desde Insurama con asignación inmediata de técnico y ticket.' },
+  { icon: Radar, step: '01', title: 'Minuto 1 — Recepción', desc: 'Apertura automática del siniestro con asignación inmediata de técnico y ticket.' },
   { icon: FileCheck2, step: '02', title: 'Verificación', desc: 'Validación de cobertura, comprobación de IMEI, peritaje técnico y documentación fotográfica del estado del dispositivo.' },
   { icon: PhoneCall, step: '03', title: 'Gestión activa', desc: 'Call center dedicado comunicando al asegurado y al gestor en cada hito. Nada queda al azar.' },
   { icon: CheckCircle2, step: '04', title: 'Cierre', desc: 'Entrega con garantía escrita, informe técnico firmado y liquidación conciliada con el número de autorización.' },
@@ -35,7 +35,7 @@ export default function PublicAseguradoras() {
       <PageHero
         eyebrow="Canal aseguradoras"
         title="El proveedor técnico de tus siniestros de telefonía."
-        subtitle="Operativo con integración directa a Insurama. Un único interlocutor para toda la cadena técnica."
+        subtitle="Operativo con integración directa a las principales plataformas del sector. Un único interlocutor para toda la cadena técnica."
       >
         <CTAButton to="/contacto" variant="primary" withArrow testid="aseguradoras-cta-contacto">
           Hablar con nosotros

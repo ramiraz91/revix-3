@@ -41,9 +41,13 @@ async def iter_all(coll, projection=None):
 
 
 async def main():
-    if DB_NAME == 'production':
+    allow_prod = '--allow-production' in sys.argv
+    if DB_NAME == 'production' and not allow_prod:
         print('❌ BLOQUEADO: este script no debe correrse sobre DB production.')
+        print('   Si es intencional y solo-lectura, pasa --allow-production')
         sys.exit(1)
+    if DB_NAME == 'production' and allow_prod:
+        print('⚠️  AUTORIZACIÓN EXPLÍCITA recibida para auditar producción (SOLO LECTURA).')
 
     client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=10000)
     db = client[DB_NAME]

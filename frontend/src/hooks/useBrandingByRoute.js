@@ -75,6 +75,16 @@ function setFavicon(href) {
   document.head.appendChild(apple);
 }
 
+function setRobots(noindex) {
+  let meta = document.querySelector("meta[name='robots']");
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'robots';
+    document.head.appendChild(meta);
+  }
+  meta.content = noindex ? 'noindex, nofollow' : 'index, follow';
+}
+
 export default function useBrandingByRoute() {
   const { pathname } = useLocation();
 
@@ -83,9 +93,12 @@ export default function useBrandingByRoute() {
     if (isCRM) {
       document.title = 'NEXORA - CRM/ERP';
       setFavicon(NEXORA_FAVICON);
+      // El CRM es privado — no debe indexarse ni aparecer en buscadores
+      setRobots(true);
     } else {
       document.title = 'Revix.es - Servicio técnico de telefonía móvil';
       setFavicon(REVIX_FAVICON);
+      setRobots(false);
     }
   }, [pathname]);
 }

@@ -100,13 +100,6 @@ export default function PublicLayout() {
               Mi reparación
             </Link>
             <Link
-              to="/login"
-              className="text-sm font-medium text-[#3A3A3C] hover:text-[#111111] px-3 py-2"
-              data-testid="nav-login"
-            >
-              Acceder
-            </Link>
-            <Link
               to="/presupuesto"
               className="inline-flex items-center gap-1.5 bg-[#0055FF] text-white text-sm font-semibold rounded-full px-5 py-2.5 hover:bg-[#0044CC] transition-colors"
               data-testid="nav-cta-presupuesto"
@@ -157,12 +150,6 @@ export default function PublicLayout() {
                     className="w-full text-center px-4 py-3 rounded-full bg-[#F5F5F7] font-semibold text-[#111111]"
                   >
                     Mi reparación
-                  </Link>
-                  <Link
-                    to="/login"
-                    className="w-full text-center px-4 py-3 rounded-full bg-white border border-[#E5E5EA] font-semibold text-[#111111]"
-                  >
-                    Acceder
                   </Link>
                   <Link
                     to="/presupuesto"

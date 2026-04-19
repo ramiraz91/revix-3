@@ -1,6 +1,6 @@
 # Informe de integridad de datos · BD `production`
 
-_Generado · 2026-04-19T21:48:25+00:00_
+_Generado · 2026-04-19T21:58:44+00:00_
 
 ## Resumen ejecutivo
 

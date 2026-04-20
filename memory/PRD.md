@@ -21,6 +21,22 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-20 (2)
+
+### Fase 1 MCP · Fundación completada
+- Servidor MCP aislado en `/app/revix_mcp/` (venv propio, sin contaminar backend).
+- Arquitectura: `config.py` · `scopes.py` · `auth.py` · `audit.py` · `runtime.py` · `server.py` · `cli.py` · `tools/_registry.py` · `tools/meta.py (ping)`.
+- **Auth**: API keys `revix_mcp_*` almacenadas hasheadas en `mcp_api_keys`, una key por agente.
+- **Scopes**: catálogo 24 scopes + 10 perfiles preconfigurados (AGENT_PROFILES) + regla `*:read` para KPI/Auditor.
+- **Audit log**: cada tool call → `audit_logs` con source=`mcp_agent`, params sanitizados, duration_ms, error, idempotency_key.
+- **Idempotencia**: tools de escritura aceptan `_idempotency_key` → cache en `mcp_idempotency`.
+- **Sandbox**: `MCP_ENV=preview` + tool flag `sandbox_skip` bloquea side effects peligrosos.
+- **CLI**: `create/list/revoke` API keys.
+- **Tests**: 19 unitarios + smoke test stdio end-to-end funcional.
+
+### Fase 0 completada previamente
+- 5 órdenes migradas (tecnico_asignado email → UUID), 87 tokens de seguimiento generados, preview ampliado, Resumen Financiero alineado con backend.
+
 ## Latest — 2026-04-18
 
 ### Rediseño completo de la web pública (Apple Care style)

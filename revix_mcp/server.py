@@ -28,7 +28,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 # Importar para registrar tools (side effect)
 from . import tools  # noqa: F401
-from .tools import meta  # noqa: F401 — registra "ping"
+from .tools import (  # noqa: F401 — registra tools en _REGISTRY
+    meta, orders, clients, inventory, metrics, tracking,
+)
 from .config import (
     DB_NAME, LOG_LEVEL, MCP_TRANSPORT, MONGO_URL, info_banner,
 )

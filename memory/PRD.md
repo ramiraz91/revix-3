@@ -21,6 +21,30 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-20 (3)
+
+### Fase 1 MCP · 8 Tools Read-Only completadas ✅
+Tools registradas (`/app/revix_mcp/tools/`), todas con proyecciones estrictas Mongo y audit log automático:
+1. `buscar_orden(ref)` — orders:read · resuelve por UUID, numero_orden o numero_autorizacion.
+2. `listar_ordenes(filtros)` — orders:read · paginado, filtros por estado/técnico/cliente/garantía/autorización/fechas.
+3. `buscar_cliente(q)` — customers:read · búsqueda exacta (id/dni/email/tel/cif) o fuzzy por nombre.
+4. `obtener_historial_cliente(cliente_id)` — customers:read · resumen + órdenes, materiales opcionales.
+5. `consultar_inventario(filtros)` — inventory:read · texto libre, proveedor, solo_bajo_minimo, solo_sin_stock, es_pantalla · etiqueta `nivel_stock`.
+6. `obtener_metricas(metrica, periodo)` — metrics:read · 11 métricas (estados, técnicos, ingresos, beneficio, top modelos, SLA, garantía, aprobación presupuestos...).
+7. `obtener_dashboard(periodo)` — dashboard:read · snapshot agregado órdenes + finanzas + inventario + clientes.
+8. `buscar_por_token_seguimiento(token)` — public:track_by_token · info mínima apta para cliente final (NO expone costes/materiales/técnico). `*:read` NO cubre este scope por diseño.
+
+### Tests MCP: 41/41 pasando
+- `/app/revix_mcp/tests/test_foundation.py` (19 tests) — scopes, API keys, runtime, audit, idempotencia.
+- `/app/revix_mcp/tests/test_tools_readonly.py` (22 tests) — las 8 tools con fixtures seed limpiables (prefijo `test_mcp_`).
+- Ejecutar: `/app/revix_mcp/.venv/bin/pytest /app/revix_mcp/tests/ -v`
+- Verificación transversal: ninguna tool filtra clave Mongo `_id` en sus respuestas.
+
+### Próximo paso
+- P1: Rate limiting por API key en `runtime.py` (límite `rate_limit_per_min` por (agent_id, minuto)).
+- P0: Panel de observabilidad MCP en el CRM (`/crm/agentes-mcp`) — visualizar audit_logs filtrables + botón pausar agente.
+- P1: Fase 2 MCP — agentes de escritura supervisada + 16 tools de escritura.
+
 ## Latest — 2026-04-20 (2)
 
 ### Fase 1 MCP · Fundación completada

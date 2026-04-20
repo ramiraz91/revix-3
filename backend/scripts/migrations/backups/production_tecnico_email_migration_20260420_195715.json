@@ -1,0 +1,32 @@
+[
+  {
+    "id": "6a68fbaa-8e2b-46d5-8a72-34590877b8e2",
+    "numero_orden": "OT-20260407-D101AE6C",
+    "updated_at": "2026-04-17T12:59:39.868047+00:00",
+    "tecnico_asignado": "ramiraz91@gmail.com"
+  },
+  {
+    "tecnico_asignado": "ramiraz91@gmail.com",
+    "id": "552db4e1-4eca-4e39-a15a-a3b39218afc6",
+    "numero_orden": "OT-20260409-48BBC462",
+    "updated_at": "2026-04-20T16:14:16.211065+00:00"
+  },
+  {
+    "tecnico_asignado": "ramiraz91@gmail.com",
+    "id": "600e4a61-1bde-449d-afcd-c09b2f6fde4b",
+    "numero_orden": "OT-20260409-65DABCE8",
+    "updated_at": "2026-04-20T18:17:47.398888+00:00"
+  },
+  {
+    "tecnico_asignado": "ramiraz91@gmail.com",
+    "id": "f70702ac-db9b-4d2f-9600-98470d7dd6fe",
+    "numero_orden": "OT-20260410-83AC4093",
+    "updated_at": "2026-04-20T16:45:20.712313+00:00"
+  },
+  {
+    "tecnico_asignado": "ramiraz91@gmail.com",
+    "id": "83c88665-b1cb-442f-a905-517e56d8e189",
+    "numero_orden": "OT-20260414-CD54DA7A",
+    "updated_at": "2026-04-16T20:01:17.302975+00:00"
+  }
+]

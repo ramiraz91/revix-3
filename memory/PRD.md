@@ -11,6 +11,16 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-20
+
+### Fase 0 Pre-agentes MCP — COMPLETADA
+- Script `fix_tecnico_email_to_uuid.py` aplicado en producción: 5 órdenes migradas (email → UUID). Backup + audit log generados.
+- Script `generate_missing_tracking_tokens.py` aplicado en producción: 87 tokens creados. Todas las órdenes ya consultables en portal cliente.
+- 2 órdenes detectadas con autorización sin liquidar (380€): reportadas para revisión manual del usuario.
+- `seed_preview.py` ampliado: ahora crea plantilla_email, configuracion, incidencia, factura, liquidación e iso_qa_muestreo. Idempotente. Preview ya es representativo.
+- Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
+- Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
+
 ## Latest — 2026-04-18
 
 ### Rediseño completo de la web pública (Apple Care style)

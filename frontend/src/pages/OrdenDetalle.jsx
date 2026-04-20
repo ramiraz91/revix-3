@@ -1844,31 +1844,33 @@ export default function OrdenDetalle() {
 
               {/* Resumen Financiero */}
               {(orden.materiales?.length > 0 || orden.mano_obra > 0) && (() => {
-                // 🔒 Cálculo en vivo sobre orden.materiales (misma fórmula que la tabla).
-                // Antes se leía de campos persistidos que quedaban desactualizados al
-                // eliminar/editar materiales y generaban totales incoherentes.
-                let baseMateriales = 0;
+                // 🔒 Cálculo en vivo usando MISMA fórmula que backend.recalcular_totales_orden():
+                //   subtotal_materiales = Σ (cant × precio × (1−dto%))
+                //   total_iva = Σ (subtotal_linea × iva%) + mano_obra × 21%
+                //   presupuesto_total = subtotal_materiales + mano_obra + total_iva
+                //   coste_total = Σ (coste × cant)
+                //   beneficio_estimado = presupuesto_total − coste_total − (mano_obra × 0.5)
+                let subtotalMateriales = 0;
                 let totalIvaMat = 0;
                 let costeTotal = 0;
                 (orden.materiales || []).forEach((m) => {
+                  if (m.aprobado === false) return;
                   const cant = Number(m.cantidad) || 0;
                   const precio = Number(m.precio_unitario) || 0;
                   const dtoPct = Number(m.descuento) || 0;
                   const ivaPct = m.iva != null ? Number(m.iva) : 21;
                   const coste = Number(m.coste) || 0;
-                  const subtotal = cant * precio;
-                  const desc = subtotal * (dtoPct / 100);
-                  const baseItem = subtotal - desc;
-                  baseMateriales += baseItem;
-                  totalIvaMat += baseItem * (ivaPct / 100);
+                  const precioConDto = precio * (1 - dtoPct / 100);
+                  const subtotalLinea = precioConDto * cant;
+                  subtotalMateriales += subtotalLinea;
+                  totalIvaMat += subtotalLinea * (ivaPct / 100);
                   costeTotal += coste * cant;
                 });
                 const manoObra = Number(orden.mano_obra) || 0;
-                const baseImp = baseMateriales + manoObra;
                 const ivaManoObra = manoObra * 0.21;
                 const totalIva = totalIvaMat + ivaManoObra;
-                const presupuestoTotal = baseImp + totalIva;
-                const beneficio = baseImp - costeTotal;
+                const presupuestoTotal = subtotalMateriales + manoObra + totalIva;
+                const beneficio = presupuestoTotal - costeTotal - (manoObra * 0.5);
                 return (
                 <div className="mt-6 p-4 bg-gradient-to-r from-slate-50 to-slate-100 border rounded-lg" data-testid="resumen-financiero">
                   <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -1878,7 +1880,7 @@ export default function OrdenDetalle() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="p-3 bg-white rounded-lg border">
                       <p className="text-xs text-muted-foreground">Subtotal Materiales</p>
-                      <p className="text-lg font-semibold">{baseMateriales.toFixed(2)}€</p>
+                      <p className="text-lg font-semibold">{subtotalMateriales.toFixed(2)}€</p>
                     </div>
                     {manoObra > 0 && (
                       <div className="p-3 bg-white rounded-lg border">

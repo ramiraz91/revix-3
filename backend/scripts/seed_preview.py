@@ -232,7 +232,118 @@ async def seed():
         print(f"   ＋ Orden creada: {o['numero_orden']}")
 
     print("✅ Seed completado.")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 🆕 Seed adicional (representatividad para testing de agentes MCP)
+    # ══════════════════════════════════════════════════════════════════════
+    await seed_representativo(db, now, user_ids, cliente_ids, tecnico1_id)
+
     client.close()
+
+
+async def seed_representativo(db, now, user_ids, cliente_ids, tecnico1_id):
+    """Crea 1 de cada: plantilla_email, configuracion, incidencia, factura, liquidación.
+
+    Solo crea si la colección está vacía → idempotente sobre runs repetidos.
+    """
+    print("\n🌱 Seed representativo (para testing de agentes):")
+
+    # 1 · plantilla_email
+    if await db.plantillas_email.count_documents({}) == 0:
+        await db.plantillas_email.insert_one({
+            "id": str(uuid.uuid4()),
+            "codigo": "demo_bienvenida",
+            "nombre": "Bienvenida demo",
+            "asunto": "Gracias por confiar en Revix",
+            "cuerpo_html": "<p>Hola {{cliente_nombre}}, gracias por confiar en Revix.</p>",
+            "activa": True,
+            "created_at": now,
+        })
+        print("   ＋ plantilla_email: demo_bienvenida")
+
+    # 1 · configuracion
+    if await db.configuracion.count_documents({"clave": "empresa_demo"}) == 0:
+        await db.configuracion.insert_one({
+            "id": str(uuid.uuid4()),
+            "clave": "empresa_demo",
+            "valor": {"iva_default": 21, "moneda": "EUR", "modo": "preview"},
+            "updated_at": now,
+        })
+        print("   ＋ configuracion: empresa_demo")
+
+    # 1 · incidencia
+    if await db.incidencias.count_documents({}) == 0:
+        orden_ref = await db.ordenes.find_one({"numero_orden": "OT-DEMO-001"}, {"_id": 0, "id": 1})
+        if orden_ref:
+            await db.incidencias.insert_one({
+                "id": str(uuid.uuid4()),
+                "orden_id": orden_ref["id"],
+                "tipo": "operativa",
+                "severidad": "media",
+                "titulo": "Cliente solicita actualización urgente",
+                "descripcion": "Cliente llamó pidiendo estado antes de entrega",
+                "estado": "abierta",
+                "reportada_por": tecnico1_id,
+                "created_at": now,
+            })
+            print("   ＋ incidencia: sobre OT-DEMO-001")
+
+    # 1 · factura
+    if await db.facturas.count_documents({}) == 0:
+        orden_ref = await db.ordenes.find_one({"numero_orden": "OT-DEMO-003", "estado": "reparado"}, {"_id": 0, "id": 1, "cliente_id": 1})
+        if orden_ref:
+            await db.facturas.insert_one({
+                "id": str(uuid.uuid4()),
+                "numero": "FRA-DEMO-0001",
+                "orden_id": orden_ref["id"],
+                "cliente_id": orden_ref["cliente_id"],
+                "fecha_emision": now,
+                "subtotal": 100.00,
+                "iva_importe": 21.00,
+                "total": 121.00,
+                "estado": "pendiente_cobro",
+                "tipo": "b2c",
+                "lineas": [
+                    {"concepto": "Sustitución batería", "cantidad": 1, "precio": 100.00, "iva": 21}
+                ],
+                "created_at": now,
+            })
+            print("   ＋ factura: FRA-DEMO-0001")
+
+    # 1 · liquidación (aseguradora)
+    if await db.liquidaciones.count_documents({}) == 0:
+        await db.liquidaciones.insert_one({
+            "id": str(uuid.uuid4()),
+            "codigo": "LIQ-DEMO-202604",
+            "aseguradora": "Demo Insurance SA",
+            "mes": "2026-04",
+            "numeros_autorizacion": [],
+            "ordenes": [],
+            "total_base": 0,
+            "total_iva": 0,
+            "total": 0,
+            "estado": "borrador",
+            "created_at": now,
+        })
+        print("   ＋ liquidación: LIQ-DEMO-202604 (borrador vacío)")
+
+    # 1 · muestreo QA ISO
+    if await db.iso_qa_muestreos.count_documents({}) == 0 if "iso_qa_muestreos" in await db.list_collection_names() else True:
+        orden_ref = await db.ordenes.find_one({"numero_orden": "OT-DEMO-003"}, {"_id": 0, "id": 1})
+        if orden_ref:
+            await db.iso_qa_muestreos.insert_one({
+                "id": str(uuid.uuid4()),
+                "codigo": "QA-DEMO-0001",
+                "orden_id": orden_ref["id"],
+                "tipo": "aleatorio",
+                "criterios": {"estetica": None, "funcionalidad": None},
+                "resultado": None,
+                "estado": "pendiente",
+                "created_at": now,
+            })
+            print("   ＋ iso_qa_muestreo: QA-DEMO-0001")
+
+    print("✅ Seed representativo completado.\n")
 
 
 if __name__ == "__main__":

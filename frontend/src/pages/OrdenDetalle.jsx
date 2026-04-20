@@ -1843,7 +1843,33 @@ export default function OrdenDetalle() {
               />
 
               {/* Resumen Financiero */}
-              {(orden.materiales?.length > 0 || orden.mano_obra > 0) && (
+              {(orden.materiales?.length > 0 || orden.mano_obra > 0) && (() => {
+                // 🔒 Cálculo en vivo sobre orden.materiales (misma fórmula que la tabla).
+                // Antes se leía de campos persistidos que quedaban desactualizados al
+                // eliminar/editar materiales y generaban totales incoherentes.
+                let baseMateriales = 0;
+                let totalIvaMat = 0;
+                let costeTotal = 0;
+                (orden.materiales || []).forEach((m) => {
+                  const cant = Number(m.cantidad) || 0;
+                  const precio = Number(m.precio_unitario) || 0;
+                  const dtoPct = Number(m.descuento) || 0;
+                  const ivaPct = m.iva != null ? Number(m.iva) : 21;
+                  const coste = Number(m.coste) || 0;
+                  const subtotal = cant * precio;
+                  const desc = subtotal * (dtoPct / 100);
+                  const baseItem = subtotal - desc;
+                  baseMateriales += baseItem;
+                  totalIvaMat += baseItem * (ivaPct / 100);
+                  costeTotal += coste * cant;
+                });
+                const manoObra = Number(orden.mano_obra) || 0;
+                const baseImp = baseMateriales + manoObra;
+                const ivaManoObra = manoObra * 0.21;
+                const totalIva = totalIvaMat + ivaManoObra;
+                const presupuestoTotal = baseImp + totalIva;
+                const beneficio = baseImp - costeTotal;
+                return (
                 <div className="mt-6 p-4 bg-gradient-to-r from-slate-50 to-slate-100 border rounded-lg" data-testid="resumen-financiero">
                   <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-green-600" />
@@ -1852,31 +1878,31 @@ export default function OrdenDetalle() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="p-3 bg-white rounded-lg border">
                       <p className="text-xs text-muted-foreground">Subtotal Materiales</p>
-                      <p className="text-lg font-semibold">{(orden.subtotal_materiales || 0).toFixed(2)}€</p>
+                      <p className="text-lg font-semibold">{baseMateriales.toFixed(2)}€</p>
                     </div>
-                    {orden.mano_obra > 0 && (
+                    {manoObra > 0 && (
                       <div className="p-3 bg-white rounded-lg border">
                         <p className="text-xs text-muted-foreground">Mano de Obra</p>
-                        <p className="text-lg font-semibold">{(orden.mano_obra || 0).toFixed(2)}€</p>
+                        <p className="text-lg font-semibold">{manoObra.toFixed(2)}€</p>
                       </div>
                     )}
                     <div className="p-3 bg-white rounded-lg border">
                       <p className="text-xs text-muted-foreground">IVA</p>
-                      <p className="text-lg font-semibold">{(orden.total_iva || 0).toFixed(2)}€</p>
+                      <p className="text-lg font-semibold">{totalIva.toFixed(2)}€</p>
                     </div>
                     <div className="p-3 bg-green-50 rounded-lg border-2 border-green-200">
                       <p className="text-xs text-green-600 font-medium">TOTAL PRESUPUESTO</p>
-                      <p className="text-xl font-bold text-green-700">{(orden.presupuesto_total || 0).toFixed(2)}€</p>
+                      <p className="text-xl font-bold text-green-700">{presupuestoTotal.toFixed(2)}€</p>
                     </div>
                     {isAdmin() && (
                       <>
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <p className="text-xs text-amber-600">Coste Total</p>
-                          <p className="text-lg font-semibold text-amber-700">{(orden.coste_total || 0).toFixed(2)}€</p>
+                          <p className="text-lg font-semibold text-amber-700">{costeTotal.toFixed(2)}€</p>
                         </div>
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <p className="text-xs text-blue-600">Beneficio Estimado</p>
-                          <p className="text-lg font-semibold text-blue-700">{(orden.beneficio_estimado || 0).toFixed(2)}€</p>
+                          <p className="text-lg font-semibold text-blue-700">{beneficio.toFixed(2)}€</p>
                         </div>
                       </>
                     )}
@@ -1938,7 +1964,8 @@ export default function OrdenDetalle() {
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>

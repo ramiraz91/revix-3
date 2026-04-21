@@ -21,6 +21,36 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21 (3)
+
+### Fase 2 MCP · Agente Supervisor de Cola Operacional ✅
+Primer agente de **escritura supervisada**. Prioriza la cola SLA, marca órdenes en riesgo, abre incidencias y notifica al equipo.
+
+**4 tools nuevas** en `/app/revix_mcp/tools/supervisor_cola.py`:
+1. **`listar_ordenes_en_riesgo_sla`** (read) · semáforo crítico/rojo/amarillo por `created_at + sla_dias`. Umbral amarillo configurable.
+2. **`marcar_orden_en_riesgo`** (write · idempotente) · requiere doble scope `orders:read + incidents:write` (verificación manual en handler). Añade `historial_riesgo[]` en la orden.
+3. **`abrir_incidencia`** (write · idempotente · anti-duplicado) · rechaza si ya hay incidencia abierta para la orden. Genera `numero_incidencia` automático.
+4. **`enviar_notificacion`** (write) · crea notificación en `notificaciones`. En `MCP_ENV=preview` emails prefijados `[PREVIEW]` y NO se envían por Resend (source=`mcp_agent`).
+
+**Agente IA** `supervisor_cola` 🚦 registrado con:
+- 7 tools (4 nuevas + listar_ordenes + buscar_orden + ping)
+- Scopes: `orders:read`, `incidents:write`, `notifications:write`, `meta:ping`
+- Rate limit default: 120/600 (seedeado al startup).
+
+**Testing** (`test_supervisor_cola.py`, 12 tests) — **Total MCP: 63/63 passing** ✅:
+- Semáforo SLA ordenado por severidad.
+- Idempotencia end-to-end (mismo key no re-ejecuta).
+- Verificación double-scope.
+- Anti-duplicado de incidencias.
+- Preview mock `[PREVIEW]` para emails.
+- Audit log en todas las tools.
+
+**Bug fix detectado y corregido en E2E**:
+- `abrir_incidencia` pete cuando una incidencia antigua no tenía `numero_incidencia` → fallback defensivo `.get('numero_incidencia') or .get('id')`.
+
+**Prueba E2E con Claude** (`POST /api/agents/supervisor_cola/chat`):
+- Agente abrió correctamente `INC-20260421-72B985` con `source='mcp_agent'`, `created_by='mcp:supervisor_cola'` y devolvió tabla markdown.
+
 ## Latest — 2026-04-21 (2)
 
 ### Rate Limiting por agente (MCP) ✅

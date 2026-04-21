@@ -130,6 +130,7 @@ async def seed_default_limits(db: AsyncIOMotorDatabase) -> None:
     defaults = [
         ('kpi_analyst', 120, 600),
         ('auditor', 120, 600),
+        ('supervisor_cola', 120, 600),
         ('seguimiento_publico', 60, 300),
     ]
     for agent_id, soft, hard in defaults:

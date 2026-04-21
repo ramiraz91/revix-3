@@ -12,3 +12,4 @@ from . import clients     # noqa: F401
 from . import inventory   # noqa: F401
 from . import metrics     # noqa: F401
 from . import tracking    # noqa: F401
+from . import supervisor_cola  # noqa: F401  (Fase 2 · write)

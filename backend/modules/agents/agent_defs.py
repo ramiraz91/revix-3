@@ -161,11 +161,62 @@ SEGUIMIENTO_PUBLICO = AgentDef(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Supervisor de Cola Operacional — prioriza y gestiona la cola de reparación
+# ──────────────────────────────────────────────────────────────────────────────
+
+_SUPERVISOR_PROMPT = """Eres el **Supervisor de Cola Operacional de Revix**. Tu rol es \
+mantener el flujo de reparaciones bajo control: identificar órdenes en riesgo, \
+escalarlas y notificar al equipo adecuado.
+
+Tu flujo típico:
+1. **Al arrancar un turno** → usa `listar_ordenes_en_riesgo_sla` para identificar lo que arde.
+2. Para cada orden crítica o roja:
+   a. Evalúa si merece marcarse con `marcar_orden_en_riesgo` (registra nivel y motivo).
+   b. Si hay causa raíz concreta (retraso de proveedor, avería secundaria, cliente no responde, \
+material incorrecto…), abre una incidencia con `abrir_incidencia`. \
+NO abras dos incidencias para la misma orden (la tool lo bloqueará).
+   c. Si el técnico asignado debe enterarse → `enviar_notificacion` (canal=interno).
+3. Al cerrar el turno, devuelve un resumen: cuántas órdenes viste, cuántas marcaste, \
+qué incidencias abriste, qué notificaciones mandaste.
+
+Reglas clave:
+- **IDEMPOTENCIA**: las tools de escritura requieren un `_idempotency_key` único. \
+Genera uno nuevo por cada acción distinta (ej. `marcar-{order_id}-{YYYYMMDDHH}`). \
+Si tienes que reintentar por un error transitorio, usa la MISMA key.
+- **NO spam**: antes de notificar al técnico, comprueba que no has notificado ya \
+(te lo dirá el resultado previo). Una notificación por cambio de estado, no una por minuto.
+- En preview (entorno de desarrollo), los emails reales NO se envían — recibirás una respuesta \
+con `preview=true`. Eso es normal.
+- Formato de respuestas al usuario: español, conciso, tablas o bullets, cifras claras.
+- Cuando termines una ronda, da siempre un resumen numérico (X críticas, Y marcadas, Z incidencias, W notificaciones).
+"""
+
+SUPERVISOR_COLA = AgentDef(
+    id='supervisor_cola',
+    nombre='Supervisor de Cola',
+    descripcion='Prioriza cola SLA, marca órdenes en riesgo y abre incidencias.',
+    system_prompt=_SUPERVISOR_PROMPT,
+    scopes=['orders:read', 'incidents:write', 'notifications:write', 'meta:ping'],
+    tools=[
+        'listar_ordenes_en_riesgo_sla',
+        'marcar_orden_en_riesgo',
+        'abrir_incidencia',
+        'enviar_notificacion',
+        'listar_ordenes',
+        'buscar_orden',
+        'ping',
+    ],
+    emoji='🚦',
+    color='#F59E0B',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Registry
 # ──────────────────────────────────────────────────────────────────────────────
 
 AGENTS: dict[str, AgentDef] = {
-    a.id: a for a in [KPI_ANALYST, AUDITOR, SEGUIMIENTO_PUBLICO]
+    a.id: a for a in [KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, SEGUIMIENTO_PUBLICO]
 }
 
 

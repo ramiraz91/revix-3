@@ -30,6 +30,15 @@ from .agent_defs import (
 )
 from .engine import run_agent_turn
 
+# Propagación de errores del MCP runtime (rate limit → HTTP 429)
+import sys
+from pathlib import Path
+_APP_ROOT = Path(__file__).resolve().parents[3]
+if str(_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APP_ROOT))
+from revix_mcp.runtime import ToolRateLimitError  # noqa: E402
+from revix_mcp.rate_limit import seed_default_limits  # noqa: E402
+
 logger = logging.getLogger('revix.agents.routes')
 
 router = APIRouter(tags=['agents'])
@@ -127,6 +136,19 @@ async def chatear_con_agente(
     # Ejecutar turno
     try:
         result = await run_agent_turn(db, agent, history_for_llm, body.message)
+    except ToolRateLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                'error': 'rate_limit_exceeded',
+                'agent_id': e.agent_id,
+                'count_last_minute': e.count,
+                'hard_limit_per_min': e.hard_limit,
+                'message': f'El agente "{e.agent_id}" ha superado su límite de '
+                           f'{e.hard_limit} consultas por minuto. Espera un momento '
+                           f'e intenta de nuevo.',
+            },
+        )
     except Exception as e:  # noqa: BLE001
         logger.exception('agent turn failed')
         raise HTTPException(status_code=500, detail=f'Fallo del agente: {e}')
@@ -228,6 +250,69 @@ async def audit_logs_agentes(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Rate limit · gestión (admin)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class UpdateLimitsRequest(BaseModel):
+    soft_limit: int = Field(..., ge=1, le=10000)
+    hard_limit: int = Field(..., ge=1, le=100000)
+
+
+@router.get('/agents/rate-limits')
+async def get_rate_limits(user: dict = Depends(require_admin)):
+    """Lista la configuración actual de rate limit de todos los agentes."""
+    cursor = db.mcp_agent_limits.find({}, {'_id': 0}).sort('agent_id', 1)
+    limits = [d async for d in cursor]
+    # Uso actual en ventana 60s
+    from datetime import datetime as _dt, timezone as _tz
+    now_epoch = _dt.now(_tz.utc).timestamp()
+    for lim in limits:
+        count = await db.mcp_rate_limits.count_documents({
+            'agent_id': lim['agent_id'],
+            'ts_epoch': {'$gte': now_epoch - 60},
+        })
+        lim['current_count_last_minute'] = count
+    return {'agents': limits}
+
+
+@router.put('/agents/{agent_id}/rate-limits')
+async def update_rate_limits(
+    agent_id: str,
+    body: UpdateLimitsRequest,
+    user: dict = Depends(require_admin),
+):
+    """Actualiza soft_limit / hard_limit de un agente. Invalida la cache."""
+    from revix_mcp.rate_limit import set_limits
+    if body.soft_limit > body.hard_limit:
+        raise HTTPException(status_code=400, detail='soft_limit debe ser <= hard_limit')
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail='Agente no existe')
+    await set_limits(
+        db, agent_id=agent_id,
+        soft_limit=body.soft_limit, hard_limit=body.hard_limit,
+    )
+    return {
+        'agent_id': agent_id,
+        'soft_limit': body.soft_limit,
+        'hard_limit': body.hard_limit,
+        'updated': True,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Startup: sembrar límites por defecto de los agentes
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def seed_agent_rate_limits_on_startup() -> None:
+    """Sembra límites de rate-limit de los 3 agentes. Idempotente."""
+    try:
+        await seed_default_limits(db)
+        logger.info('[agents] rate-limit defaults seeded')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[agents] no se pudo sembrar rate-limits: {e}')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Endpoint público del agente de seguimiento (sin auth)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -263,6 +348,12 @@ async def chat_publico_seguimiento(body: PublicChatRequest):
 
     try:
         result = await run_agent_turn(db, agent, history_for_llm, body.message)
+    except ToolRateLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail='Estamos recibiendo muchas consultas. Por favor, espera un '
+                   'momento e intenta de nuevo.',
+        ) from e
     except Exception:  # noqa: BLE001
         logger.exception('public agent turn failed')
         raise HTTPException(status_code=500, detail='Fallo del asistente. Intenta de nuevo en un momento.')

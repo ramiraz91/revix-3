@@ -31,7 +31,10 @@ if str(_APP_ROOT) not in sys.path:
 # NOTA: importamos solo runtime/auth/tools (NO server.py), para evitar cargar
 # el SDK `mcp` oficial (que degradaría starlette).
 from revix_mcp.auth import AgentIdentity
-from revix_mcp.runtime import ToolExecutionError, execute_tool_internal
+from revix_mcp.rate_limit import seed_default_limits
+from revix_mcp.runtime import (
+    ToolExecutionError, ToolRateLimitError, execute_tool_internal,
+)
 from revix_mcp.tools import _registry as _mcp_registry
 from revix_mcp.tools import clients, inventory, metrics, orders, tracking, meta  # noqa: F401 side-effect
 
@@ -195,6 +198,9 @@ async def run_agent_turn(
                     result = await execute_tool_internal(
                         db, identity=identity, tool_name=tname, params=args,
                     )
+                except ToolRateLimitError:
+                    # Propagar: el endpoint debe devolver 429 al cliente
+                    raise
                 except ToolExecutionError as e:
                     result = {'error': str(e)}
                     error = str(e)

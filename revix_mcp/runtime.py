@@ -22,6 +22,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from .auth import AgentIdentity, AuthError, require_scope, verify_api_key
 from .audit import Timer, idempotency_lookup, idempotency_store, log_tool_call
 from .config import MCP_ENV
+from .rate_limit import RateLimitExceeded, check_and_record
 from .tools._registry import get_tool
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,19 @@ logger = logging.getLogger(__name__)
 
 class ToolExecutionError(Exception):
     """Cualquier error durante la ejecución de una tool."""
+
+
+class ToolRateLimitError(ToolExecutionError):
+    """Se superó el hard rate limit. Mapea a HTTP 429 en la capa API."""
+
+    def __init__(self, agent_id: str, count: int, hard_limit: int) -> None:
+        super().__init__(
+            f'Rate limit excedido para agente "{agent_id}" '
+            f'({count} llamadas/min, hard_limit={hard_limit})',
+        )
+        self.agent_id = agent_id
+        self.count = count
+        self.hard_limit = hard_limit
 
 
 async def execute_tool(
@@ -95,6 +109,29 @@ async def _execute_tool_with_identity(
             params=params, error=f'scope_denied:{spec.required_scope}',
         )
         raise ToolExecutionError(str(e)) from e
+
+    # 3.b Rate limit (per agente, sliding window 60s)
+    rl = await check_and_record(db, agent_id=identity.agent_id)
+    if not rl.within_hard:
+        await log_tool_call(
+            db, identity=identity, tool=tool_name,
+            params=params,
+            error=f'rate_limit_exceeded:{rl.count}/{rl.hard_limit}',
+        )
+        raise ToolRateLimitError(
+            agent_id=identity.agent_id, count=rl.count, hard_limit=rl.hard_limit,
+        )
+    if rl.crossed_soft:
+        logger.warning(
+            f'[rate-limit] SOFT limit rebasado: agent={identity.agent_id} '
+            f'count={rl.count} soft={rl.soft_limit} hard={rl.hard_limit}',
+        )
+        await log_tool_call(
+            db, identity=identity, tool=tool_name,
+            params=params, duration_ms=0,
+            error=f'rate_limit_soft_crossed:{rl.count}/{rl.soft_limit}',
+            result={'warning': 'soft_limit_crossed'},
+        )
 
     # 4. Sandbox
     if spec.sandbox_skip and MCP_ENV == 'preview':

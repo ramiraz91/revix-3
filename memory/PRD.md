@@ -21,6 +21,40 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21 (2)
+
+### Rate Limiting por agente (MCP) ✅
+Protección anti-loop y anti-abuso para cada agente. Sliding window 60s en MongoDB con TTL auto-cleanup.
+
+**Comportamiento**:
+- `soft_limit` superado → warning en log + entrada `rate_limit_soft_crossed` en `audit_logs`. NO bloquea.
+- `hard_limit` superado → `ToolRateLimitError` → HTTP 429 al cliente + entrada `rate_limit_exceeded` en `audit_logs`.
+- Configurable por agente en la colección `mcp_agent_limits` (editable por BD o API).
+
+**Defaults sembrados al arranque** (idempotentes, respetan cambios manuales):
+| Agente | soft | hard |
+|---|---|---|
+| kpi_analyst | 120 | 600 |
+| auditor | 120 | 600 |
+| seguimiento_publico (público) | 60 | 300 |
+
+**Arquitectura** (`/app/revix_mcp/rate_limit.py`):
+- `ensure_indexes(db)` crea TTL index (120s) en `mcp_rate_limits` + unique en `mcp_agent_limits`.
+- `seed_default_limits(db)` corre al startup de FastAPI.
+- `get_limits(db, agent_id)` con cache en memoria (TTL 30s) para no consultar BD en cada tool call.
+- `check_and_record(db, agent_id)` sliding window 60s, inserta la llamada solo si está dentro del hard.
+- Hook en `runtime._execute_tool_with_identity` aplica a `execute_tool` Y `execute_tool_internal`.
+
+**API admin** (nuevos):
+- `GET /api/agents/rate-limits` → lista límites + contador actual por agente.
+- `PUT /api/agents/{agent_id}/rate-limits` → editar soft/hard.
+
+**Tests**: 10 nuevos (`test_rate_limit.py`) · Total MCP: **51/51** pasando.
+- Cubre: fallback de defaults, cache invalidation, set_limits persiste, aislamiento entre agentes, soft/hard crossing, audit entries, 429 end-to-end.
+
+**Mitigación de regresiones**:
+- Probado tras activar: `/api/agents/kpi_analyst/chat` sigue funcionando correctamente (ping 4.8s, tool call registrada, contador actualiza a 1).
+
 ## Latest — 2026-04-21
 
 ### Agentes IA nativos en Revix ✅ (sustituye Rowboat)

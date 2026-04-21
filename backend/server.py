@@ -902,6 +902,13 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start GLS sync scheduler: {e}")
 
+    # Seed MCP agent rate limits (idempotente)
+    try:
+        from modules.agents.routes import seed_agent_rate_limits_on_startup
+        await seed_agent_rate_limits_on_startup()
+    except Exception as e:
+        logger.warning(f"Could not seed MCP rate limits: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync

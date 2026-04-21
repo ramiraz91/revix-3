@@ -201,6 +201,42 @@ async def _notificar_fallo_maestro(
 # Ejecución de tareas
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _resolve_dynamic_params(params: dict) -> dict:
+    """Resuelve placeholders dinámicos en params antes de ejecutar.
+
+    Soportados:
+      · 'auto_now'         → now UTC ISO
+      · 'auto_Nd'          → now - N días ISO (N entero)
+      · 'auto_start_of_day'→ inicio del día actual UTC
+      · 'auto_start_of_q'  → inicio del trimestre actual UTC
+    """
+    if not params:
+        return {}
+    now = datetime.now(timezone.utc)
+    resolved = {}
+    for k, v in params.items():
+        if isinstance(v, str) and v.startswith('auto_'):
+            if v == 'auto_now':
+                resolved[k] = now.isoformat(timespec='seconds')
+            elif v == 'auto_start_of_day':
+                resolved[k] = now.replace(
+                    hour=0, minute=0, second=0, microsecond=0,
+                ).isoformat(timespec='seconds')
+            elif v == 'auto_start_of_q':
+                q_month = ((now.month - 1) // 3) * 3 + 1
+                resolved[k] = now.replace(
+                    month=q_month, day=1, hour=0, minute=0, second=0, microsecond=0,
+                ).isoformat(timespec='seconds')
+            elif v.endswith('d') and v[5:-1].isdigit():
+                days = int(v[5:-1])
+                resolved[k] = (now - timedelta(days=days)).isoformat(timespec='seconds')
+            else:
+                resolved[k] = v  # desconocido, lo pasa tal cual
+        else:
+            resolved[k] = v
+    return resolved
+
+
 async def ejecutar_tarea_una_vez(
     db: AsyncIOMotorDatabase, task: dict,
 ) -> dict:
@@ -213,7 +249,7 @@ async def ejecutar_tarea_una_vez(
 
     agent_id = task['agent_id']
     tool_name = task['tool']
-    params = dict(task.get('params') or {})
+    params = _resolve_dynamic_params(dict(task.get('params') or {}))
 
     # Obtener scopes del agente
     try:

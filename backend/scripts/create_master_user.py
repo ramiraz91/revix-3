@@ -76,14 +76,14 @@ def main():
     )
 
     if result.upserted_id:
-        print(f"\n✅ Usuario CREADO correctamente")
+        print("\n✅ Usuario CREADO correctamente")
     else:
-        print(f"\n✅ Usuario ACTUALIZADO correctamente")
+        print("\n✅ Usuario ACTUALIZADO correctamente")
 
     print(f"   Email    : {NUEVO_USUARIO['email']}")
     print(f"   Rol      : {NUEVO_USUARIO['role']}")
     print(f"   ID       : {NUEVO_USUARIO['id']}")
-    print(f"\n⚠️  Guarda la contraseña en un lugar seguro.")
+    print("\n⚠️  Guarda la contraseña en un lugar seguro.")
 
     client.close()
 

@@ -2994,7 +2994,7 @@ async def descargar_fotos_zip_por_tipo(orden_id: str, tipo: str, user: dict = De
                             except httpx.TimeoutException:
                                 if intento < 2:
                                     await asyncio.sleep(1)
-                            except Exception as e:
+                            except Exception:
                                 if intento < 2:
                                     await asyncio.sleep(1)
                         

@@ -90,7 +90,7 @@ async def create_indexes():
 
     # ── PRINT AGENTS ──
     if await safe_index(db.print_agents, "agent_id", unique=True, name="idx_pa_agentid"): created += 1
-    print(f"  print_agents: +1")
+    print("  print_agents: +1")
 
     # ── NOTIFICACIONES ──
     nt = db.notificaciones
@@ -103,7 +103,7 @@ async def create_indexes():
 
     # ── CONFIGURACION ──
     if await safe_index(db.configuracion, "tipo", unique=True, name="idx_config_tipo"): created += 1
-    print(f"  configuracion: +1")
+    print("  configuracion: +1")
 
     # ── AUDIT LOG ──
     al = db.audit_log

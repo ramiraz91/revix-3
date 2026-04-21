@@ -311,6 +311,117 @@ async def seed_agent_rate_limits_on_startup() -> None:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'[agents] no se pudo sembrar rate-limits: {e}')
 
+    # TTL 90 días en audit_logs (MCP)
+    try:
+        await db.audit_logs.create_index(
+            'timestamp_dt', expireAfterSeconds=90 * 24 * 3600,
+            name='ttl_audit_logs_90d',
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f'[agents] ttl audit_logs: {e}')
+
+    # Índices adicionales para el modo autónomo
+    try:
+        await db.audit_logs.create_index([('source', 1), ('agent_id', 1), ('timestamp', -1)],
+                                         name='idx_source_agent_ts')
+        await db.audit_logs.create_index('timestamp', name='idx_ts')
+        await db.mcp_scheduled_tasks.create_index('agent_id', name='idx_tasks_agent')
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f'[agents] índices mcp: {e}')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Scheduled tasks (modo autónomo)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ScheduledTaskCreate(BaseModel):
+    agent_id: str = Field(..., min_length=1)
+    cron_expression: str = Field(..., min_length=5)
+    tool: str = Field(..., min_length=1)
+    params: Optional[dict] = None
+    descripcion: Optional[str] = None
+
+
+class ScheduledTaskUpdate(BaseModel):
+    cron_expression: Optional[str] = None
+    params: Optional[dict] = None
+    activo: Optional[bool] = None
+    descripcion: Optional[str] = None
+
+
+@router.get('/agents/scheduled-tasks')
+async def listar_scheduled_tasks(
+    agent_id: Optional[str] = None,
+    user: dict = Depends(require_admin),
+):
+    from revix_mcp.scheduler import listar_tareas
+    tareas = await listar_tareas(db, agent_id=agent_id)
+    return {'tasks': tareas, 'count': len(tareas)}
+
+
+@router.post('/agents/scheduled-tasks')
+async def crear_scheduled_task(
+    body: ScheduledTaskCreate,
+    user: dict = Depends(require_admin),
+):
+    from revix_mcp.scheduler import crear_tarea
+    # Validar agente + tool pertenece al agente
+    if not get_agent(body.agent_id):
+        raise HTTPException(status_code=404, detail='Agente no existe')
+    agent = get_agent(body.agent_id)
+    if body.tool not in agent.tools:
+        raise HTTPException(
+            status_code=400,
+            detail=f'La tool "{body.tool}" no pertenece al agente "{body.agent_id}".',
+        )
+    try:
+        task = await crear_tarea(
+            db, agent_id=body.agent_id, cron_expression=body.cron_expression,
+            tool=body.tool, params=body.params, descripcion=body.descripcion,
+            created_by=user.get('email') or user.get('id') or 'admin',
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {'task': task}
+
+
+@router.patch('/agents/scheduled-tasks/{task_id}')
+async def actualizar_scheduled_task(
+    task_id: str, body: ScheduledTaskUpdate,
+    user: dict = Depends(require_admin),
+):
+    from revix_mcp.scheduler import actualizar_tarea
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail='Sin cambios')
+    ok = await actualizar_tarea(db, task_id, updates)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Tarea no encontrada')
+    return {'updated': True}
+
+
+@router.delete('/agents/scheduled-tasks/{task_id}')
+async def borrar_scheduled_task(
+    task_id: str, user: dict = Depends(require_admin),
+):
+    from revix_mcp.scheduler import borrar_tarea
+    if not await borrar_tarea(db, task_id):
+        raise HTTPException(status_code=404, detail='Tarea no encontrada')
+    return {'deleted': True}
+
+
+@router.post('/agents/scheduled-tasks/{task_id}/run-now')
+async def ejecutar_scheduled_task_ahora(
+    task_id: str, user: dict = Depends(require_admin),
+):
+    """Ejecuta una tarea inmediatamente (útil para pruebas)."""
+    from revix_mcp.scheduler import ejecutar_tarea_una_vez
+    task = await db.mcp_scheduled_tasks.find_one({'id': task_id}, {'_id': 0})
+    if not task:
+        raise HTTPException(status_code=404, detail='Tarea no encontrada')
+    res = await ejecutar_tarea_una_vez(db, task)
+    return res
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Endpoint público del agente de seguimiento (sin auth)

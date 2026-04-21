@@ -12,17 +12,5 @@ from email_service import (
     test_conexion_resend, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL,
 )
 from email_service import (
-    send_email,
-    send_email_async,
-    notificar_cambio_estado,
-    notificar_material_pendiente,
-    notificar_presupuesto_enviado,
-    notificar_orden_lista,
-    notificar_factura_emitida,
-    notificar_bienvenida,
     test_conexion_smtp,
-    is_configured,
-    RESEND_API_KEY,
-    SENDER_EMAIL,
-    FRONTEND_URL,
 )

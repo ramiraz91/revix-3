@@ -29,6 +29,8 @@ export default function AgentesIA() {
   const [loading, setLoading] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [showTasks, setShowTasks] = useState(false);
+  const [scheduledTasks, setScheduledTasks] = useState([]);
   const scrollRef = useRef(null);
 
   // Fetch agents
@@ -130,6 +132,7 @@ export default function AgentesIA() {
 
   const loadAuditLogs = async () => {
     setShowAudit(true);
+    setShowTasks(false);
     try {
       const { data } = await API.get('/agents/audit-logs', {
         params: { agent_id: selectedAgent?.id, limit: 50 },
@@ -137,6 +140,38 @@ export default function AgentesIA() {
       setAuditLogs(data.logs);
     } catch (e) {
       toast.error('No se pudieron cargar los audit logs.');
+    }
+  };
+
+  const loadScheduledTasks = async () => {
+    setShowTasks(true);
+    setShowAudit(false);
+    try {
+      const { data } = await API.get('/agents/scheduled-tasks', {
+        params: { agent_id: selectedAgent?.id },
+      });
+      setScheduledTasks(data.tasks);
+    } catch (e) {
+      toast.error('No se pudieron cargar las tareas programadas.');
+    }
+  };
+
+  const runTaskNow = async (taskId) => {
+    try {
+      const { data } = await API.post(`/agents/scheduled-tasks/${taskId}/run-now`);
+      toast.success(data.success ? 'Tarea ejecutada correctamente' : `Fallo: ${data.error || 'desconocido'}`);
+      await loadScheduledTasks();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error ejecutando tarea');
+    }
+  };
+
+  const toggleTask = async (task) => {
+    try {
+      await API.patch(`/agents/scheduled-tasks/${task.id}`, { activo: !task.activo });
+      await loadScheduledTasks();
+    } catch (e) {
+      toast.error('Error actualizando tarea');
     }
   };
 
@@ -247,14 +282,24 @@ export default function AgentesIA() {
         )}
 
         {isAdmin() && (
-          <button
-            data-testid="audit-panel-toggle"
-            onClick={loadAuditLogs}
-            className="m-3 p-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg flex items-center gap-2 border border-slate-200"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            Ver audit logs MCP
-          </button>
+          <div className="m-3 space-y-2">
+            <button
+              data-testid="audit-panel-toggle"
+              onClick={loadAuditLogs}
+              className="w-full p-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg flex items-center gap-2 border border-slate-200"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Audit logs MCP
+            </button>
+            <button
+              data-testid="scheduled-tasks-toggle"
+              onClick={loadScheduledTasks}
+              className="w-full p-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg flex items-center gap-2 border border-slate-200"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Tareas programadas
+            </button>
+          </div>
         )}
       </aside>
 
@@ -390,6 +435,69 @@ export default function AgentesIA() {
           </p>
         </div>
       </main>
+
+      {/* === Columna derecha · Tareas programadas === */}
+      {showTasks && isAdmin() && (
+        <aside className="w-96 border-l border-slate-200 bg-white/90 flex flex-col" data-testid="scheduled-tasks-panel">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-slate-600" />
+              <h3 className="text-sm font-semibold">Tareas programadas</h3>
+            </div>
+            <button onClick={() => setShowTasks(false)} className="text-slate-400 hover:text-slate-700">
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {scheduledTasks.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">Sin tareas programadas.</p>
+            )}
+            {scheduledTasks.map((t) => (
+              <div key={t.id} className="text-xs p-3 rounded-lg bg-slate-50 border border-slate-100" data-testid={`task-${t.id}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <code className="font-mono text-blue-700 text-[11px]">{t.tool}</code>
+                  <Badge variant={t.activo ? 'default' : 'outline'} className="text-[10px]">
+                    {t.activo ? 'activa' : 'pausada'}
+                  </Badge>
+                </div>
+                <div className="text-slate-700 font-medium mb-1">{t.descripcion}</div>
+                <div className="text-slate-500 space-y-0.5">
+                  <div>agent: <span className="font-mono">{t.agent_id}</span></div>
+                  <div>cron: <span className="font-mono">{t.cron_expression}</span></div>
+                  <div>próxima: {t.proxima_ejecucion?.slice(0, 16).replace('T', ' ')}</div>
+                  {t.ultima_ejecucion && (
+                    <div className={t.ultima_ejecucion_resultado === 'ok' ? 'text-emerald-600' : 'text-red-600'}>
+                      última: {t.ultima_ejecucion.slice(0, 16).replace('T', ' ')} ({t.ultima_ejecucion_resultado || '—'})
+                    </div>
+                  )}
+                  {t.ultima_ejecucion_error && (
+                    <div className="text-red-600 text-[10px] truncate">err: {t.ultima_ejecucion_error}</div>
+                  )}
+                  {t.consecutive_failures > 0 && (
+                    <div className="text-amber-600">fallos consecutivos: {t.consecutive_failures}/3</div>
+                  )}
+                </div>
+                <div className="flex gap-1 mt-2">
+                  <button
+                    data-testid={`task-run-${t.id}`}
+                    onClick={() => runTaskNow(t.id)}
+                    className="flex-1 px-2 py-1 text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                  >
+                    Ejecutar ahora
+                  </button>
+                  <button
+                    data-testid={`task-toggle-${t.id}`}
+                    onClick={() => toggleTask(t)}
+                    className="flex-1 px-2 py-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded"
+                  >
+                    {t.activo ? 'Pausar' : 'Reactivar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
 
       {/* === Columna derecha · Audit panel === */}
       {showAudit && isAdmin() && (

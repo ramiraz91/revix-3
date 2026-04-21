@@ -555,7 +555,7 @@ async def fn_actualizar_estado_orden(orden_id: str, nuevo_estado: str, notas: st
                     "estado_anterior": estado_anterior,
                     "fecha": ahora,
                     "usuario": "agente_aria",
-                    "notas": notas or f"Cambio de estado por Agente ARIA"
+                    "notas": notas or "Cambio de estado por Agente ARIA"
                 }
             }
         }
@@ -630,7 +630,7 @@ async def fn_agregar_nota_orden(orden_id: str, nota: str):
     if result.modified_count == 0:
         return {"error": f"Orden no encontrada: {orden_id}"}
     
-    return {"success": True, "mensaje": f"✅ Nota agregada a la orden"}
+    return {"success": True, "mensaje": "✅ Nota agregada a la orden"}
 
 async def fn_crear_notificacion(mensaje: str, tipo: str = "info", orden_id: str = None):
     """Crea una notificación interna"""

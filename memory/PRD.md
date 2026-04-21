@@ -21,6 +21,78 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21 (6) · Auditor + Auditoría código + Modo Autónomo
+
+### BLOQUE 1 · Auditor Transversal (5 tools escritura/reporte) ✅
+Tools en `/app/revix_mcp/tools/auditor.py`:
+1. **`ejecutar_audit_financiero`** — facturas sin orden, órdenes cerradas sin facturar, discrepancias orden↔factura, liquidaciones duplicadas, materiales 0€. Clasifica LOW/MEDIUM/HIGH/CRITICAL.
+2. **`ejecutar_audit_operacional`** — órdenes sin token, `enviado` sin `fecha_enviado`, duraciones >30d, técnicos inactivos.
+3. **`ejecutar_audit_seguridad`** — accesos MCP fuera de horario (22:00-05:00 UTC), volumen inusual por minuto, intentos scope_denied.
+4. **`generar_audit_report`** (idempotente) — requiere haber ejecutado al menos una tool de auditoría en los 30 min previos y mínimo 1 hallazgo con evidencia.
+5. **`abrir_nc_audit`** (idempotente) — SOLO para hallazgos HIGH/CRITICAL. NC persiste en `capas` con `asignado_a=iso_officer` para delegación explícita.
+
+**Agente auditor actualizado**: scopes ahora `audit:read + audit:report + meta:ping` (eliminado `*:read`). Tools: las 5 nuevas + 5 de lectura globales.
+
+**Tests**: 6 nuevos en `test_auditor.py`. Cubre: detección de hallazgos, rechazo sin auditoría previa, severidad insuficiente para NC, asignación a iso_officer.
+
+### BLOQUE 2 · Auditoría de código ✅
+**Corregido** (29 fixes auto + 4 manuales):
+- Imports/variables sin uso en 8 archivos (ruff auto).
+- Bug real en `/api/master/enviar-credenciales/{id}`: `email_mask` no definido → añadido enmascaramiento del email del cliente.
+- Variables `ESTADOS_FINALIZADOS`, `hace_30_dias` sin uso en dashboard_routes.py → borradas.
+- 2 `result` sin uso en liquidaciones_routes.py → borrados.
+- F-strings sin placeholder en revix_agent.py → corregidos.
+
+**Verificado**:
+- Las 28 tools MCP tienen `required_scope` declarado.
+- Todos los endpoints POST/PUT/DELETE/PATCH tienen `Depends(require_auth/admin/master)` o protección por secret env (emergency scan).
+- Endpoint público (`/api/public/agents/seguimiento/chat`) limitado al agente público con scope `public:track_by_token`.
+
+**No tocado** (decisión explícita):
+- 84 warnings estilísticos restantes (E701/E741/E722 — single-line statements, nombre de variable `l`, bare except) en `/agent/`, `/scripts/` y routes legacy. No son bugs funcionales. Son fixables con `ruff --fix --unsafe` pero podrían cambiar semántica de código maduro.
+
+### BLOQUE 3 · CRM Modo Autónomo ✅
+**Nuevo módulo** `/app/revix_mcp/scheduler.py`:
+- `compute_next_run` con croniter (instalado en venv).
+- CRUD + `ejecutar_tarea_una_vez` + `scheduler_tick` + loop de background.
+- **3 fallos consecutivos** → `activo=False` + `desactivada_motivo` + notificación interna + email a `master@revix.es` (solo en production).
+- **Rate-limit diferido**: `ToolRateLimitError` NO cuenta como fallo; posterga 60s.
+- Loop arranca en `server.py` startup (interval 30s), stop en shutdown.
+
+**Endpoints nuevos**:
+- `GET /api/agents/scheduled-tasks` (lista, filtrable por agent_id).
+- `POST /api/agents/scheduled-tasks` (crea · valida que la tool pertenezca al agente).
+- `PATCH /api/agents/scheduled-tasks/{id}` (pausar/reactivar/cambiar cron).
+- `DELETE /api/agents/scheduled-tasks/{id}`.
+- `POST /api/agents/scheduled-tasks/{id}/run-now` (ejecución manual).
+
+**Índices creados al startup**:
+- `audit_logs.timestamp_dt` TTL 90 días (campo datetime añadido a `audit.py`).
+- `audit_logs` (source, agent_id, timestamp desc).
+- `mcp_scheduled_tasks.agent_id`.
+
+**UI `/crm/agentes`**: botón "Tareas programadas" en sidebar, panel derecho con lista + acciones (Ejecutar ahora, Pausar/Reactivar), muestra estado (activa/pausada), última ejecución, resultado, próxima ejecución, fallos consecutivos.
+
+**Tests**: 9 nuevos en `test_scheduler.py`. Cubre: cron parsing, CRUD, ejecución OK, 3 fallos desactivan+notifican, rate-limit diferido no cuenta como fallo, tick solo procesa vencidas+activas, integración autónoma completa end-to-end.
+
+**Total MCP**: **104 tests / 104 pasando**.
+
+### Archivos tocados en esta iteración
+- `+/app/revix_mcp/tools/auditor.py` (nuevo · 5 tools)
+- `+/app/revix_mcp/scheduler.py` (nuevo · scheduler)
+- `+/app/revix_mcp/tests/test_auditor.py` (6 tests)
+- `+/app/revix_mcp/tests/test_scheduler.py` (9 tests)
+- `~/app/revix_mcp/audit.py` (timestamp_dt para TTL)
+- `~/app/revix_mcp/tools/__init__.py` + `server.py` (registros)
+- `~/app/backend/modules/agents/agent_defs.py` (auditor actualizado)
+- `~/app/backend/modules/agents/routes.py` (endpoints scheduled-tasks + startup TTL)
+- `~/app/backend/server.py` (startup/shutdown scheduler + `email_mask` fix)
+- `~/app/backend/routes/dashboard_routes.py` (vars no usadas)
+- `~/app/backend/routes/liquidaciones_routes.py` (result no usado)
+- `~/app/frontend/src/pages/AgentesIA.jsx` (panel Tareas programadas)
+- `~/app/backend/requirements.txt` (croniter)
+- 29 fixes ruff auto en 8 archivos más.
+
 ## Latest — 2026-04-21 (5)
 
 ### Fase 2 MCP · Finance Officer ✅

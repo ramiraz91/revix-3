@@ -120,7 +120,7 @@ async def main():
                     'tecnico': o.get('tecnico_asignado'),
                 })
 
-    lines.append(f'### ⏱ Órdenes estancadas (>15 d sin updates en estado activo)')
+    lines.append('### ⏱ Órdenes estancadas (>15 d sin updates en estado activo)')
     lines.append('')
     if estancadas:
         lines.append(f'🟠 **{len(estancadas)}** órdenes estancadas.')
@@ -246,7 +246,7 @@ async def main():
                     'estado': o.get('estado'),
                     'fecha': o.get('updated_at') or o.get('created_at'),
                 })
-    lines.append(f'### 🚨 Órdenes cerradas con autorización pero SIN liquidar')
+    lines.append('### 🚨 Órdenes cerradas con autorización pero SIN liquidar')
     lines.append('')
     if cerradas_sin_liquidar:
         lines.append(f'🟠 **{len(cerradas_sin_liquidar)}** órdenes son dinero potencialmente no facturado a aseguradora.')
@@ -264,7 +264,7 @@ async def main():
     # 3.3 Números de autorización duplicados (detallado)
     aut_counter = Counter(o.get('numero_autorizacion') for o in ordenes if o.get('numero_autorizacion'))
     aut_dups = {k: v for k, v in aut_counter.items() if v > 1}
-    lines.append(f'### Autorizaciones con varias órdenes (posibles garantías)')
+    lines.append('### Autorizaciones con varias órdenes (posibles garantías)')
     lines.append('')
     if aut_dups:
         lines.append(f'**{len(aut_dups)}** autorizaciones aparecen en >1 orden.')

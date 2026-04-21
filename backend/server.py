@@ -246,7 +246,8 @@ async def debug_login_test(data: dict):
 @app.get("/api/emergency/debug-db")
 async def emergency_debug_db(secret: str = ""):
     """Debug: muestra configuracion de BD."""
-    import os, subprocess
+    import os
+    import subprocess
     key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
     if not secret or secret != key:
         raise HTTPException(403, "Clave incorrecta")
@@ -296,7 +297,8 @@ async def root_health_check():
 @app.get("/api/emergency/reset-password")
 async def emergency_reset_password(secret: str = "", email: str = "", new_password: str = ""):
     """Endpoint de emergencia para resetear contraseña. Requiere EMERGENCY_ACCESS_KEY."""
-    import os, bcrypt
+    import os
+    import bcrypt
     key = os.environ.get('EMERGENCY_ACCESS_KEY', '')
     if not secret or secret != key:
         raise HTTPException(403, "Clave de emergencia incorrecta")
@@ -786,6 +788,13 @@ async def recuperar_credenciales_seguimiento(request: RecuperarCredencialesReque
             contenido=contenido
         )
     
+    # Enmascarar email del cliente para la respuesta (no exponer en claro)
+    email_cliente = cliente.get("email") or ""
+    if "@" in email_cliente:
+        usr, dom = email_cliente.split("@", 1)
+        email_mask = f"{usr[:2]}***@{dom}" if len(usr) > 2 else f"***@{dom}"
+    else:
+        email_mask = "email registrado"
     return {"message": f"Credenciales enviadas a {email_mask}"}
 
 # ==================== INCLUDE ROUTER & STARTUP ====================
@@ -909,10 +918,26 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not seed MCP rate limits: {e}")
 
+    # Start MCP scheduler (modo autónomo)
+    try:
+        import sys as _sys
+        if '/app' not in _sys.path:
+            _sys.path.insert(0, '/app')
+        from revix_mcp.scheduler import start_scheduler
+        await start_scheduler(db, interval_seconds=30)
+        logger.info("MCP scheduler started (interval=30s)")
+    except Exception as e:
+        logger.warning(f"Could not start MCP scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync
     stop_gls_sync()
+    try:
+        from revix_mcp.scheduler import stop_scheduler
+        await stop_scheduler()
+    except Exception:
+        pass
     cfg.client.close()
 
 

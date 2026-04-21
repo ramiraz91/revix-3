@@ -234,7 +234,7 @@ async def actualizar_estado_liquidacion(
         if notas:
             update_data["notas"] = notas
         
-        result = await db.liquidaciones.update_one(
+        await db.liquidaciones.update_one(
             {"codigo_siniestro": codigo_siniestro},
             {"$set": update_data},
             upsert=True
@@ -266,7 +266,7 @@ async def actualizar_garantia_liquidacion(
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
-        result = await db.liquidaciones.update_one(
+        await db.liquidaciones.update_one(
             {"codigo_siniestro": codigo_siniestro},
             {"$set": update_data},
             upsert=True

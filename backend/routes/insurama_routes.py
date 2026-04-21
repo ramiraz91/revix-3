@@ -190,7 +190,7 @@ async def debug_budgets_por_codigo(codigo: str, user: dict = Depends(require_adm
         
         try:
             resp = await client._request_with_retry(
-                "get", f"https://api.sumbroker.es/api/v2/store-budget",
+                "get", "https://api.sumbroker.es/api/v2/store-budget",
                 params={"search": codigo, "limit": 50})
         except Exception as e:
             return {"error": f"Request failed: {str(e)}"}
@@ -982,7 +982,7 @@ async def _fetch_competidores(codigo: str) -> dict:
                 },
                 "competidores": [],
                 "estadisticas": None,
-                "error": f"No se pudieron obtener los presupuestos de competidores"
+                "error": "No se pudieron obtener los presupuestos de competidores"
             }
         
         # Obtener observaciones del siniestro UNA sola vez (son por siniestro, no por presupuesto)

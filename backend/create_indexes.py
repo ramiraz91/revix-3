@@ -112,7 +112,7 @@ async def create_indexes():
         print(f"  ✅ ot_event_idx: {result}")
     except Exception as e:
         if "already exists" in str(e):
-            print(f"  ⏭️  ot_event_idx: ya existe")
+            print("  ⏭️  ot_event_idx: ya existe")
         else:
             print(f"  ❌ ot_event_idx: {e}")
     

@@ -30,7 +30,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from . import tools  # noqa: F401
 from .tools import (  # noqa: F401 — registra tools en _REGISTRY
     meta, orders, clients, inventory, metrics, tracking,
-    supervisor_cola, iso_officer, finance_officer,
+    supervisor_cola, iso_officer, finance_officer, auditor,
 )
 from .config import (
     DB_NAME, LOG_LEVEL, MCP_TRANSPORT, MONGO_URL, info_banner,

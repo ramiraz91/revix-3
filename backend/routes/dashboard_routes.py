@@ -235,12 +235,10 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
     ayer = hoy - timedelta(days=1)
     hace_4_dias = now - timedelta(days=4)
     hace_7_dias = now - timedelta(days=7)
-    hace_30_dias = now - timedelta(days=30)
-    
+
     # Estados considerados "en taller" (trabajo activo)
     ESTADOS_EN_TALLER = ["recibida", "en_taller", "re_presupuestar", "validacion"]
     ESTADOS_PENDIENTES = ["pendiente_recibir"]
-    ESTADOS_FINALIZADOS = ["reparado", "enviado"]
     
     # Pipeline principal para obtener todas las métricas
     pipeline = [
@@ -487,7 +485,7 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
                 if 0 < diff_total < 2160:  # Máximo 90 días
                     tiempos_totales.append(diff_total)
                     
-        except Exception as e:
+        except Exception:
             pass
     
     # Usar tiempos_totales si hay más datos, sino tiempos_reparacion

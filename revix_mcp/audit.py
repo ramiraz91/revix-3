@@ -62,6 +62,7 @@ async def log_tool_call(
         'duration_ms': int(duration_ms),
         'idempotency_key': idempotency_key,
         'timestamp': _now_iso(),
+        'timestamp_dt': datetime.now(timezone.utc),  # para TTL index 90d
     })
 
 

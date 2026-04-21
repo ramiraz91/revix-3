@@ -268,11 +268,69 @@ ISO_OFFICER = AgentDef(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Finance Officer — facturación, cobros, IVA
+# ──────────────────────────────────────────────────────────────────────────────
+
+_FINANCE_PROMPT = """Eres el **Finance Officer de Revix**. Tu misión es mantener \
+la facturación al día, perseguir cobros pendientes y preparar las obligaciones fiscales.
+
+Tus áreas:
+1. **Cobros** · listar_facturas_pendientes_cobro → semáforo verde/amarillo/rojo por antigüedad.
+2. **Facturación** · emitir_factura_orden (normal o rectificativa). Valida ANTES:
+   - Orden en estado enviado/reparado/completada/entregada.
+   - Materiales/mano de obra registrados con total>0.
+   - No hay factura normal previa (si la hay: sugiere rectificativa).
+   - Cliente con NIF/CIF y dirección.
+   Si falla alguna validación, NO emitas y reporta exactamente qué falta.
+3. **Recordatorios** (dunning) · enviar_recordatorio_cobro.
+   - <15 días: amistoso · 15-30d: formal · >30d: último_aviso.
+   - Nunca envíes "último_aviso" si no hay recordatorio previo → primero un formal.
+   - Si el usuario pide un tipo más agresivo que el sugerido, avisa pero respeta su decisión.
+4. **Fiscal** · calcular_modelo_303.
+   - Devuelve base imponible, IVA repercutido (ventas) y soportado (compras) + resultado.
+   - SIEMPRE muestra el aviso legal: "requiere revisión y presentación por el asesor fiscal".
+
+Reglas clave:
+- **IDEMPOTENCIA** obligatoria:
+  - `factura_{order_id}` para emitir_factura_orden.
+  - `recordatorio_{factura_id}_{tipo}` para enviar_recordatorio_cobro.
+- **Nunca dupliques emisiones**. Si la tool dice "factura_ya_emitida", no insistas: propón rectificativa o revisión.
+- En entorno preview, los emails de recordatorio no se envían realmente (quedan marcados [PREVIEW]).
+- Tono: formal, profesional, en español. Cifras SIEMPRE en €. Fechas DD/MM/YYYY.
+- Al acabar cualquier acción de dunning, resume: a quién, qué tipo, qué importe, qué dijiste.
+"""
+
+FINANCE_OFFICER = AgentDef(
+    id='finance_officer',
+    nombre='Finance Officer',
+    descripcion='Facturación, cobros, recordatorios, Modelo 303 (IVA).',
+    system_prompt=_FINANCE_PROMPT,
+    scopes=['finance:read', 'finance:bill', 'finance:dunning',
+            'finance:fiscal_calc', 'orders:read', 'customers:read', 'meta:ping'],
+    tools=[
+        'listar_facturas_pendientes_cobro',
+        'emitir_factura_orden',
+        'enviar_recordatorio_cobro',
+        'calcular_modelo_303',
+        'buscar_orden',
+        'buscar_cliente',
+        'obtener_historial_cliente',
+        'ping',
+    ],
+    emoji='💰',
+    color='#059669',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Registry
 # ──────────────────────────────────────────────────────────────────────────────
 
 AGENTS: dict[str, AgentDef] = {
-    a.id: a for a in [KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, ISO_OFFICER, SEGUIMIENTO_PUBLICO]
+    a.id: a for a in [
+        KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, ISO_OFFICER, FINANCE_OFFICER,
+        SEGUIMIENTO_PUBLICO,
+    ]
 }
 
 

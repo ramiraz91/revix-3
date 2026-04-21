@@ -21,6 +21,29 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21 (5)
+
+### Fase 2 MCP · Finance Officer ✅
+Tercer agente de escritura supervisada. Cubre facturación, cobros, dunning y Modelo 303.
+
+**4 tools nuevas** en `/app/revix_mcp/tools/finance_officer.py`:
+1. **`listar_facturas_pendientes_cobro`** (read) — semáforo verde/amarillo/rojo por antigüedad, filtros `antiguedad_minima_dias`, `cliente_id`, `canal`. Devuelve contacto del cliente + importe total pendiente.
+2. **`emitir_factura_orden`** (write · idempotente) — 5 validaciones ANTES de emitir: (a) estado ∈ {enviado, reparado, completada, entregada}, (b) total>0 con materiales o mano_obra, (c) no factura normal previa, (d) cliente con NIF/CIF y dirección, (e) rectificativa requiere `factura_origen_id`. Numeración vía `contabilidad_series`. Genera `url_pdf` apuntando a endpoint existente del CRM.
+3. **`enviar_recordatorio_cobro`** (write · idempotente) — tipos amistoso/formal/ultimo_aviso. Bloquea ultimo_aviso sin recordatorio previo. Warning si el tipo pedido es más severo que el sugerido por antigüedad. Mock `[PREVIEW]` en entorno preview (no envía email real). Traza en `mcp_recordatorios_cobro`.
+4. **`calcular_modelo_303`** (read agregado) — IVA repercutido (ventas) + soportado deducible (compras) del trimestre. Resultado a_ingresar/a_devolver/cero. **Aviso legal obligatorio** incluido en cada respuesta: *"Requiere revisión y presentación por el asesor fiscal"*.
+
+**Agente IA `finance_officer` 💰** con 8 tools. Rate limit 120/600. Scopes: finance:read + finance:bill + finance:dunning + finance:fiscal_calc + orders:read + customers:read.
+
+**Testing**: 13 tests nuevos en `test_finance_officer.py`. **Total MCP: 89/89 tests pasando**.
+- Cubre todas las validaciones de emitir_factura (5 paths de fallo + emisión OK + rectificativa encadenada con origen).
+- Recordatorio: bloqueo ultimo_aviso sin previos, warning por severidad, preview mock.
+- Modelo 303: cálculo correcto + aviso legal siempre presente.
+
+**Bug fix crítico**:
+- Claude tiene pattern `^[a-zA-Z0-9_.-]{1,64}$` para nombres de propiedades → `año` no era válido. Cambio `año → anno` en el schema de `calcular_modelo_303`. Pydantic acepta ambos via alias.
+
+**E2E Claude**: `calcular_modelo_303(Q1, 2026)` ejecutado en 2 iteraciones / 11.5s. Informe formal markdown con aviso legal. ✅
+
 ## Latest — 2026-04-21 (4)
 
 ### Fase 2 MCP · Agente ISO 9001 Quality Officer ✅

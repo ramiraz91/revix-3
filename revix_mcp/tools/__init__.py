@@ -13,3 +13,4 @@ from . import inventory   # noqa: F401
 from . import metrics     # noqa: F401
 from . import tracking    # noqa: F401
 from . import supervisor_cola  # noqa: F401  (Fase 2 · write)
+from . import iso_officer      # noqa: F401  (Fase 2 · ISO 9001)

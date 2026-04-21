@@ -21,6 +21,31 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21 (4)
+
+### Fase 2 MCP · Agente ISO 9001 Quality Officer ✅
+Segundo agente de escritura supervisada. Sistema de calidad ISO 9001 end-to-end.
+
+**6 tools nuevas** en `/app/revix_mcp/tools/iso_officer.py`:
+1. **`crear_muestreo_qa`** (write · doble scope `iso:quality + orders:read`) — lotes por aleatorio / por_tecnico / por_tipo_reparacion / por_reclamacion. Nueva colección `mcp_qa_muestreos`.
+2. **`registrar_resultado`** (write · idempotente) — conforme/no_conforme. Si `no_conforme` la respuesta incluye `accion_requerida='abrir_nc'` + `mensaje_accion` guiando al agente.
+3. **`abrir_nc`** (write · idempotente) — NC en colección `capas` (CAPA). Tipos: menor/mayor/crítica. `numero_nc` formato `NC-YYYYMMDD-XXXXXX`.
+4. **`listar_acuses_pendientes`** (read) — documentos ISO sin acuse + filtro por rol + `incluir_vencidos_dias`.
+5. **`evaluar_proveedor`** (write) — ISO 9001 §8.4. Score ponderado (calidad 40% · plazo 30% · precio 15% · doc 15%). Clasificación A/B/C/D + comparativa con evaluación previa (delta + tendencia).
+6. **`generar_revision_direccion`** (read agregado) — Revisión por la Dirección §9.3. 6 secciones: indicadores · no_conformidades · acuses_pendientes · proveedores · sla · acciones_recomendadas.
+
+**Agente IA `iso_officer` 📋** con 11 tools (6 nuevas + 5 lectura compartidas). Rate limit 120/600.
+
+**Testing**: 13 tests nuevos en `test_iso_officer.py`. **Total MCP: 76/76 pasando**.
+- Cubre: muestreo aleatorio/por_tecnico/dual_scope, idempotencia registrar_resultado, mensaje guía a abrir_nc, NC persiste correctamente, acuses filtro rol/vencidos, score ponderado A-D + delta comparativa, informe secciones custom.
+
+**E2E real con Claude**:
+- Cadena ejecutada: `crear_muestreo_qa → registrar_resultado (no_conforme) → abrir_nc` en 6 iteraciones, 42s. Claude generó informe formal markdown con tablas y 3 secciones (Hallazgos / Análisis / Acciones).
+
+**Cambios auxiliares**:
+- `agent_defs.py`: AGENTS dict incluye `ISO_OFFICER`.
+- `rate_limit.py`: seed idempotente añade `iso_officer`.
+
 ## Latest — 2026-04-21 (3)
 
 ### Fase 2 MCP · Agente Supervisor de Cola Operacional ✅

@@ -42,11 +42,40 @@ async def execute_tool(
 
     Protege con auth + scopes + audit + idempotencia.
     """
-    params = params or {}
-    idempotency_key = params.pop('_idempotency_key', None)
-
     # 1. Auth
     identity = await verify_api_key(db, api_key)
+    return await _execute_tool_with_identity(
+        db, identity=identity, tool_name=tool_name, params=params,
+    )
+
+
+async def execute_tool_internal(
+    db: AsyncIOMotorDatabase,
+    *,
+    identity: AgentIdentity,
+    tool_name: str,
+    params: dict | None = None,
+) -> dict:
+    """Entrada para agentes INTERNOS (mismo proceso) que ya están autenticados.
+
+    Útil para el orquestador de agentes nativo: crea una identidad en memoria
+    (no necesita API key física) y ejecuta tools igualmente con todas las
+    comprobaciones de scope + audit + idempotencia.
+    """
+    return await _execute_tool_with_identity(
+        db, identity=identity, tool_name=tool_name, params=params,
+    )
+
+
+async def _execute_tool_with_identity(
+    db: AsyncIOMotorDatabase,
+    *,
+    identity: AgentIdentity,
+    tool_name: str,
+    params: dict | None = None,
+) -> dict:
+    params = dict(params or {})
+    idempotency_key = params.pop('_idempotency_key', None)
 
     # 2. Tool
     spec = get_tool(tool_name)

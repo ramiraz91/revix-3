@@ -331,7 +331,8 @@ export default function Layout() {
           {/* Sección Admin (Admin + Master) */}
           {isAdmin() && (
             <SidebarGroup label="Herramientas Admin">
-              <NavItem path="/agente-aria" icon={Bot} label="ARIA (IA)" badge="Nuevo" />
+              <NavItem path="/agentes" icon={Bot} label="Agentes IA" badge="Nuevo" />
+              <NavItem path="/agente-aria" icon={Bot} label="ARIA (IA)" />
               <NavItem path="/historial-impresion" icon={Printer} label="Impresión" />
             </SidebarGroup>
           )}

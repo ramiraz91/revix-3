@@ -21,6 +21,38 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Frontend OrdenDetalle: Resumen Financiero calcula en vivo con la MISMA fórmula que el backend (incluyendo `mano_obra × 0.5` en beneficio). Coherencia total tabla ↔ resumen.
 - Scripts de migración en `/app/backend/scripts/migrations/` con patrón dry-run/apply, backups automáticos y safeguard `--allow-production`.
 
+## Latest — 2026-04-21
+
+### Agentes IA nativos en Revix ✅ (sustituye Rowboat)
+Montado un orquestador multi-agente propio dentro del CRM. Los agentes hablan con Claude Sonnet 4.5 (vía Emergent LLM Key + LiteLLM) y ejecutan tools a través del servidor MCP interno con audit_logs automáticos.
+
+**3 agentes Fase 1 (read-only)** en `/app/backend/modules/agents/`:
+- **KPI Analyst** 📊 — dashboard + métricas + análisis de órdenes/clientes/inventario (8 tools).
+- **Auditor Transversal** 🔍 — detección de anomalías, SLA, coherencia ISO 9001 (8 tools).
+- **Seguimiento Público** 📱 — asistente al cliente final, solo token (scope `public:track_by_token` estricto).
+
+**Arquitectura**:
+- `agent_defs.py`: catálogo de agentes (system prompt + scopes + tools + modelo).
+- `engine.py`: agent loop con tool-calling (`litellm.completion` + Emergent proxy), hasta 8 iteraciones, convierte tools MCP al esquema OpenAI function-calling que Claude entiende.
+- `routes.py`: API `/api/agents*` con sesiones persistentes + endpoint público sin auth para widget cliente.
+- `revix_mcp.runtime.execute_tool_internal()` nuevo: permite al orquestador ejecutar tools sin API key física, manteniendo audit + scopes.
+
+**Frontend** `/app/frontend/src/pages/AgentesIA.jsx`:
+- Ruta `/crm/agentes` (admin) con layout 3 columnas: agentes, chat, audit panel.
+- Sample prompts, markdown rendering (react-markdown), badges de tools ejecutadas con duración, scroll auto, gestión de sesiones (crear, seleccionar, borrar).
+- Audit logs en vivo desde el panel lateral.
+- Nueva entrada en sidebar "Agentes IA · Nuevo".
+
+**Testing**:
+- Smoke test end-to-end: login → `/crm/agentes` → sample prompt → respuesta markdown ejecutiva en 13s con tool `obtener_dashboard` (843ms). ✅
+- Audit logs MCP persistidos correctamente (timestamp, agent_id, tool, duration_ms).
+- Endpoint público sin auth responde correctamente pidiendo token.
+- Tests MCP existentes: 41/41 siguen pasando.
+
+### Credenciales
+- Chat admin: `master@revix.es` / `RevixMaster2026!` → `/crm/agentes`
+- Chat público (widget cliente): `POST /api/public/agents/seguimiento/chat` — sin auth, solo `public:track_by_token`.
+
 ## Latest — 2026-04-20 (3)
 
 ### Fase 1 MCP · 8 Tools Read-Only completadas ✅

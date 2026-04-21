@@ -75,6 +75,7 @@ import ISOModule from "@/pages/ISOModule";
 import PeticionesExteriores from "@/pages/PeticionesExteriores";
 import FAQsAdmin from "@/pages/FAQsAdmin";
 import AgentARIA from "@/pages/AgentARIA";
+import AgentesIA from "@/pages/AgentesIA";
 import HistorialImpresion from "@/pages/HistorialImpresion";
 
 // Public website pages
@@ -347,6 +348,11 @@ function AppRoutes() {
         <Route path="agente-aria" element={
           <ProtectedRoute adminOnly>
             <AgentARIA />
+          </ProtectedRoute>
+        } />
+        <Route path="agentes" element={
+          <ProtectedRoute adminOnly>
+            <AgentesIA />
           </ProtectedRoute>
         } />
         <Route path="historial-impresion" element={

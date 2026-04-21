@@ -72,6 +72,7 @@ from routes.restos_routes import router as restos_router
 from routes.calendario_routes import router as calendario_router
 from routes.notificaciones_routes import router as notificaciones_router
 from routes.config_empresa_routes import router as config_empresa_router
+from modules.agents.routes import router as agents_ai_router
 
 # ==================== APP SETUP ====================
 app = FastAPI(title="Mobile Repair CRM/ERP API")
@@ -166,6 +167,7 @@ api_router.include_router(restos_router)
 api_router.include_router(calendario_router)
 api_router.include_router(notificaciones_router)
 api_router.include_router(config_empresa_router)
+api_router.include_router(agents_ai_router)
 app.include_router(apple_manuals_router)  # No prefix, ya tiene /api/apple-manuals
 
 @app.get("/api/debug-connection")

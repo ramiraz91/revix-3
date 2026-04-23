@@ -64,6 +64,7 @@ import CalidadPantallaBadge from '@/components/CalidadPantallaBadge';
 import AppleManualCard from '@/components/AppleManualCard';
 import GLSLogistica from '@/components/orden/GLSLogistica';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
+import GLSEnvioPanel from '@/components/orden/GLSEnvioPanel';
 
 // Import refactored components
 import {
@@ -2159,18 +2160,16 @@ export default function OrdenDetalle() {
           />
         </TabsContent>
 
-        <TabsContent value="logistica" className="mt-6">
-          <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border bg-gradient-to-r from-blue-50 to-white p-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-blue-900">Módulo logística nuevo (v2)</p>
-              <p className="text-xs text-muted-foreground">
-                Genera una etiqueta GLS con un clic. Destinatario tomado del cliente.
-                Respeta <span className="font-mono">MCP_ENV</span> para modo preview / producción.
-              </p>
+        <TabsContent value="logistica" className="mt-6 space-y-6">
+          <GLSEnvioPanel orden={orden} onUpdate={fetchOrden} />
+          <details className="rounded-lg border bg-slate-50/40 p-3 text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-slate-700">
+              Módulo GLS legacy (avanzado: recogidas, devoluciones, config)
+            </summary>
+            <div className="mt-4">
+              <GLSLogistica orden={orden} onUpdate={fetchOrden} userRole={user?.role} />
             </div>
-            <CrearEtiquetaGLSButton orden={orden} onUpdate={fetchOrden} onCreated={fetchOrden} />
-          </div>
-          <GLSLogistica orden={orden} onUpdate={fetchOrden} userRole={user?.role} />
+          </details>
         </TabsContent>
       </Tabs>
 

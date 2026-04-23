@@ -427,6 +427,8 @@ class OrdenTrabajo(OrdenTrabajoBase):
     alerta_sla_enviada: bool = False
     # Idempotency key para prevenir duplicados
     idempotency_key: Optional[str] = None
+    # Envíos GLS creados por el módulo /api/logistica/gls/* (v2)
+    gls_envios: List[dict] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

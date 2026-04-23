@@ -408,6 +408,80 @@ export default function Seguimiento() {
               </CardContent>
             </Card>
 
+            {/* Tu envío (módulo nuevo v2) */}
+            {orden.logistics_v2?.codbarras && (
+              <Card className={`border-2 ${
+                orden.logistics_v2.estado_color === 'emerald' ? 'border-emerald-300 bg-emerald-50/60' :
+                orden.logistics_v2.estado_color === 'red' ? 'border-red-300 bg-red-50/60' :
+                orden.logistics_v2.estado_color === 'blue' ? 'border-blue-300 bg-blue-50/60' :
+                'border-slate-200 bg-slate-50/60'
+              }`} data-testid="seguimiento-logistics-v2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Truck className="w-5 h-5 text-blue-600" />
+                    Tu envío
+                    {orden.logistics_v2.mock_preview && (
+                      <span className="text-[10px] font-normal bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        preview
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Estado actual</p>
+                      <p className="text-xl font-semibold"
+                         data-testid="seguimiento-estado-cliente">
+                        {orden.logistics_v2.estado_cliente}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Nº seguimiento</p>
+                      <p className="font-mono text-sm font-bold">
+                        {orden.logistics_v2.codbarras}
+                      </p>
+                    </div>
+                  </div>
+
+                  {orden.logistics_v2.fecha_entrega && (
+                    <p className="text-sm text-muted-foreground">
+                      Entrega estimada: <span className="font-medium">{orden.logistics_v2.fecha_entrega}</span>
+                    </p>
+                  )}
+
+                  {orden.logistics_v2.tiene_incidencia && (
+                    <div className="rounded-md bg-red-100 border border-red-300 p-3 text-sm text-red-900"
+                         data-testid="seguimiento-incidencia">
+                      ⚠️ Incidencia detectada. Contacta con nosotros para más información.
+                    </div>
+                  )}
+
+                  {/* Mini historial de eventos cliente-friendly (últimos 3) */}
+                  {orden.logistics_v2.eventos?.length > 0 && (
+                    <ol className="space-y-1 text-sm">
+                      {orden.logistics_v2.eventos.slice().reverse().slice(0, 3).map((ev, i) => (
+                        <li key={i} className="flex items-center gap-2 text-muted-foreground">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                          <span>{ev.fecha}</span>
+                          <span className="text-slate-700 font-medium">· {ev.estado_cliente}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  <a
+                    href={`https://gls-group.eu/track/${orden.logistics_v2.codbarras}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline"
+                    data-testid="seguimiento-link-tracking-gls"
+                  >
+                    Ver tracking completo en GLS →
+                  </a>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Shipping Codes - ENHANCED LOGISTICS SECTION */}
             <Card className="border-blue-200 bg-blue-50/50">
               <CardHeader className="pb-3">

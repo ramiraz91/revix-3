@@ -863,6 +863,13 @@ LISTADO_PROJECTION = {
     "fecha_recogida": 1,
     "fecha_entrega_estimada": 1,
     "tracking_envio": 1,
+    # GLS v2: solo los campos mínimos que necesita el icono de la lista
+    "gls_envios.codbarras": 1,
+    "gls_envios.tracking_url": 1,
+    "gls_envios.estado_actual": 1,
+    "gls_envios.estado_codigo": 1,
+    "gls_envios.incidencia": 1,
+    "gls_envios.mock_preview": 1,
 }
 
 @router.get("/ordenes/v2")

@@ -19,6 +19,7 @@ import {
   FileText,
   Repeat,
   XCircle,
+  Truck,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -60,6 +61,10 @@ import {
 import { ordenesAPI, clientesAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/usePerformance';
+import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
+
+// Estados en los que el tramitador puede necesitar crear/gestionar etiqueta de envío.
+const ESTADOS_ENVIABLES = new Set(['reparado', 'validacion', 'enviado']);
 
 const statusConfig = {
   pendiente_recibir: { label: 'Pendiente Recibir', icon: Clock },
@@ -408,6 +413,7 @@ export default function Ordenes() {
                     <TableHead>Dispositivo</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Agencia</TableHead>
+                    <TableHead className="w-16 text-center">GLS</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -470,6 +476,9 @@ export default function Ordenes() {
                               {orden.codigo_recogida_entrada}
                             </p>
                           </div>
+                        </TableCell>
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <GLSCellIcon orden={orden} />
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(orden.created_at)}
@@ -565,6 +574,59 @@ export default function Ordenes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * Icono camión GLS por orden:
+ *   - Verde: ya tiene etiqueta creada (enlace al tracking)
+ *   - Azul: estado enviable pero sin etiqueta → click abre dialog de creación
+ *   - Gris disabled: la orden aún no necesita envío
+ */
+function GLSCellIcon({ orden }) {
+  const envios = Array.isArray(orden.gls_envios) ? orden.gls_envios : [];
+  const tiene = envios.length > 0;
+  const ultimo = tiene ? envios[envios.length - 1] : null;
+  const estadoEnviable = ESTADOS_ENVIABLES.has(orden.estado);
+
+  if (tiene) {
+    const url = ultimo?.tracking_url;
+    return (
+      <a
+        href={url || '#'}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        title={`Etiqueta GLS ${ultimo.codbarras}`}
+        className="inline-flex items-center justify-center rounded-full p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition"
+        data-testid={`gls-icon-ok-${orden.id}`}
+      >
+        <Truck className="w-4 h-4" />
+      </a>
+    );
+  }
+
+  if (!estadoEnviable) {
+    return (
+      <span title="Aún no en estado de envío"
+            className="inline-flex items-center justify-center rounded-full p-1.5 bg-slate-100 text-slate-400"
+            data-testid={`gls-icon-disabled-${orden.id}`}>
+        <Truck className="w-4 h-4" />
+      </span>
+    );
+  }
+
+  // Enviable pero sin etiqueta: CTA rápido en la celda (renderiza nuestro botón en modo icono)
+  return (
+    <div title="Crear etiqueta GLS"
+         className="inline-flex"
+         data-testid={`gls-icon-pendiente-${orden.id}`}>
+      <CrearEtiquetaGLSButton
+        orden={orden}
+        variant="ghost"
+        label=""
+      />
     </div>
   );
 }

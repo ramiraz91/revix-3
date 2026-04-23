@@ -669,6 +669,45 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
     except Exception:
         pass
 
+    # Fetch GLS logistics V2 (módulo nuevo /app/backend/modules/logistica)
+    logistics_v2 = None
+    try:
+        from modules.logistica.state_mapper import (
+            estado_color as _ec, friendly_estado as _fe, is_incidencia as _ii,
+        )
+        envios_v2 = orden.get("gls_envios") or []
+        if envios_v2:
+            # Preferir el envío con tracking (estado_actual poblado), si no el último.
+            envios_con_tracking = [e for e in envios_v2 if e.get("estado_actual")]
+            envio = (envios_con_tracking or envios_v2)[-1]
+            estado = envio.get("estado_actual") or ""
+            codigo = str(envio.get("estado_codigo") or "")
+            eventos_pub = [
+                {
+                    "fecha": e.get("fecha", ""),
+                    "estado_cliente": _fe(e.get("estado", ""), str(e.get("codigo", ""))),
+                    "plaza": e.get("plaza", ""),
+                }
+                for e in (envio.get("eventos") or [])
+            ]
+            logistics_v2 = {
+                "codbarras": envio.get("codbarras", ""),
+                "estado_cliente": _fe(estado, codigo),
+                "estado_color": _ec(estado, codigo),
+                "fecha_entrega": envio.get("fecha_entrega", ""),
+                "ultima_actualizacion": envio.get("ultima_actualizacion", ""),
+                "tracking_url": envio.get("tracking_url", ""),
+                "tracking_url_publico": (
+                    f"https://gls-group.eu/track/{envio.get('codbarras','')}"
+                ),
+                "tiene_incidencia": _ii(estado) or _ii(envio.get("incidencia", "")),
+                "eventos": eventos_pub,
+                "mock_preview": bool(envio.get("mock_preview", False)),
+            }
+    except Exception as exc:
+        logger.warning(f"No se pudo montar logistics_v2: {exc}")
+
+
     # Consolidar todas las fuentes de fotos en un solo array
     # Normalizar: las fotos pueden ser strings (URLs) o objetos {src, tipo}
     todas_las_fotos = []
@@ -711,6 +750,7 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
                 "nombre": cliente.get('nombre', ''),
             },
             "logistics": logistics_data,
+            "logistics_v2": logistics_v2,
         },
         "textos_legales": textos,
         "consentimiento_registrado": consentimiento_registrado,
@@ -931,6 +971,14 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start MCP scheduler: {e}")
 
+    # Start Logística scheduler (polling GLS v2)
+    try:
+        from modules.logistica.scheduler import start_logistica_scheduler
+        start_logistica_scheduler(db)
+        logger.info("Logistica GLS scheduler started")
+    except Exception as e:
+        logger.warning(f"Could not start Logistica scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync
@@ -938,6 +986,11 @@ async def shutdown_db_client():
     try:
         from revix_mcp.scheduler import stop_scheduler
         await stop_scheduler()
+    except Exception:
+        pass
+    try:
+        from modules.logistica.scheduler import stop_logistica_scheduler
+        stop_logistica_scheduler()
     except Exception:
         pass
     cfg.client.close()

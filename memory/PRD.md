@@ -11,6 +11,48 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (3) · GLS v2 COMPLETO (frontend + tracking + scheduler)
+
+### Backend
+- **Mapper `state_mapper.py`**: GLS → cliente (`friendly_estado`, `is_entregado`, `is_incidencia`, `estado_color`). Cubre códigos 0–11 + palabras clave de incidencia.
+- **`routes.py` ampliado**:
+  - `POST /api/logistica/gls/crear-envio` acepta `observaciones` + overrides de destinatario + **peso default 0,5 kg**.
+  - `GET /api/logistica/gls/orden/{order_id}` devuelve datos precarga (nombre, dirección, CP, población, provincia, teléfono, móvil, email) + lista de envíos con estado cliente-friendly.
+  - `POST /api/logistica/gls/actualizar-tracking/{codbarras}` consulta GLS, actualiza `ordenes.gls_envios[]` con eventos y estado, aplica side-effects: cambia estado OT a `enviado` si ENTREGADO, crea incidencia automática si hay `INCIDENCIA/AUSENTE/EXTRAVIADO…`, genera notificación interna al tramitador.
+  - `POST /api/logistica/gls/abrir-incidencia` — manual.
+  - `GET /api/logistica/gls/etiqueta/{codbarras}` — reimpresión PDF desde cache.
+- **`scheduler.py`**: polling cada `GLS_POLLING_INTERVAL_HOURS` (default 4h). Recorre `ordenes.gls_envios[]` no entregados, llama a `_apply_tracking_update`, stats (procesados, cambios, incidencias, entregas, errores). Integrado en `server.py` startup/shutdown.
+- **`/api/seguimiento/verificar`** enriquecido con `logistics_v2`: `{codbarras, estado_cliente, estado_color, fecha_entrega, ultima_actualizacion, tracking_url_publico, tiene_incidencia, eventos[], mock_preview}`.
+- **Modelo `OrdenTrabajo`**: añadido `gls_envios: list`.
+- **Proyección listado `/ordenes/v2`**: ahora incluye `gls_envios.codbarras|tracking_url|estado_actual|estado_codigo|incidencia|mock_preview` para que el icono de la lista funcione sin sobrecargar payload.
+
+### Frontend
+- **`CrearEtiquetaGLSButton.jsx`** precarga **todos los campos** desde `/api/logistica/gls/orden/{id}` (nombre, dirección, CP, población, provincia, tel, móvil, email, referencia=OT, peso=0,5, observaciones vacío editable). El tramitador sólo revisa y confirma.
+- **`GLSEnvioPanel.jsx`** nuevo:
+  - Sin envíos → CTA grande **"Crear etiqueta GLS ahora"**.
+  - Con envíos → badge estado cliente (color dinámico), código barras, peso, referencia, última actualización, **timeline visual** cronológico invertido con iconos por estado, alerta roja si incidencia, botones `Actualizar tracking`, `Ver etiqueta PDF`, `Tracking público GLS`, `Abrir incidencia`, `Crear otra etiqueta`.
+- **`Ordenes.jsx`**: nueva columna **"GLS"** con icono camión:
+  - 🟢 verde (enlace a tracking) si ya tiene etiqueta.
+  - 🔵 azul CTA (abre dialog directo) si estado ∈ `{reparado, validacion, enviado}` y sin etiqueta.
+  - ⚪ gris disabled si aún no es enviable.
+- **`Seguimiento.jsx`** (página pública): nueva sección **"Tu envío"** con estado cliente-friendly, nº tracking, mini timeline (últimos 3 eventos mapeados), alerta roja si incidencia, enlace directo a `https://gls-group.eu/track/{codbarras}`.
+
+### Tests
+- `tests/test_gls_logistica.py` — 12/12 ✅ (existentes).
+- `tests/test_gls_logistica_v2.py` — **19/19 ✅** nuevos: `friendly_estado` parametrizado (10 casos), `is_entregado`, `is_incidencia`, `estado_color`, `_apply_tracking_update`: entregado→marca OT+notificación, incidencia→crea incidencia, no duplica incidencia abierta.
+- **Total suite GLS: 31/31 ✅**
+- E2E Playwright validado:
+  - Lista: icono verde en OT-DEMO-002 (con envío), azul en OT-DEMO-003 (reparado), gris en OT-DEMO-001.
+  - Panel OrdenDetalle: badge "En camino a tu domicilio 🚚", timeline 2 eventos, botones funcionales.
+  - Dialog crear: nombre/dirección/CP/tel/email precargados, peso 0,5.
+  - Seguimiento público: sección "Tu envío" con estado mapeado + link gls-group.eu.
+
+### Variables entorno añadidas
+- `GLS_POLLING_INTERVAL_HOURS` (default 4).
+
+---
+
+
 ## Latest — 2026-04-23 (2) · UI Crear etiqueta GLS en OrdenDetalle
 
 ### Nuevo componente `CrearEtiquetaGLSButton.jsx`

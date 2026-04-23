@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { buildGLSTrackingUrl } from '@/lib/glsTracking';
 
 const STATE_COLORS = {
   grabado: 'bg-slate-100 text-slate-700',
@@ -148,7 +149,7 @@ export default function EtiquetasEnvio() {
                       <FileDown className="w-4 h-4 mr-1" /> Descargar
                     </Button>
                     {e.gls_codbarras && (
-                      <a href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${e.gls_codbarras}`} target="_blank" rel="noopener noreferrer">
+                      <a href={buildGLSTrackingUrl(e)} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="ghost"><ExternalLink className="w-4 h-4" /></Button>
                       </a>
                     )}

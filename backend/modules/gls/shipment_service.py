@@ -27,6 +27,33 @@ logger = logging.getLogger("gls.shipment")
 # URL de seguimiento pública oficial de GLS España (canónica, sin parámetros)
 GLS_TRACKING_CANONICAL_URL = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
 
+
+def build_gls_tracking_url(shipment: dict) -> str:
+    """
+    Devuelve la mejor URL de tracking posible para un shipment.
+    Orden de preferencia:
+      1. shipment['tracking_url'] ya persistido.
+      2. Formato oficial MyGLS: https://mygls.gls-spain.es/e/{codexp}/{cp}
+         cuando tenemos ambos.
+      3. Fallback moderno con codbarras: .../?match={codbarras}
+      4. Home canónica (sin parámetros) — último recurso.
+    """
+    if shipment.get("tracking_url"):
+        return shipment["tracking_url"]
+    codexp = shipment.get("gls_codexp") or shipment.get("codexp") or ""
+    cp = (
+        (shipment.get("destinatario") or {}).get("cp")
+        or shipment.get("cp_destinatario")
+        or (shipment.get("consulta_manual") or {}).get("dest_cp")
+        or ""
+    )
+    if codexp and cp:
+        return f"https://mygls.gls-spain.es/e/{codexp}/{cp}"
+    codbarras = shipment.get("gls_codbarras") or shipment.get("codbarras") or ""
+    if codbarras:
+        return f"{GLS_TRACKING_CANONICAL_URL}?match={codbarras}"
+    return GLS_TRACKING_CANONICAL_URL
+
 # Tipos de envío soportados
 ShipmentType = Literal["envio", "recogida", "devolucion"]
 
@@ -1043,7 +1070,7 @@ async def _notify_client_shipment_created(db, shipment: dict, config: dict):
         if not email:
             return
         
-        tracking_url = shipment.get("tracking_url", GLS_TRACKING_CANONICAL_URL)
+        tracking_url = build_gls_tracking_url(shipment)
         codbarras = shipment.get("gls_codbarras", "")
         dest_cp = shipment.get("destinatario", {}).get("cp", "") or shipment.get("consulta_manual", {}).get("dest_cp", "")
         urlpartner_found = shipment.get("urlpartner_found", False)
@@ -1114,7 +1141,7 @@ async def _notify_client_status_change(db, shipment: dict, old_state: str, new_s
         state_label = badge.get("label", new_state)
         codbarras = shipment.get("gls_codbarras", "")
         dest_cp = shipment.get("destinatario", {}).get("cp", "") or shipment.get("consulta_manual", {}).get("dest_cp", "")
-        tracking_url = shipment.get("tracking_url", GLS_TRACKING_CANONICAL_URL)
+        tracking_url = build_gls_tracking_url(shipment)
         
         # Siempre mostrar datos de consulta manual
         datos_consulta = f"""

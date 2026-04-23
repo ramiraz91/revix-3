@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { buildGLSTrackingUrl } from '@/lib/glsTracking';
 
 const STATE_COLORS = {
   grabado: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -118,7 +119,7 @@ function ShipmentBlock({ tipo, shipment, eventos, total, historial, ordenId, ord
               </Button>
               {(shipment.tracking_url || shipment.gls_codbarras) && (
                 <a
-                  href={shipment.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${shipment.gls_codbarras}`}
+                  href={buildGLSTrackingUrl(shipment)}
                   target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent"
                   title="Ver seguimiento GLS"

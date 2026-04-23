@@ -666,9 +666,11 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
             tipo = s.get("tipo", "")
             slot = "recogida" if tipo == "recogida" else "envio"
             if logistics_data[slot] is None:
+                # Usar builder oficial (preferencia: tracking_url > mygls.gls-spain.es/e/{codexp}/{cp} > ?match={codbarras})
+                from modules.gls.shipment_service import build_gls_tracking_url
                 logistics_data[slot] = {
                     "codbarras": s.get("gls_codbarras", ""),
-                    "tracking_url": s.get("tracking_url", "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"),
+                    "tracking_url": build_gls_tracking_url(s),
                     "tracking_source": s.get("tracking_source", "fallback"),
                     "estado": s.get("estado_interno", ""),
                     "estado_texto": s.get("estado_gls_texto", ""),

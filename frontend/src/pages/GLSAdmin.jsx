@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { buildGLSTrackingUrl } from '@/lib/glsTracking';
 
 const STATE_COLORS = {
   grabado: 'bg-slate-100 text-slate-700',
@@ -225,7 +226,7 @@ export default function GLSAdmin() {
                   <Button variant="ghost" size="icon" onClick={() => handleDescargarEtiqueta(e.id)} title="Descargar etiqueta"><FileDown className="w-4 h-4" /></Button>
                   {!e.es_final && <Button variant="ghost" size="icon" onClick={() => handleAnular(e.id)} title="Anular"><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                   {(e.tracking_url || e.gls_codbarras) && (
-                    <a href={e.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${e.gls_codbarras}`} target="_blank" rel="noopener noreferrer" className="p-2" title="Tracking público">
+                    <a href={buildGLSTrackingUrl(e)} target="_blank" rel="noopener noreferrer" className="p-2" title="Tracking público">
                       <ExternalLink className="w-4 h-4 text-blue-500" />
                     </a>
                   )}
@@ -357,7 +358,7 @@ export default function GLSAdmin() {
                 <Button onClick={() => handleSyncSingle(detalle.id)} variant="outline" size="sm"><RotateCw className="w-4 h-4 mr-1" /> Actualizar</Button>
                 <Button onClick={() => handleDescargarEtiqueta(detalle.id)} variant="outline" size="sm"><FileDown className="w-4 h-4 mr-1" /> Etiqueta</Button>
                 {(detalle.tracking_url || detalle.gls_codbarras) && (
-                  <a href={detalle.tracking_url || `https://www.gls-spain.es/apptracking.asp?codigo=${detalle.gls_codbarras}`} target="_blank" rel="noopener noreferrer">
+                  <a href={buildGLSTrackingUrl(detalle)} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm"><ExternalLink className="w-4 h-4 mr-1" /> Tracking GLS</Button>
                   </a>
                 )}

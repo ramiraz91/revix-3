@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { buildGLSTrackingUrl } from '@/lib/glsTracking';
 
 const ESTADO_BADGE = {
   grabado: 'bg-blue-100 text-blue-800',
@@ -168,7 +169,7 @@ export function OrdenEnvioCard({
                       </div>
                       {gls.codbarras && (
                         <a
-                          href={`https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${gls.codbarras}`}
+                          href={buildGLSTrackingUrl({ ...gls, destinatario: gls.destinatario || orden.cliente })}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-blue-600 hover:underline flex items-center gap-1"

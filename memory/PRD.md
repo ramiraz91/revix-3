@@ -11,6 +11,31 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (7) · Panel de Logística + Ajustes GLS
+
+### Backend · `/app/backend/modules/logistica/panel_config.py` (nuevo)
+Nuevos endpoints bajo prefix `/api/logistica`:
+- **Panel:** `GET /panel/resumen` · `GET /panel/envios` (con filtros estado/transportista/fecha/solo_incidencias + paginación) · `POST /panel/actualizar-todos` · `GET /panel/export-csv` (BOM UTF-8 para Excel).
+- **Config GLS:** `GET /config/gls` (entorno, uid enmascarado últimos 8, remitente efectivo BD∪env con source por campo, stats mes, último envío) · `POST /config/gls/remitente` (persiste en colección `configuracion {tipo:"gls"}`, NO toca .env) · `POST /config/gls/polling` (rango 0.25-48h validado) · `POST /config/gls/verify` (ping real o mock en preview).
+- Helpers: `_effective_remitente()` BD > env, `_mask_uid()` bullets + últimos 8, `_build_client_from_bd()` para reuso.
+- Requiere `require_admin` en todos los endpoints de escritura y en `/config/gls`.
+
+### Frontend
+- **`/crm/logistica` — `LogisticaPanel.jsx`**: 4 tarjetas resumen (activos/entregados hoy/incidencias/recogidas MRW), filtros (estado, transportista, fechas, solo incidencias, búsqueda client-side), tabla con cliente enriquecido + badge color estado + icono incidencia + link tracking, botones "Refrescar"/"Actualizar todos"/"Exportar CSV", polling auto cada 5 min. Click en fila → `/crm/ordenes/{id}`.
+- **`/crm/ajustes/gls` — `AjustesGLS.jsx`**: Tabs GLS/MRW (MRW disabled). Sección Estado (badge PREVIEW amarillo / PRODUCCIÓN verde, último envío, stats mes). Credenciales (UID enmascarado solo lectura, URL, botón Verificar conexión). Formulario remitente (7 campos editables con source bd/env por campo). Polling (intervalo editable + botón "Forzar actualización ahora").
+- **App.js**: rutas `/crm/logistica` (adminOnly) y `/crm/ajustes/gls` (adminOnly) registradas.
+- **Layout.jsx**: entrada "Logística" en grupo Principal (antes era "Envíos y Recogidas" con LegacyRedirect), nueva entrada "GLS · Ajustes" en grupo Integraciones (el legacy "GLS Config" queda marcado como legacy en Finanzas y Logística).
+
+### Tests
+- `tests/test_logistica_panel.py` — **13 tests** usando `fastapi.testclient.TestClient` + `pymongo` sync para seeding (evita conflicto de event loops). Cubre: resumen, listado con filtros (solo_incidencias, entregado, activo), export CSV, actualizar-todos (preview), auth guards, config GLS get/save remitente/save polling/invalid/verify-preview, admin guard.
+- **Ejecutar**: `cd /app/backend && python -m pytest tests/test_logistica_panel.py -v`
+- **Testing agent E2E**: 23/23 features verificados, 100% backend y frontend. `retest_needed: false`.
+
+### Colección nueva
+- `configuracion` doc con `{tipo: "gls", remitente: {...}, polling_hours: 4.0, updated_at, updated_by}`.
+
+---
+
 ## Latest — 2026-04-23 (6) · Dashboard "Recibidos" + tiempo en estado + sin campana
 
 ### Dashboard (`/crm/dashboard`)
@@ -24,15 +49,9 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 - Lógica: busca última entrada de `historial_estados` cuyo `estado` coincide con el actual; si no, fallback: `fecha_recibida_centro` (recibida), `fecha_fin_reparacion` (reparado), `fecha_enviado` (enviado) o `updated_at`.
 - Backend `LISTADO_PROJECTION` ahora incluye `historial_estados`, `fecha_recibida_centro`, `fecha_inicio_reparacion`, `fecha_fin_reparacion`, `fecha_enviado`.
 - Helpers nuevos en `Ordenes.jsx`: `fechaEntradaEstado`, `formatDiaHora`, `tiempoEnEstado`.
-- Testid: `orden-estado-desde-{id}`, `dashboard-kpi-recibidos`, `dashboard-card-recibidos`, `dashboard-recibida-{id}`.
 
 ### Layout
-- **Campana de notificaciones eliminada** de la esquina superior derecha (desktop + mobile header). El import y ambos usos de `<NotificacionBell />` fueron removidos de `Layout.jsx`. El componente en sí queda en `components/NotificacionBell.jsx` pero desconectado de la UI.
-- Las notificaciones siguen siendo accesibles vía la página dedicada `/crm/notificaciones` y por WebSocket/eventos.
-
-### Validación
-- Backend reiniciado OK. `GET /api/dashboard/operativo` devuelve `kpis.total_recibidas` y lista `ultimas_recibidas`. `GET /api/ordenes/v2` devuelve `historial_estados` + fechas de proceso. Frontend compila (solo warning ESLint pre-existente de exhaustive-deps).
-- Pendiente: Fase 3 MCP Aseguradoras (Triador de Averías · 3 tools) + registro `gestor_siniestros` y `triador_averias` en agent_defs.
+- **Campana de notificaciones eliminada** de la esquina superior derecha (desktop + mobile header).
 
 ---
 

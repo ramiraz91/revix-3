@@ -11,6 +11,40 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (10) · Panel Avanzado Agentes IA (/crm/agentes)
+
+### Backend — `/app/backend/modules/agents/panel_routes.py` (nuevo)
+9 endpoints agregados al router `/api/agents`:
+- `GET /panel/overview` → tarjetas de 8 agentes con estado (activo/pausado/error), acciones hoy, tasa éxito 7d, duración media, última acción, errores 24h + resumen global.
+- `POST /{id}/pause` y `POST /{id}/activate` → colección `agent_states` (solo master/admin — chequea `user.role` o `user.rol`).
+- `GET /{id}/timeline` → audit logs filtrables (tool, resultado ok/error, fecha).
+- `GET/POST /{id}/config` → rate_limit soft/hard + system_prompt override (persiste en `agent_overrides` con history). Invalida cache de rate_limits. Audit en `audit_logs` con tool=`_config_update`.
+- `GET /panel/metrics?days=N` → aggregates: por agente (total+errores+tasa), top tools, acciones por día, top errores.
+- `GET /panel/pending-approvals` + `POST /pending-approvals/{id}/decide` → cola de aprobación con decisión (aprobar/rechazar/modificar).
+
+### Frontend — `/app/frontend/src/pages/AgentesPanel.jsx` (nuevo)
+- **Diseño oficina**: grid 1/2/3/4 columnas con tarjetas por agente (avatar emoji + color banda superior + badge estado + 3 métricas + última acción + botones Pausar/Hablar/Detalle).
+- **Panel central procesos**: 5 tarjetas (acciones hoy, errores 24h, aprobaciones pendientes, tareas próximas 24h, agente más activo).
+- **Sheet lateral** al click Detalle con **5 pestañas**:
+  - "¿Qué hace?" — descripción, tools (con badges), scopes, ejemplos de prompts por agente.
+  - "Actividad" — timeline expandible con params y resultado, filtros tool/resultado.
+  - "Tareas programadas" — lista + botón "Ejecutar ahora".
+  - "Configuración" — rate limits editables + system prompt editable (con aviso + reset a default + historial).
+  - "Cola de aprobación" — decisiones aprobar/rechazar por agente.
+- **Sección métricas globales**: 3 tarjetas (acciones/agente con barras, top tools, top errors).
+- **Wizard "¿Qué puedo hacer?"**: 6 casos de uso clickables que navegan a `/crm/agente-aria?agent=X&prompt=Y`.
+- Auto-refresh cada 60s. Acceso admin/master (rol=role o rol).
+
+### Rutas
+- `/crm/agentes` → AgentesPanel (nuevo).
+- `/crm/agentes/legacy` → AgentesIA antiguo (conservado).
+
+### Validación
+- Testing agent iteration_18: **26/26 backend + frontend UI + regression OK, `retest_needed: false`**.
+- Curl: overview 8 agentes · 9 acciones hoy · triador_averias como más activo · metrics 14 top_tools · timeline 5 items.
+
+---
+
 ## Latest — 2026-04-23 (9) · Tracking URL GLS oficial + Botón IA Diagnóstico + MRW
 
 ### (A) Tracking URL GLS → formato oficial mygls.gls-spain.es

@@ -11,6 +11,19 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (2) · UI Crear etiqueta GLS en OrdenDetalle
+
+### Nuevo componente `CrearEtiquetaGLSButton.jsx`
+- Botón "Crear etiqueta GLS" con dialog (peso en kg) conectado al módulo nuevo `/api/logistica/gls/crear-envio`.
+- Decodifica `etiqueta_pdf_base64` a Blob `application/pdf` y lo abre en pestaña nueva con `URL.createObjectURL`.
+- Tras éxito muestra codbarras + link tracking + botón "Reabrir PDF"; badge amarillo si `mock_preview=true`.
+- Integrado en `OrdenDetalle.jsx` dentro del tab "Logística", en banner superior sobre el widget legacy. Coexistencia total.
+- Validado E2E con Playwright: toast confirma creación con codbarras `96245777836373`.
+- data-testids: `btn-crear-etiqueta-gls-v2`, `dialog-crear-etiqueta-gls`, `input-peso-gls`, `btn-confirmar-crear-etiqueta-gls`, `result-codbarras`, `link-tracking-gls`, `btn-reabrir-pdf-gls`, `btn-cerrar-etiqueta-gls`.
+
+---
+
+
 ## Latest — 2026-04-23 · Integración GLS Spain (módulo nuevo)
 
 ### Nuevo módulo `/app/backend/modules/logistica/gls.py`

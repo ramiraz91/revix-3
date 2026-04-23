@@ -11,6 +11,47 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (9) · Tracking URL GLS oficial + Botón IA Diagnóstico + MRW
+
+### (A) Tracking URL GLS → formato oficial mygls.gls-spain.es
+- **`ResultadoEnvio`** (`gls.py`) amplía con `codexp` + `codplaza_dst`.
+- Parser XML extrae ambos (atributos del nodo `<Envio>` o hijos). Mock preview los genera deterministas del hash SHA1(order_id) + CP del remitente.
+- **`_tracking_url(codbarras, codexp, codplaza_dst)`** en `routes.py` devuelve `https://mygls.gls-spain.es/e/{codexp}/{codplaza_dst}`. Fallback al formato legacy (`/es/ayuda/seguimiento-de-envio/?match=`) cuando faltan valores (envíos antiguos).
+- **Emails** en `ordenes_routes.py` línea 3703 usan el nuevo formato si disponible.
+- **Frontend**: Seguimiento.jsx y LogisticaPanel/GLSEnvioPanel usan `tracking_url` del backend — cero cambios hardcoded.
+- Verificado: envío nuevo GLS devuelve `https://mygls.gls-spain.es/e/4021344762/14007` ✅.
+
+### (B) Botón "Probar diagnóstico" en ficha OT
+- **Backend**: `POST /api/ordenes/{order_id}/triador-diagnostico` (`modules/agents/triador_ui_routes.py`) encadena las 3 tools del agente `triador_averias`:
+  1. `proponer_diagnostico` (catálogo heurístico 9 síntomas → causas + confianza).
+  2. `sugerir_repuestos` (inventario MongoDB → stock + proveedor + precio).
+  3. `recomendar_tecnico` (carga + especialidad + reparadas 30d → score).
+- **Frontend**: `ProbarDiagnosticoButton.jsx` + banner naranja `OrdenDetalle.jsx` entre DispositivoCard y AppleManualCard. Popup con 3 secciones visuales (barras de confianza, badges stock, ranking técnico).
+- Deshabilitado si la OT no tiene descripción de avería. Data-testid: `btn-probar-diagnostico`, `dialog-diagnostico`, `seccion-diagnostico/repuestos/tecnico`.
+- NO modifica la orden: solo sugerencia.
+
+### (C) Integración MRW (mismo patrón que GLS)
+- **Cliente** `/app/backend/modules/logistica/mrw.py`: `MRWClient` con preview mocks, 3 operaciones (crear_envio, obtener_tracking, solicitar_recogida), tracking URL oficial `https://www.mrw.es/seguimiento_envios/Tracking.asp?numeroEnvio={num}`.
+- **Rutas** `/app/backend/modules/logistica/mrw_routes.py`:
+  - `POST /api/logistica/mrw/crear-envio`
+  - `GET  /api/logistica/mrw/orden/{id}`
+  - `POST /api/logistica/mrw/actualizar-tracking/{num_envio}`
+  - `POST /api/logistica/mrw/solicitar-recogida` (la función fuerte de MRW)
+  - `GET  /api/logistica/config/mrw`
+  - `POST /api/logistica/config/mrw/remitente`
+  - `POST /api/logistica/config/mrw/verify`
+- **Colecciones nuevas**: `ordenes.mrw_envios[]`, `ordenes.mrw_recogidas[]`, `mrw_etiquetas`, `mrw_recogidas`, `configuracion {tipo:"mrw"}`.
+- **Panel Logística** (`panel_config.py`): resumen y listado ahora cuentan y muestran envíos GLS + MRW simultáneamente. Filtro transportista habilitado para ambos.
+- **UI AjustesGLS**: pestaña MRW ahora FUNCIONAL con `MRWConfigTab` (estado, credenciales enmascaradas, remitente editable, verify).
+- **UI LogisticaPanel**: filtro dropdown MRW habilitado.
+
+### Validación
+- Testing agent iteration_17: **16/16 backend passing + frontend UI tests OK + `retest_needed: false`**.
+- Curl: 3 envíos panel (1 GLS legacy con URL antigua, 1 GLS nuevo mygls, 1 MRW Tracking.asp) — filtrado GLS/MRW funciona.
+- Triador con avería "Pantalla rota por caída" devuelve match=true, confianza 90%, tipo=pantalla, ranking técnicos.
+
+---
+
 ## Latest — 2026-04-23 (8) · Resumen diario por email + Fase 3 MCP COMPLETA
 
 ### Resumen diario de logística por email

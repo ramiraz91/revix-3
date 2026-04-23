@@ -11,6 +11,47 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (4) · Central de Notificaciones con Categorías
+
+### Backend
+- **Modelo `Notificacion`**: añadidos `categoria: Optional[str]` (default GENERAL), `titulo`, `meta`.
+- **Helper `/app/backend/modules/notificaciones/helper.py`** con `create_notification(db, *, tipo, mensaje, categoria?, titulo?, orden_id?, usuario_destino?, source?, meta?, skip_if_duplicate_minutes?)`. Mapeo `TIPO_A_CATEGORIA` cubre los tipos críticos. Soporta dedupe temporal.
+- **Catálogo oficial**: `LOGISTICA, INCIDENCIA_LOGISTICA, COMUNICACION_INTERNA, RECHAZO, MODIFICACION, INCIDENCIA, GENERAL`.
+- **Endpoints nuevos** en `/api/notificaciones`:
+  - `GET /contadores` — `{total, no_leidas, por_categoria: {CAT: {total, no_leidas}}}`, filtrado por rol (técnico solo ve las suyas).
+  - `POST /marcar-todas-leidas` — por rol.
+  - `GET /notificaciones?categoria=LOGISTICA` — filtro con backfill automático para docs legacy sin campo `categoria`.
+- **Migraciones (sin romper nada)**:
+  - `_apply_tracking_update` (scheduler GLS): ahora crea notif con categoría `LOGISTICA` o `INCIDENCIA_LOGISTICA` según detecta.
+  - `respuesta_presupuesto`: notif con categoría `RECHAZO` (o GENERAL si aceptado) + título.
+  - `cambiar_estado_orden`: añade notif `orden_estado_cambiado` categoría `MODIFICACION` (+ sigue la de `orden_reparada`).
+
+### Frontend
+- **Central ampliada** `/app/frontend/src/pages/Notificaciones.jsx`:
+  - 8 filtros de categoría (Todas + 7 categorías) como "pills" con icono + badge formato `no_leidas/total`.
+  - Botón prominente "Marcar todas leídas" cuando `no_leidas > 0`.
+  - Cada item muestra **título + descripción + badge categoría + badge tipo + fecha relativa**, con punto azul si no leída.
+  - Click → marca leída + navega a la OT automáticamente.
+  - Iconos y colores específicos por tipo (10 tipos nuevos mapeados: `gls_tracking_update`, `gls_incidencia`, `gls_entregado`, `orden_estado_cambiado`, `presupuesto_rechazado`, etc.).
+- **Campanita `/app/frontend/src/components/NotificacionBell.jsx`**:
+  - Flotante top-right en desktop, inline en header mobile.
+  - Badge rojo con el contador de no leídas globales (limitado a 99+).
+  - Polling cada 30s + reactivo a eventos `notificaciones-updated` y `ws-notification` existentes.
+  - Click → `/crm/notificaciones`.
+
+### Tests
+- Backend: **51/51 ✅** (20 nuevos de `test_notificaciones_categorias.py` + 31 existentes GLS).
+- E2E Playwright:
+  - Campanita en dashboard con badge `4` visible.
+  - Click campanita → `/crm/notificaciones`.
+  - 5 categorías con datos mostrando contadores correctos (`Logística 1/2`, `Incidencias GLS 1/1`, `Rechazos 1/1`, `Modificaciones 1/1`, `Todas 4/6`).
+  - Filtro `LOGISTICA` muestra solo 2 elementos.
+  - Filtro `RECHAZO` muestra la notif de "Presupuesto rechazado" con categoría y título correctos.
+  - Botón "Marcar todas leídas" → toast "4 notificaciones marcadas como leídas", badge campanita desaparece.
+
+---
+
+
 ## Latest — 2026-04-23 (3) · GLS v2 COMPLETO (frontend + tracking + scheduler)
 
 ### Backend

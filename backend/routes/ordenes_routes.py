@@ -1691,11 +1691,35 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
         cambios={"estado_anterior": estado_actual, "estado_nuevo": request.nuevo_estado.value, "mensaje": request.mensaje}
     )
     
+    # Notificaciones de cambio de estado:
+    # - orden_reparada (GENERAL)  → la dejamos
+    # - orden_estado_cambiado (MODIFICACION) → nueva, siempre
+    from modules.notificaciones.helper import create_notification
     if request.nuevo_estado == OrderStatus.REPARADO and request.usuario != "admin":
-        notif = Notificacion(tipo="orden_reparada", mensaje=f"El técnico ha marcado la orden {orden['numero_orden']} como REPARADA. Lista para validación.", orden_id=orden_id)
-        notif_doc = notif.model_dump()
-        notif_doc['created_at'] = notif_doc['created_at'].isoformat()
-        await db.notificaciones.insert_one(notif_doc)
+        await create_notification(
+            db,
+            tipo="orden_reparada",
+            categoria="GENERAL",
+            titulo="Orden lista para validación",
+            mensaje=(f"El técnico ha marcado la orden {orden['numero_orden']} "
+                     f"como REPARADA. Lista para validación."),
+            orden_id=orden_id,
+            source=f"cambio_estado:{user.get('email','')}",
+        )
+    # Notificación de modificación general (cambio de estado)
+    await create_notification(
+        db,
+        tipo="orden_estado_cambiado",
+        categoria="MODIFICACION",
+        titulo="Cambio de estado de orden",
+        mensaje=(f"OT {orden['numero_orden']}: {estado_actual} → {request.nuevo_estado.value}"
+                 + (f" · {request.mensaje}" if request.mensaje else "")),
+        orden_id=orden_id,
+        meta={"estado_anterior": estado_actual,
+              "estado_nuevo": request.nuevo_estado.value},
+        source=f"cambio_estado:{user.get('email','')}",
+        skip_if_duplicate_minutes=1,  # evitar duplicados al spamear el endpoint
+    )
     try:
         cliente = await db.clientes.find_one({"id": orden['cliente_id']}, {"_id": 0})
         if cliente:
@@ -2513,17 +2537,25 @@ async def registrar_respuesta_presupuesto(orden_id: str, request: AceptarPresupu
         cambios={"aceptado": request.aceptado, "canal": request.canal, "motivo_rechazo": request.motivo_rechazo}
     )
     
-    # Crear notificación
+    # Crear notificación (categoría RECHAZO si rechazado, GENERAL si aceptado)
+    from modules.notificaciones.helper import create_notification
     tipo_notif = "presupuesto_aceptado" if request.aceptado else "presupuesto_rechazado"
     mensaje_notif = f"Presupuesto {'ACEPTADO' if request.aceptado else 'RECHAZADO'} para orden {orden['numero_orden']}"
     if not request.aceptado and request.motivo_rechazo:
         mensaje_notif += f" - Motivo: {request.motivo_rechazo}"
-    
-    notif = Notificacion(tipo=tipo_notif, mensaje=mensaje_notif, orden_id=orden_id)
-    notif_doc = notif.model_dump()
-    notif_doc['created_at'] = notif_doc['created_at'].isoformat()
-    await db.notificaciones.insert_one(notif_doc)
-    
+
+    await create_notification(
+        db,
+        tipo=tipo_notif,
+        categoria="RECHAZO" if not request.aceptado else "GENERAL",
+        titulo=("Presupuesto rechazado" if not request.aceptado else "Presupuesto aceptado"),
+        mensaje=mensaje_notif,
+        orden_id=orden_id,
+        meta={"motivo_rechazo": request.motivo_rechazo,
+              "canal": request.canal} if not request.aceptado else {"canal": request.canal},
+        source=f"respuesta_presupuesto:{user.get('email','')}",
+    )
+
     return {"message": f"Respuesta de presupuesto registrada: {'Aceptado' if request.aceptado else 'Rechazado'}"}
 
 @router.patch("/ordenes/{orden_id}/fecha-estimada")

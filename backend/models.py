@@ -440,9 +440,17 @@ class Notificacion(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     tipo: str
     mensaje: str
+    # Categoría amplia para filtrado en la central.
+    # Valores: LOGISTICA, INCIDENCIA_LOGISTICA, COMUNICACION_INTERNA,
+    #          RECHAZO, MODIFICACION, INCIDENCIA, GENERAL
+    categoria: Optional[str] = "GENERAL"
+    # Opcional: título corto para mostrar en la central
+    titulo: Optional[str] = None
     orden_id: Optional[str] = None
     usuario_destino: Optional[str] = None  # ID del usuario destinatario (para filtrar por técnico)
     leida: bool = False
+    # Contexto extra (codbarras, incidencia_id, etc.)
+    meta: Optional[dict] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class MensajeOrden(BaseModel):

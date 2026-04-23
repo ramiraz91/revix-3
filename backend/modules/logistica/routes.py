@@ -567,23 +567,33 @@ async def _apply_tracking_update(
 
     # Side-effect 3 · notificación al tramitador si hay cambio
     if estado_cambio:
-        notif_id = str(uuid.uuid4())
+        from modules.notificaciones.helper import create_notification
         destinatario_email = (orden.get("tecnico_asignado")
                               or orden.get("created_by")
                               or "")
-        await db.notificaciones.insert_one({
-            "id": notif_id,
-            "tipo": "gls_tracking_update",
-            "orden_id": orden["id"],
-            "usuario_destino": destinatario_email,
-            "mensaje": (
+        # Categoría distinta si hay incidencia
+        hay_incidencia = bool(result.get("incidencia_id")) or is_incidencia(nuevo_estado)
+        categoria = "INCIDENCIA_LOGISTICA" if hay_incidencia else "LOGISTICA"
+        tipo_n = "gls_incidencia" if hay_incidencia else "gls_tracking_update"
+        titulo_n = ("Incidencia en envío GLS"
+                    if hay_incidencia
+                    else f"Envío GLS · {friendly_estado(nuevo_estado, codigo_nuevo)}")
+        notif_id = await create_notification(
+            db,
+            categoria=categoria,
+            tipo=tipo_n,
+            titulo=titulo_n,
+            mensaje=(
                 f"OT {orden.get('numero_orden','')} · envío GLS {codbarras}: "
                 f"{friendly_estado(nuevo_estado, codigo_nuevo)}"
             ),
-            "leida": False,
-            "created_at": now,
-            "source": source,
-        })
+            orden_id=orden["id"],
+            usuario_destino=destinatario_email,
+            meta={"codbarras": codbarras,
+                  "estado": nuevo_estado, "codigo": codigo_nuevo,
+                  "incidencia": incidencia_texto or None},
+            source=source,
+        )
         result["notificacion_id"] = notif_id
 
     return result

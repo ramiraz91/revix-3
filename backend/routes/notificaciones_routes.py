@@ -14,11 +14,85 @@ from helpers import send_email
 
 router = APIRouter(tags=["notificaciones"])
 
+@router.post("/notificaciones/marcar-todas-leidas")
+async def marcar_todas_leidas(user: dict = Depends(require_auth)):
+    """Marca TODAS las notificaciones del usuario como leídas.
+
+    - Técnico → solo las suyas (usuario_destino == user.id).
+    - Admin/Master → todas globales sin destinatario + las suyas.
+    """
+    if user.get("role") == "tecnico":
+        query = {"usuario_destino": user.get("user_id") or user.get("id"), "leida": False}
+    else:
+        # Admins/Master: todas las no leídas globales
+        query = {"leida": False}
+    result = await db.notificaciones.update_many(query, {"$set": {"leida": True}})
+    return {"modificadas": result.modified_count}
+
+
+@router.get("/notificaciones/contadores")
+async def contadores_notificaciones(user: dict = Depends(require_auth)):
+    """Contadores por categoría y totales, para el dashboard y la campanita.
+
+    Devuelve: {total, no_leidas, por_categoria: {CATEGORIA: {total, no_leidas}, ...}}
+    """
+    from modules.notificaciones.helper import CATEGORIAS, categoria_from_tipo
+
+    # Filtro por rol
+    base_filter: dict = {}
+    if user.get("role") == "tecnico":
+        uid = user.get("user_id") or user.get("id")
+        base_filter = {"$or": [
+            {"usuario_destino": uid},
+            {"usuario_destino": None},
+        ]}
+
+    por_cat: dict[str, dict[str, int]] = {c: {"total": 0, "no_leidas": 0} for c in CATEGORIAS}
+    total = 0
+    no_leidas = 0
+
+    async for n in db.notificaciones.find(base_filter, {"_id": 0, "tipo": 1, "categoria": 1, "leida": 1}):
+        cat = (n.get("categoria") or categoria_from_tipo(n.get("tipo", "")))
+        if cat not in por_cat:
+            cat = "GENERAL"
+        por_cat[cat]["total"] += 1
+        total += 1
+        if not n.get("leida", False):
+            por_cat[cat]["no_leidas"] += 1
+            no_leidas += 1
+
+    return {
+        "total": total,
+        "no_leidas": no_leidas,
+        "por_categoria": por_cat,
+    }
+
+
 @router.get("/notificaciones", response_model=List[Notificacion])
-async def listar_notificaciones(no_leidas: Optional[bool] = None):
-    query = {"leida": False} if no_leidas else {}
-    notificaciones = await db.notificaciones.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+async def listar_notificaciones(
+    no_leidas: Optional[bool] = None,
+    categoria: Optional[str] = None,
+    limit: int = 200,
+):
+    from modules.notificaciones.helper import (
+        CATEGORIAS, TIPO_A_CATEGORIA, categoria_from_tipo,
+    )
+    query: dict = {"leida": False} if no_leidas else {}
+    if categoria:
+        cat = categoria.upper()
+        if cat in CATEGORIAS:
+            # Incluir tanto docs con categoria explícita como legacy por tipo.
+            tipos_de_categoria = [t for t, c in TIPO_A_CATEGORIA.items() if c == cat]
+            query["$or"] = [
+                {"categoria": cat},
+                {"categoria": {"$exists": False}, "tipo": {"$in": tipos_de_categoria}},
+                {"categoria": None, "tipo": {"$in": tipos_de_categoria}},
+            ]
+    notificaciones = await db.notificaciones.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    # Backfill categoria para registros antiguos que no la tienen
     for n in notificaciones:
+        if not n.get("categoria"):
+            n["categoria"] = categoria_from_tipo(n.get("tipo", ""))
         if isinstance(n.get('created_at'), str):
             n['created_at'] = datetime.fromisoformat(n['created_at'])
     return notificaciones

@@ -290,10 +290,17 @@ export const clientesAPI = {
 
 // ==================== NOTIFICACIONES ====================
 export const notificacionesAPI = {
-  listar: (no_leidas = false) => 
-    API.get(`/notificaciones${no_leidas ? '?no_leidas=true' : ''}`),
+  listar: (no_leidas = false, categoria = null) => {
+    const qs = new URLSearchParams();
+    if (no_leidas) qs.set('no_leidas', 'true');
+    if (categoria) qs.set('categoria', categoria);
+    const s = qs.toString();
+    return API.get(`/notificaciones${s ? `?${s}` : ''}`);
+  },
+  contadores: () => API.get('/notificaciones/contadores'),
   marcarLeida: (id) => API.patch(`/notificaciones/${id}/leer`),
   marcarLeidasPorOrden: (ordenId) => API.patch(`/notificaciones/marcar-leidas-orden/${ordenId}`),
+  marcarTodasLeidas: () => API.post('/notificaciones/marcar-todas-leidas'),
   eliminar: (id) => API.delete(`/notificaciones/${id}`),
   eliminarMasivo: (ids) => API.post('/notificaciones/eliminar-masivo', { ids }),
   marcarLeidasMasivo: (ids) => API.post('/notificaciones/marcar-leidas-masivo', { ids }),

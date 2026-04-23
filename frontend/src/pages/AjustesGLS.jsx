@@ -345,6 +345,20 @@ function SincronizacionHistoricaCard() {
   const [resultados, setResultados] = useState(null);
   const [loading, setLoading] = useState(false);
   const [diasAtras, setDiasAtras] = useState(45);
+  // Salvaguardas production:
+  const [dryRun, setDryRun] = useState(true);
+  const [maxOrdenes, setMaxOrdenes] = useState(50);
+  const [confirmacion, setConfirmacion] = useState('');
+  const [forzarWarning, setForzarWarning] = useState(false);
+  // Histórico runs:
+  const [runs, setRuns] = useState([]);
+  const [showRuns, setShowRuns] = useState(false);
+
+  const entorno = candidatas?.entorno || 'production';
+  const isProduction = entorno === 'production';
+  const softWarning = candidatas?.soft_warning_max_ordenes || 50;
+  const hardCap = candidatas?.hard_cap_max_ordenes || 500;
+  const textoConfirmacion = candidatas?.confirmacion_texto || 'CONFIRMO';
 
   const loadCandidatas = async () => {
     try {
@@ -353,33 +367,88 @@ function SincronizacionHistoricaCard() {
     } catch { /* silencioso */ }
   };
 
+  const loadRuns = async () => {
+    try {
+      const { data } = await API.get('/logistica/gls/sync-runs?limit=20');
+      setRuns(data.runs || []);
+    } catch { /* silencioso */ }
+  };
+
   useEffect(() => {
     loadCandidatas();
+    loadRuns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diasAtras]);
 
+  // Validaciones UI (antes de llamar al backend)
+  const realRun = !dryRun && isProduction;
+  const confirmacionValida = !realRun || confirmacion === textoConfirmacion;
+  const superaWarning = maxOrdenes > softWarning;
+  const warningValido = !realRun || !superaWarning || forzarWarning;
+  const puedeEjecutar = !loading && candidatas?.total_candidatas > 0 &&
+                        confirmacionValida && warningValido &&
+                        maxOrdenes > 0 && maxOrdenes <= hardCap;
+
   const ejecutarSync = async () => {
-    if (!window.confirm(
-      `¿Sincronizar las ${candidatas?.total_candidatas || '?'} órdenes candidatas con GLS?\n` +
-      `Esta acción es idempotente: solo añade/actualiza gls_envios, no toca otros campos.`,
+    if (realRun && !window.confirm(
+      `⚠️ MODO PRODUCCIÓN REAL ⚠️\n\n` +
+      `Vas a sincronizar hasta ${maxOrdenes} órdenes contra GLS REAL y\n` +
+      `modificar MongoDB real.\n\n` +
+      `Se creará un BACKUP automático antes de cada escritura.\n` +
+      `Podrás revertir vía el botón "Restaurar" en el histórico de runs.\n\n` +
+      `¿Continuar?`,
     )) return;
+    if (dryRun && !window.confirm(
+      `Ejecutar DRY-RUN (simulación, no modifica BD).\n` +
+      `Útil para verificar qué se sincronizará antes del run real.\n\n¿Continuar?`,
+    )) return;
+
     setLoading(true);
     try {
       const { data } = await API.post('/logistica/gls/sincronizar-ordenes', {
         solo_sin_envios: true,
         dias_atras: diasAtras,
-        max_ordenes: 500,
+        max_ordenes: maxOrdenes,
+        dry_run: dryRun,
+        confirmacion: realRun ? confirmacion : '',
+        forzar_por_encima_del_warning: forzarWarning,
       });
       setResultados(data);
+      const etiqueta = data.dry_run
+        ? 'DRY-RUN'
+        : (data.preview ? 'PREVIEW' : 'REAL');
       toast.success(
-        `Sync completado. ${data.sincronizadas} ok, ${data.no_encontradas} no encontradas, ${data.con_error} errores.` +
-        (data.preview ? ' (PREVIEW)' : ''),
+        `Sync [${etiqueta}] completado. ${data.sincronizadas} ok, ` +
+        `${data.no_encontradas} no encontradas, ${data.con_error} errores. ` +
+        `run: ${data.sync_run_id.slice(-12)}`,
       );
+      setConfirmacion('');
       loadCandidatas();
+      loadRuns();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error ejecutando sync');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const restaurarRun = async (runId) => {
+    const texto = isProduction
+      ? `Para restaurar el run ${runId.slice(-12)} en PRODUCCIÓN,\n` +
+        `escribe ${textoConfirmacion} y pulsa OK:`
+      : `Restaurar run ${runId.slice(-12)} (preview). Pulsa OK.`;
+    const resp = window.prompt(texto, isProduction ? '' : textoConfirmacion);
+    if (resp === null) return;
+    try {
+      const { data } = await API.post(
+        `/logistica/gls/sync-runs/${runId}/restaurar`,
+        { confirmacion: resp },
+      );
+      toast.success(`Restauradas ${data.restauradas} órdenes del run ${runId.slice(-12)}`);
+      loadRuns();
+      loadCandidatas();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al restaurar');
     }
   };
 
@@ -396,15 +465,42 @@ function SincronizacionHistoricaCard() {
         <CardTitle className="text-base flex items-center gap-2">
           <RefreshCw className="w-4 h-4 text-blue-600" />
           Sincronización de órdenes históricas
+          <Badge
+            className={isProduction
+              ? "bg-red-100 text-red-800 border-red-300 ml-2"
+              : "bg-amber-100 text-amber-800 border-amber-300 ml-2"}
+            data-testid="badge-entorno"
+          >
+            {entorno === 'preview' ? 'PREVIEW (mock)' : 'PRODUCTION (real)'}
+          </Badge>
         </CardTitle>
         <CardDescription>
           Vincula órdenes antiguas con envíos GLS creados desde la extranet
-          (usando `numero_autorizacion` como RefC). Idempotente: no modifica otros campos.
+          (usando <code>numero_autorizacion</code> como RefC). Idempotente: no
+          modifica otros campos. Cada ejecución real genera backup automático.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-end gap-3 flex-wrap">
-          <div className="w-32">
+        {/* Aviso production */}
+        {isProduction && (
+          <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-xs flex gap-2"
+               data-testid="aviso-production">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-900">
+                Entorno PRODUCTION activo
+              </p>
+              <p className="text-red-800">
+                Las ejecuciones no dry-run tocarán GLS real y MongoDB real.
+                Se creará un backup por orden antes de cualquier escritura.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Parámetros */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
             <Label className="text-xs">Ventana (días)</Label>
             <Input
               type="number" min="1" max="365"
@@ -413,21 +509,91 @@ function SincronizacionHistoricaCard() {
               data-testid="input-sync-dias"
             />
           </div>
-          <div className="flex-1 min-w-[200px]">
+          <div>
+            <Label className="text-xs">Máx órdenes</Label>
+            <Input
+              type="number" min="1" max={hardCap}
+              value={maxOrdenes}
+              onChange={(e) => setMaxOrdenes(Number(e.target.value) || 1)}
+              data-testid="input-sync-max-ordenes"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Soft: {softWarning} · Hard cap: {hardCap}
+            </p>
+          </div>
+          <div className="col-span-2 md:col-span-1">
             <Label className="text-xs">Candidatas (sin gls_envios)</Label>
             <p className="text-2xl font-bold text-blue-700" data-testid="sync-total-candidatas">
               {candidatas?.total_candidatas ?? '—'}
             </p>
           </div>
-          <Button
-            onClick={ejecutarSync} disabled={loading || !candidatas?.total_candidatas}
-            data-testid="btn-ejecutar-sync"
-          >
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Sincronizar órdenes con GLS
-          </Button>
+          <div className="col-span-2 md:col-span-1 flex items-end">
+            <Button
+              onClick={ejecutarSync}
+              disabled={!puedeEjecutar}
+              className={realRun ? "bg-red-600 hover:bg-red-700 w-full" : "w-full"}
+              data-testid="btn-ejecutar-sync"
+            >
+              {loading
+                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                : <RefreshCw className="w-4 h-4 mr-2" />}
+              {dryRun ? 'Simular (dry-run)' : 'Ejecutar REAL'}
+            </Button>
+          </div>
         </div>
 
+        {/* Modo: dry-run vs real */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 rounded-lg p-3 border">
+          <label className="flex items-center gap-2 text-sm cursor-pointer"
+                 data-testid="checkbox-dry-run-label">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => { setDryRun(e.target.checked); setConfirmacion(''); }}
+              data-testid="checkbox-dry-run"
+              className="w-4 h-4"
+            />
+            <span className="font-medium">Modo simulación (dry-run)</span>
+            <span className="text-xs text-muted-foreground">
+              — no toca BD, solo muestra qué haría
+            </span>
+          </label>
+        </div>
+
+        {/* Confirmación de texto (solo en run real production) */}
+        {realRun && (
+          <div className="bg-amber-50 border border-amber-400 rounded-lg p-3 space-y-2"
+               data-testid="panel-confirmacion-real">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-900">
+                <strong>Vas a ejecutar en producción real.</strong> Escribe <code>{textoConfirmacion}</code> para habilitar el botón:
+              </p>
+            </div>
+            <Input
+              placeholder={`Escribe "${textoConfirmacion}"`}
+              value={confirmacion}
+              onChange={(e) => setConfirmacion(e.target.value)}
+              data-testid="input-confirmacion-texto"
+              className={confirmacion === textoConfirmacion
+                ? "border-green-500" : "border-amber-400"}
+            />
+            {superaWarning && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer"
+                     data-testid="checkbox-forzar-warning-label">
+                <input
+                  type="checkbox"
+                  checked={forzarWarning}
+                  onChange={(e) => setForzarWarning(e.target.checked)}
+                  data-testid="checkbox-forzar-warning"
+                />
+                Confirmo procesar más de {softWarning} órdenes ({maxOrdenes}).
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* Muestra */}
         {candidatas?.muestra?.length > 0 && !resultados && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">
@@ -445,8 +611,35 @@ function SincronizacionHistoricaCard() {
           </details>
         )}
 
+        {/* Resultados */}
         {resultados && (
           <div className="space-y-3" data-testid="sync-resultados">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge
+                className={resultados.dry_run
+                  ? "bg-slate-100 text-slate-800 border-slate-300"
+                  : (resultados.preview
+                     ? "bg-amber-100 text-amber-800 border-amber-300"
+                     : "bg-red-100 text-red-800 border-red-300")}
+                data-testid="badge-resultado-modo"
+              >
+                {resultados.dry_run ? 'DRY-RUN' : (resultados.preview ? 'PREVIEW' : 'REAL')}
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono"
+                    data-testid="texto-sync-run-id">
+                run_id: {resultados.sync_run_id}
+              </span>
+              {!resultados.dry_run && !resultados.preview && (
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => restaurarRun(resultados.sync_run_id)}
+                  data-testid="btn-restaurar-run-actual"
+                >
+                  Restaurar este run
+                </Button>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center text-xs">
               <div className="bg-green-50 rounded p-2">
                 <p className="text-xl font-bold text-green-700">{resultados.sincronizadas}</p>
@@ -470,6 +663,15 @@ function SincronizacionHistoricaCard() {
               </div>
             </div>
 
+            {resultados.warnings?.length > 0 && (
+              <div className="bg-slate-50 border rounded p-2 text-xs space-y-1"
+                   data-testid="sync-warnings">
+                {resultados.warnings.map((w, i) => (
+                  <p key={i} className="text-slate-700">• {w}</p>
+                ))}
+              </div>
+            )}
+
             <div className="max-h-96 overflow-y-auto border rounded-lg">
               <table className="w-full text-xs">
                 <thead className="bg-slate-100 sticky top-0">
@@ -487,7 +689,7 @@ function SincronizacionHistoricaCard() {
                     <tr key={i} className="border-b hover:bg-slate-50" data-testid={`sync-row-${r.order_id}`}>
                       <td className="p-2 font-mono">{r.numero_orden || '—'}</td>
                       <td className="p-2 font-mono text-blue-700">{r.numero_autorizacion}</td>
-                      <td className="p-2">{statusBadge(r.status)}{r.status !== 'ok' && r.reason && <span className="text-[10px] text-muted-foreground ml-1">({r.reason})</span>}</td>
+                      <td className="p-2">{statusBadge(r.status)}{r.status !== 'ok' && r.status !== 'ok_dryrun' && r.reason && <span className="text-[10px] text-muted-foreground ml-1">({r.reason})</span>}</td>
                       <td className="p-2 font-mono">{r.codbarras || '—'}</td>
                       <td className="p-2">{r.cp_destinatario || '—'}</td>
                       <td className="p-2">
@@ -516,6 +718,82 @@ function SincronizacionHistoricaCard() {
             )}
           </div>
         )}
+
+        {/* Histórico de runs */}
+        <div className="border-t pt-3">
+          <button
+            onClick={() => { setShowRuns(!showRuns); if (!showRuns) loadRuns(); }}
+            className="text-xs text-blue-700 hover:underline"
+            data-testid="btn-toggle-runs"
+          >
+            {showRuns ? '▼' : '▶'} Histórico de ejecuciones ({runs.length})
+          </button>
+          {showRuns && runs.length > 0 && (
+            <div className="mt-2 max-h-64 overflow-y-auto border rounded-lg"
+                 data-testid="tabla-historico-runs">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="p-2 text-left">Fecha</th>
+                    <th className="p-2 text-left">Modo</th>
+                    <th className="p-2 text-left">Actor</th>
+                    <th className="p-2 text-center">OK</th>
+                    <th className="p-2 text-center">Err</th>
+                    <th className="p-2 text-left">Run ID</th>
+                    <th className="p-2 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.sync_run_id} className="border-b hover:bg-slate-50"
+                        data-testid={`run-row-${r.sync_run_id}`}>
+                      <td className="p-2">{formatDT(r.ejecutado_en)}</td>
+                      <td className="p-2">
+                        <Badge className={r.dry_run
+                          ? "bg-slate-100 text-slate-700 border-slate-300 text-[10px]"
+                          : (r.preview
+                             ? "bg-amber-100 text-amber-800 border-amber-300 text-[10px]"
+                             : "bg-red-100 text-red-800 border-red-300 text-[10px]")}>
+                          {r.dry_run ? 'DRY' : (r.preview ? 'PREV' : 'REAL')}
+                        </Badge>
+                        {r.restaurado && (
+                          <Badge className="bg-indigo-100 text-indigo-800 border-indigo-300 text-[10px] ml-1">
+                            RESTAURADO
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-2 text-[10px]">{r.actor || '—'}</td>
+                      <td className="p-2 text-center text-green-700 font-semibold">
+                        {r.stats?.sincronizadas ?? 0}
+                      </td>
+                      <td className="p-2 text-center text-red-700">
+                        {r.stats?.con_error ?? 0}
+                      </td>
+                      <td className="p-2 font-mono text-[10px] text-muted-foreground">
+                        {r.sync_run_id.slice(-16)}
+                      </td>
+                      <td className="p-2 text-center">
+                        {!r.dry_run && !r.restaurado && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => restaurarRun(r.sync_run_id)}
+                            data-testid={`btn-restaurar-${r.sync_run_id}`}
+                          >
+                            Restaurar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {showRuns && runs.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-2">Sin ejecuciones previas.</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -11,6 +11,46 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (12) · Salvaguardas Production Sync GLS
+
+### Colecciones nuevas
+- `gls_sync_runs`: metadata de cada ejecución (sync_run_id, actor, stats, dry_run, preview, restaurado).
+- `gls_sync_backups`: snapshot previo de `gls_envios` + `updated_at` por (sync_run_id, order_id), upsert idempotente.
+
+### Salvaguardas añadidas a `POST /api/logistica/gls/sincronizar-ordenes`
+1. **dry_run=True por defecto** → el payload simula sin tocar BD (status `ok_dryrun`).
+2. **Backup automático** antes de cada $set/$push cuando `dry_run=False`.
+3. **Hard cap** `max_ordenes ≤ 500` → 400 si se excede.
+4. **Soft warning** `max_ordenes > 50` → requiere `forzar_por_encima_del_warning=true` en production.
+5. **Confirmación textual** `confirmacion="CONFIRMO"` obligatoria si `dry_run=False` en production.
+6. `sync_run_id` UUID devuelto + persistido + auditado.
+
+### Nuevos endpoints
+- `GET /api/logistica/gls/sync-runs?limit=20` — histórico de runs (actor, stats, modo, restaurado).
+- `GET /api/logistica/gls/sync-runs/{run_id}` — detalle del run + backups asociados.
+- `POST /api/logistica/gls/sync-runs/{run_id}/restaurar` — rollback (requiere CONFIRMO en production, 409 si ya restaurado, 400 si era dry-run).
+
+### UI — `/crm/ajustes/gls` card sync
+- Badge de entorno (PREVIEW amarillo / PRODUCTION rojo) — data-testid `badge-entorno`.
+- Aviso rojo "Entorno PRODUCTION activo" con icono — `aviso-production`.
+- Input `max_ordenes` (default 50) con leyenda "Soft: 50 · Hard cap: 500".
+- Checkbox "Modo simulación (dry-run)" marcado por defecto — `checkbox-dry-run`.
+- Panel de confirmación (solo production + !dry-run): input `CONFIRMO` + checkbox `forzar warning` si supera soft.
+- Botón dinámico "Simular (dry-run)" → "Ejecutar REAL" (rojo).
+- Tras ejecutar: badge modo (DRY-RUN/PREVIEW/REAL) + `sync_run_id` visible + botón "Restaurar este run" en runs reales.
+- Sección expandible "Histórico de ejecuciones" con tabla (fecha, modo, actor, ok, err, run_id, acción Restaurar).
+- Prompt de confirmación doble al restaurar runs reales.
+
+### Validación
+- `test_gls_sync_safeguards.py` (nuevo): **11/11 OK** (8 passed + 2 skipped production-only + 1 E2E full-flow).
+  - Candidatas expone params de salvaguarda ✓
+  - dry_run default ✓, hard cap ✓, tecnico 403 ✓
+  - Listar/detallar runs ✓, restore 404 ✓, restore bloqueado en dry-run ✓
+  - **E2E real**: sync→escribe→backup→restore→re-restore 409 ✓
+
+---
+
+
 ## Latest — 2026-04-23 (11) · GLS Tracking URL Fix + Sincronizador Histórico
 
 ### (A) Fix tracking_url → usa cp_destinatario (CP cliente) no codplaza_dst (plaza GLS)

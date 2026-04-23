@@ -61,6 +61,7 @@ from routes.faqs_routes import router as faqs_router
 from routes.apple_manuals_routes import router as apple_manuals_router
 from routes.compras_routes import router as compras_router
 from modules.gls.routes import router as gls_router
+from modules.logistica.routes import router as logistica_router
 from routes.finanzas_routes import router as finanzas_router
 from routes.inventario_mejorado_routes import router as inventario_mejorado_router
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
@@ -157,6 +158,7 @@ api_router.include_router(faqs_router)
 api_router.include_router(compras_router)
 api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
+api_router.include_router(logistica_router)
 api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
 api_router.include_router(print_router)

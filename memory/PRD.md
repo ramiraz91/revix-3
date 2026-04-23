@@ -11,6 +11,44 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 · Integración GLS Spain (módulo nuevo)
+
+### Nuevo módulo `/app/backend/modules/logistica/gls.py`
+- `GLSClient` SOAP 1.2 (application/soap+xml con action) contra `https://ws-customer.gls-spain.es/b2b.asmx`.
+- XML construido con f-strings + CDATA en campos de texto (según spec del usuario); namespace `http://www.asmred.com/`.
+- Parseo con `xml.etree.ElementTree` (sin zeep/suds), httpx async.
+- Métodos: `crear_envio(order_id, destinatario, peso, referencia) → codbarras+uid+etiqueta_pdf_base64` y `obtener_tracking(codbarras) → estado+eventos`.
+- Manejo errores: `GLSError` con `code` y `raw`; distingue XML malformado, HTML en vez de XML, HTTP != 200, timeout, `Resultado return != "0"`.
+- Modo `MCP_ENV=preview`: mocks deterministas sin llamar a GLS; PDF base64 válido de ~590B con codbarras derivado de SHA1(order_id).
+
+### Endpoints nuevos (prefix `/api/logistica`)
+- `POST /api/logistica/gls/crear-envio` — carga orden + cliente, valida CP, llama a GLS/mock, persiste en `ordenes.gls_envios[]` y `gls_etiquetas`.
+- `GET /api/logistica/gls/tracking/{codbarras}` — devuelve estado actual + lista de eventos + tracking_url.
+
+### Coexistencia con legacy
+- El módulo antiguo `/app/backend/modules/gls/` (20 endpoints, SOAP 1.1 sin CDATA) se mantiene intacto para no romper `GLSConfigPage.jsx`, `EtiquetasEnvio.jsx`, `GLSAdmin.jsx`, `OrdenDetalle.jsx`. Decisión: reemplazo quirúrgico (opción b), pendiente migrar UI al nuevo módulo cuando esté validado con credenciales reales.
+
+### Variables de entorno añadidas
+- `GLS_URL`, `GLS_UID_CLIENTE`, `GLS_REMITENTE_{NOMBRE,DIRECCION,POBLACION,PROVINCIA,CP,TELEFONO,PAIS}`, `MCP_ENV=preview`.
+
+### Tests `/app/backend/tests/test_gls_logistica.py` — 12/12 ✅
+- preview determinista, preview tracking, preview sin uid.
+- parseo OK, error return=1, XML malformado, HTML (auth fail), HTTP 500, uid vacío en prod.
+- tracking parseo con 2 eventos.
+- CDATA y uidcliente en XML, envelope SOAP 1.2.
+
+### Activar producción
+Poner `GLS_UID_CLIENTE` real + datos remitente en `.env`, cambiar `MCP_ENV=production`, `supervisorctl restart backend`. Sin cambios de código.
+
+### Backlog inmediato
+- Integración **MRW** con mismo patrón (usuario lo anticipó).
+- Migrar UI legacy (GLSConfig, EtiquetasEnvio, GLSAdmin, OrdenDetalle) al nuevo módulo `/api/logistica/*` y eliminar `modules/gls/` + 4 tests viejos.
+- Endpoints extra: `DELETE /api/logistica/gls/anular/{codbarras}` + `GET /api/logistica/gls/etiqueta/{codbarras}` (reimpresión desde cache).
+- **Fase 3 MCP Aseguradoras pendiente**: 3 tools Triador de Averías en `/app/revix_mcp/tools/insurance.py` + registrar `gestor_siniestros` y `triador_averias` en `agent_defs.py` + tests en `test_insurance.py`.
+
+---
+
+
 ## Latest — 2026-04-20
 
 ### Fase 0 Pre-agentes MCP — COMPLETADA

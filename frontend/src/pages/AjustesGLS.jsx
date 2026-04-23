@@ -323,6 +323,9 @@ export default function AjustesGLS() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Sincronización histórica */}
+          <SincronizacionHistoricaCard />
         </TabsContent>
 
         <TabsContent value="mrw">
@@ -330,6 +333,191 @@ export default function AjustesGLS() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Sincronización de órdenes históricas con GLS
+// ──────────────────────────────────────────────────────────────────────────────
+
+function SincronizacionHistoricaCard() {
+  const [candidatas, setCandidatas] = useState(null);
+  const [resultados, setResultados] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [diasAtras, setDiasAtras] = useState(45);
+
+  const loadCandidatas = async () => {
+    try {
+      const { data } = await API.get(`/logistica/gls/sincronizar-ordenes/candidatas?dias_atras=${diasAtras}`);
+      setCandidatas(data);
+    } catch { /* silencioso */ }
+  };
+
+  useEffect(() => {
+    loadCandidatas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diasAtras]);
+
+  const ejecutarSync = async () => {
+    if (!window.confirm(
+      `¿Sincronizar las ${candidatas?.total_candidatas || '?'} órdenes candidatas con GLS?\n` +
+      `Esta acción es idempotente: solo añade/actualiza gls_envios, no toca otros campos.`,
+    )) return;
+    setLoading(true);
+    try {
+      const { data } = await API.post('/logistica/gls/sincronizar-ordenes', {
+        solo_sin_envios: true,
+        dias_atras: diasAtras,
+        max_ordenes: 500,
+      });
+      setResultados(data);
+      toast.success(
+        `Sync completado. ${data.sincronizadas} ok, ${data.no_encontradas} no encontradas, ${data.con_error} errores.` +
+        (data.preview ? ' (PREVIEW)' : ''),
+      );
+      loadCandidatas();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error ejecutando sync');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusBadge = (status) => {
+    if (status === 'ok') return <Badge className="bg-green-100 text-green-800 border-green-300 text-[10px]">OK</Badge>;
+    if (status === 'not_found') return <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">No encontrada</Badge>;
+    if (status === 'skipped') return <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-[10px]">Skip</Badge>;
+    return <Badge className="bg-red-100 text-red-800 border-red-300 text-[10px]">Error</Badge>;
+  };
+
+  return (
+    <Card data-testid="card-sync-historico">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-blue-600" />
+          Sincronización de órdenes históricas
+        </CardTitle>
+        <CardDescription>
+          Vincula órdenes antiguas con envíos GLS creados desde la extranet
+          (usando `numero_autorizacion` como RefC). Idempotente: no modifica otros campos.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="w-32">
+            <Label className="text-xs">Ventana (días)</Label>
+            <Input
+              type="number" min="1" max="365"
+              value={diasAtras}
+              onChange={(e) => setDiasAtras(Number(e.target.value) || 45)}
+              data-testid="input-sync-dias"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-xs">Candidatas (sin gls_envios)</Label>
+            <p className="text-2xl font-bold text-blue-700" data-testid="sync-total-candidatas">
+              {candidatas?.total_candidatas ?? '—'}
+            </p>
+          </div>
+          <Button
+            onClick={ejecutarSync} disabled={loading || !candidatas?.total_candidatas}
+            data-testid="btn-ejecutar-sync"
+          >
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Sincronizar órdenes con GLS
+          </Button>
+        </div>
+
+        {candidatas?.muestra?.length > 0 && !resultados && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              Ver muestra de las 10 más recientes
+            </summary>
+            <div className="mt-2 space-y-1">
+              {candidatas.muestra.map((o) => (
+                <div key={o.id} className="flex justify-between border-b py-1 text-xs">
+                  <span className="font-mono">{o.numero_orden}</span>
+                  <span className="font-mono text-blue-700">{o.numero_autorizacion}</span>
+                  <span className="text-muted-foreground">{o.cp_envio || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {resultados && (
+          <div className="space-y-3" data-testid="sync-resultados">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center text-xs">
+              <div className="bg-green-50 rounded p-2">
+                <p className="text-xl font-bold text-green-700">{resultados.sincronizadas}</p>
+                <p className="text-[10px]">Sincronizadas</p>
+              </div>
+              <div className="bg-blue-50 rounded p-2">
+                <p className="text-xl font-bold text-blue-700">{resultados.creadas}</p>
+                <p className="text-[10px]">Creadas</p>
+              </div>
+              <div className="bg-indigo-50 rounded p-2">
+                <p className="text-xl font-bold text-indigo-700">{resultados.actualizadas}</p>
+                <p className="text-[10px]">Actualizadas</p>
+              </div>
+              <div className="bg-amber-50 rounded p-2">
+                <p className="text-xl font-bold text-amber-700">{resultados.no_encontradas}</p>
+                <p className="text-[10px]">No encontradas</p>
+              </div>
+              <div className="bg-red-50 rounded p-2">
+                <p className="text-xl font-bold text-red-700">{resultados.con_error}</p>
+                <p className="text-[10px]">Con error</p>
+              </div>
+            </div>
+
+            <div className="max-h-96 overflow-y-auto border rounded-lg">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="p-2 text-left">OT</th>
+                    <th className="p-2 text-left">Autorización</th>
+                    <th className="p-2 text-left">Estado</th>
+                    <th className="p-2 text-left">Codbarras</th>
+                    <th className="p-2 text-left">CP</th>
+                    <th className="p-2 text-left">Tracking</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultados.resultados.map((r, i) => (
+                    <tr key={i} className="border-b hover:bg-slate-50" data-testid={`sync-row-${r.order_id}`}>
+                      <td className="p-2 font-mono">{r.numero_orden || '—'}</td>
+                      <td className="p-2 font-mono text-blue-700">{r.numero_autorizacion}</td>
+                      <td className="p-2">{statusBadge(r.status)}{r.status !== 'ok' && r.reason && <span className="text-[10px] text-muted-foreground ml-1">({r.reason})</span>}</td>
+                      <td className="p-2 font-mono">{r.codbarras || '—'}</td>
+                      <td className="p-2">{r.cp_destinatario || '—'}</td>
+                      <td className="p-2">
+                        {r.tracking_url ? (
+                          <a href={r.tracking_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                            abrir
+                          </a>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {resultados.no_encontradas > 0 && (
+              <div className="bg-amber-50 border border-amber-300 rounded p-2 text-xs">
+                <p className="font-medium text-amber-900 mb-1">
+                  {resultados.no_encontradas} órdenes no encontradas en GLS.
+                </p>
+                <p className="text-amber-700">
+                  Verifica que el `numero_autorizacion` corresponde al `RefC` enviado a GLS.
+                  Posibles causas: envío nunca creado en GLS, refC erróneo, o envío muy antiguo borrado del histórico GLS.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

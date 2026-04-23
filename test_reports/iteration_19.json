@@ -1,0 +1,112 @@
+{
+  "summary": "GLS Sync Histórico and Tracking URL testing complete. 11/12 backend tests passed (1 skipped). All frontend UI tests passed. Fixed critical bug: tracking_url was using codplaza_dst instead of cp_destinatario. Sync histórico card in /crm/ajustes/gls working correctly with all data-testid elements.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gls_sync_historico.py",
+    "/app/test_reports/pytest/pytest_results_gls_sync.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED: routes.py line 343-347 was calling _tracking_url with codplaza_dst instead of cp_destinatario - now uses destinatario.cp",
+    "FIXED: envio_doc now saves cp_destinatario field for future tracking URL generation",
+    "GET /api/logistica/gls/sincronizar-ordenes/candidatas returns {total_candidatas, dias_atras, muestra[]} correctly",
+    "POST /api/logistica/gls/sincronizar-ordenes returns {ok, preview, total_procesadas, sincronizadas, creadas, actualizadas, no_encontradas, con_error, resultados[], ejecutado_en}",
+    "Sync correctly requires master/admin role (403 for tecnico)",
+    "Sync writes audit_logs with source='admin_panel' and tool='_sync_gls_historico'",
+    "Mock preview generates deterministic codbarras/codexp from SHA1 hash of numero_autorizacion",
+    "NOENCONTRADO-* prefix in numero_autorizacion forces not_found status in mock",
+    "UI sync card has all required data-testids: card-sync-historico, input-sync-dias, sync-total-candidatas, btn-ejecutar-sync",
+    "Regression: /crm/logistica panel loads with 6 envíos (GLS + MRW)",
+    "Regression: /crm/agentes panel loads with 8 agents, all ACTIVO"
+  ],
+  "updated_files": [
+    "/app/backend/modules/logistica/routes.py",
+    "/app/backend/tests/test_gls_sync_historico.py"
+  ],
+  "success_rate": {
+    "backend": "92% (11/12 pytest tests passed, 1 skipped)",
+    "frontend": "100% (All UI tests passed)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "tecnico_user": "tecnico1@revix.es / Tecnico1Demo!"
+  },
+  "seed_data_creation": "No seed data created - tested with existing demo orders",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "MCP_ENV=preview active. GLS tracking URL now uses cp_destinatario (CP del cliente destinatario) instead of codplaza_dst (plaza GLS). Sync histórico endpoint at POST /api/logistica/gls/sincronizar-ordenes works in preview mode with mock data. Candidatas endpoint at GET /api/logistica/gls/sincronizar-ordenes/candidatas?dias_atras=N. UI card in /crm/ajustes/gls tab GLS at bottom of page. Currently 0 candidatas in DB (all demo orders already have gls_envios). To test sync with real data, create orders with numero_autorizacion but without gls_envios array.",
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "GLS SOAP preview - generates deterministic codexp/codbarras from SHA1 hash",
+      "GLS GetExpCli mock - NOENCONTRADO-* prefix returns not_found",
+      "MRW SOAP preview"
+    ]
+  },
+  "verified_features": [
+    {
+      "feature": "POST /api/logistica/gls/crear-envio tracking_url uses cp_destinatario",
+      "tests": ["tracking_url format: https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}", "envio_doc saves cp_destinatario field"],
+      "status": "FIXED AND VERIFIED"
+    },
+    {
+      "feature": "GET /api/logistica/gls/sincronizar-ordenes/candidatas",
+      "tests": ["Returns total_candidatas count", "Returns muestra array (max 10)", "Accepts dias_atras parameter (7, 30, 45, 90)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/gls/sincronizar-ordenes",
+      "tests": ["Returns proper response structure", "Requires master/admin role (403 for tecnico)", "Preview mode generates mock codbarras/codexp", "Writes audit_logs entry"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/gls/tracking/{codbarras}",
+      "tests": ["Returns tracking_url with cp_destinatario from BD or fallback to cliente.cp"],
+      "status": "SKIPPED (no GLS envios with codbarras to test)"
+    },
+    {
+      "feature": "GET /api/logistica/config/gls",
+      "tests": ["Returns entorno, uid_cliente_masked, remitente, polling_hours"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/envios",
+      "tests": ["Returns items array with tracking_url", "Filters by transportista=GLS"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/resumen",
+      "tests": ["Returns envios_activos, entregados_hoy, incidencias_activas"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: /crm/ajustes/gls sync card",
+      "tests": ["card-sync-historico visible", "input-sync-dias with value 45", "sync-total-candidatas shows 0", "btn-ejecutar-sync clickable"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression: /crm/logistica panel",
+      "tests": ["Panel loads with 6 envíos", "GLS and MRW envíos displayed", "Mock badges visible"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression: /crm/agentes panel",
+      "tests": ["8 agents displayed", "All agents ACTIVO", "Metrics visible"],
+      "status": "PASSED"
+    }
+  ],
+  "bug_fix_applied": {
+    "file": "/app/backend/modules/logistica/routes.py",
+    "issue": "tracking_url was using codplaza_dst (GLS plaza code) instead of cp_destinatario (customer postal code)",
+    "fix": "Changed _tracking_url call to use destinatario.cp and added cp_destinatario field to envio_doc",
+    "lines_changed": "343-347, 351-379"
+  }
+}

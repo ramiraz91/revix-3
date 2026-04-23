@@ -3700,17 +3700,20 @@ async def _enviar_email_logistica(orden_id: str, tipo: str, codbarras: str):
         from services.email_service import send_email, FRONTEND_URL
 
         numero = orden.get("numero_autorizacion") or orden.get("numero_orden", "")
-        # URL de tracking público GLS: formato mygls (codexp/codplaza_dst) cuando
-        # se dispone; fallback al codbarras si es un envío antiguo.
+        # URL de tracking público GLS: formato mygls oficial
+        # https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}
         codexp = ""
-        codplaza = ""
+        cp_destinatario = ""
         for env in (orden.get("gls_envios") or []):
             if env.get("codbarras") == codbarras:
                 codexp = env.get("codexp", "")
-                codplaza = env.get("codplaza_dst", "")
+                cp_destinatario = env.get("cp_destinatario") \
+                    or (env.get("destinatario_snapshot") or {}).get("cp", "")
                 break
-        if codexp and codplaza:
-            tracking_url = f"https://mygls.gls-spain.es/e/{codexp}/{codplaza}"
+        if not cp_destinatario and orden.get("cp_envio"):
+            cp_destinatario = orden["cp_envio"]
+        if codexp and cp_destinatario:
+            tracking_url = f"https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}"
         else:
             tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras}"
 

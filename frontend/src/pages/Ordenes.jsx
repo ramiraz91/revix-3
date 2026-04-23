@@ -288,6 +288,46 @@ export default function Ordenes() {
     });
   };
 
+  // Devuelve la fecha+hora en que la orden entró en su estado ACTUAL.
+  // Busca la última entrada de historial_estados cuyo `estado` coincide con el estado actual.
+  // Fallbacks: fecha_recibida_centro para `recibida`, fecha_fin_reparacion para `reparado`,
+  // fecha_enviado para `enviado`, o updated_at.
+  const fechaEntradaEstado = (orden) => {
+    const historial = Array.isArray(orden.historial_estados) ? orden.historial_estados : [];
+    for (let i = historial.length - 1; i >= 0; i--) {
+      if (historial[i]?.estado === orden.estado && historial[i]?.fecha) {
+        return historial[i].fecha;
+      }
+    }
+    if (orden.estado === 'recibida' && orden.fecha_recibida_centro) return orden.fecha_recibida_centro;
+    if (orden.estado === 'reparado' && orden.fecha_fin_reparacion) return orden.fecha_fin_reparacion;
+    if (orden.estado === 'enviado' && orden.fecha_enviado) return orden.fecha_enviado;
+    return orden.updated_at || null;
+  };
+
+  const formatDiaHora = (dateString) => {
+    if (!dateString) return '—';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '—';
+    const fecha = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    return `${fecha} · ${hora}`;
+  };
+
+  const tiempoEnEstado = (dateString) => {
+    if (!dateString) return null;
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return null;
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 0) return null;
+    const minutos = Math.floor(diffMs / 60000);
+    if (minutos < 60) return `${minutos}m`;
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) return `${horas}h`;
+    const dias = Math.floor(horas / 24);
+    return `${dias}d`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in" data-testid="ordenes-page">
       {/* Header */}
@@ -464,10 +504,29 @@ export default function Ordenes() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`badge-status status-${orden.estado} gap-1`}>
-                            {StatusIcon && <StatusIcon className="w-3 h-3" />}
-                            {statusConfig[orden.estado]?.label}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge className={`badge-status status-${orden.estado} gap-1 w-fit`}>
+                              {StatusIcon && <StatusIcon className="w-3 h-3" />}
+                              {statusConfig[orden.estado]?.label}
+                            </Badge>
+                            {(() => {
+                              const f = fechaEntradaEstado(orden);
+                              if (!f) return null;
+                              const tiempo = tiempoEnEstado(f);
+                              return (
+                                <div
+                                  className="text-[10.5px] leading-tight text-muted-foreground"
+                                  data-testid={`orden-estado-desde-${orden.id}`}
+                                  title={`Entró en estado "${statusConfig[orden.estado]?.label}" el ${formatDiaHora(f)}`}
+                                >
+                                  <span className="font-medium text-slate-600">desde</span> {formatDiaHora(f)}
+                                  {tiempo && (
+                                    <span className="ml-1 text-slate-400">({tiempo})</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div>

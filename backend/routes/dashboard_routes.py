@@ -516,6 +516,7 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
             "total_en_taller": total_en_taller,
             "total_pendientes_recibir": safe_count("total_pendientes"),
             "total_reparados": safe_count("total_reparados"),
+            "total_recibidas": safe_count("total_recibidas"),
             "garantias_activas": safe_count("garantias_activas"),
             "con_demora": len(ordenes_demora),
             "cambios_hoy": safe_count("cambios_hoy"),
@@ -537,6 +538,7 @@ async def obtener_dashboard_operativo(user: dict = Depends(require_auth)):
         # Listas de órdenes
         "ordenes": {
             "pendientes_recibir": data.get("pendientes_recibir", []),
+            "ultimas_recibidas": data.get("ultimas_recibidas", []),
             "con_demora": ordenes_demora,
             "ultimos_reparados": data.get("ultimos_reparados", []),
             "ultimos_enviados": data.get("ultimos_enviados", [])
@@ -692,5 +694,3 @@ async def obtener_dashboard_tecnico(user: dict = Depends(require_auth)):
         },
         "generado_at": now.isoformat()
     }
-
-

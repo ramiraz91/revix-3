@@ -11,6 +11,31 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (6) · Dashboard "Recibidos" + tiempo en estado + sin campana
+
+### Dashboard (`/crm/dashboard`)
+- Nueva KPI card **"Recibidos"** (azul, icono PackageCheck) → enlaza a `/crm/ordenes?estado=recibida`. Grid ampliado a `lg:grid-cols-10`.
+- Nueva sección lateral **"Recibidos"** (bajo "Pendientes de Recibir"), lista las 5 más recientes mostrando `fecha_recibida_centro` — NO la fecha de creación. Fallback a `updated_at` si no existe la fecha de recepción.
+- Backend `/api/dashboard/operativo`: nuevas facetas `total_recibidas` y `ultimas_recibidas` (sorted by `fecha_recibida_centro`) en pipeline agregado. `kpis.total_recibidas` y `ordenes.ultimas_recibidas` añadidos a la respuesta.
+- Bug colateral arreglado: código huérfano al final de `dashboard_routes.py` (líneas 699-721) que impedía arrancar el backend. Eliminado.
+
+### Ordenes de Trabajo (`/crm/ordenes`)
+- Debajo del badge de estado de cada fila, se muestra **"desde DD/MM/YY · HH:MM (Nd)"** indicando cuándo entró la orden en ese estado y cuánto tiempo lleva.
+- Lógica: busca última entrada de `historial_estados` cuyo `estado` coincide con el actual; si no, fallback: `fecha_recibida_centro` (recibida), `fecha_fin_reparacion` (reparado), `fecha_enviado` (enviado) o `updated_at`.
+- Backend `LISTADO_PROJECTION` ahora incluye `historial_estados`, `fecha_recibida_centro`, `fecha_inicio_reparacion`, `fecha_fin_reparacion`, `fecha_enviado`.
+- Helpers nuevos en `Ordenes.jsx`: `fechaEntradaEstado`, `formatDiaHora`, `tiempoEnEstado`.
+- Testid: `orden-estado-desde-{id}`, `dashboard-kpi-recibidos`, `dashboard-card-recibidos`, `dashboard-recibida-{id}`.
+
+### Layout
+- **Campana de notificaciones eliminada** de la esquina superior derecha (desktop + mobile header). El import y ambos usos de `<NotificacionBell />` fueron removidos de `Layout.jsx`. El componente en sí queda en `components/NotificacionBell.jsx` pero desconectado de la UI.
+- Las notificaciones siguen siendo accesibles vía la página dedicada `/crm/notificaciones` y por WebSocket/eventos.
+
+### Validación
+- Backend reiniciado OK. `GET /api/dashboard/operativo` devuelve `kpis.total_recibidas` y lista `ultimas_recibidas`. `GET /api/ordenes/v2` devuelve `historial_estados` + fechas de proceso. Frontend compila (solo warning ESLint pre-existente de exhaustive-deps).
+- Pendiente: Fase 3 MCP Aseguradoras (Triador de Averías · 3 tools) + registro `gestor_siniestros` y `triador_averias` en agent_defs.
+
+---
+
 ## Latest — 2026-04-23 (5) · Estados GLS · vista interna vs pública
 
 ### Backend

@@ -375,7 +375,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs principales - Clicables */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-10 gap-3">
         {/* Total órdenes */}
         <Link to="/crm/ordenes">
           <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:scale-105 transition-transform cursor-pointer">
@@ -424,6 +424,19 @@ export default function Dashboard() {
                 <span className="text-2xl font-bold text-yellow-700">{kpis?.total_pendientes_recibir || 0}</span>
               </div>
               <p className="text-xs text-yellow-600 mt-1 font-medium">Por Recibir</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Recibidos (ya en el centro) */}
+        <Link to="/crm/ordenes?estado=recibida" data-testid="dashboard-kpi-recibidos">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 hover:scale-105 transition-transform cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <PackageCheck className="w-5 h-5 text-blue-600" />
+                <span className="text-2xl font-bold text-blue-700">{kpis?.total_recibidas || 0}</span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1 font-medium">Recibidos</p>
             </CardContent>
           </Card>
         </Link>
@@ -687,6 +700,52 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">Sin órdenes pendientes</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recibidos (ya en el centro) - muestra fecha_recibida_centro, NO created_at */}
+          <Card data-testid="dashboard-card-recibidos">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4 text-blue-600" />
+                  Recibidos
+                </CardTitle>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  {kpis?.total_recibidas || 0}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordenes?.ultimas_recibidas?.length > 0 ? (
+                <div className="space-y-2">
+                  {ordenes.ultimas_recibidas.slice(0, 5).map((orden) => (
+                    <Link
+                      key={orden.id}
+                      to={`/crm/ordenes/${orden.id}`}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                      data-testid={`dashboard-recibida-${orden.id}`}
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{orden.numero_orden}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {orden.dispositivo?.modelo || 'Sin modelo'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                          Recibido
+                        </p>
+                        <p className="text-xs font-medium text-blue-700">
+                          {formatFecha(orden.fecha_recibida_centro || orden.updated_at)}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Sin órdenes recibidas</p>
               )}
             </CardContent>
           </Card>

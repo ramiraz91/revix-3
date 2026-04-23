@@ -863,6 +863,12 @@ LISTADO_PROJECTION = {
     "fecha_recogida": 1,
     "fecha_entrega_estimada": 1,
     "tracking_envio": 1,
+    # Fechas de proceso y historial para mostrar "desde cuándo" está en el estado actual
+    "fecha_recibida_centro": 1,
+    "fecha_inicio_reparacion": 1,
+    "fecha_fin_reparacion": 1,
+    "fecha_enviado": 1,
+    "historial_estados": 1,
     # GLS v2: solo los campos mínimos que necesita el icono de la lista
     "gls_envios.codbarras": 1,
     "gls_envios.tracking_url": 1,

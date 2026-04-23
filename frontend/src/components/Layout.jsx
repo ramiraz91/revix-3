@@ -51,7 +51,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import AsistenteIA from '@/components/AsistenteIA';
 import PresupuestoAceptadoPopup from '@/components/PresupuestoAceptadoPopup';
-import NotificacionBell from '@/components/NotificacionBell';
 
 function SidebarGroup({ label, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -215,9 +214,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* Campanita de notificaciones (desktop) */}
-      <NotificacionBell />
-
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-border z-50 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -231,7 +227,6 @@ export default function Layout() {
           <span className="font-semibold">{empresaNombre}</span>
         </div>
         <div className="flex items-center gap-2">
-          <NotificacionBell variant="inline" />
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} data-testid="mobile-menu-toggle">
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>

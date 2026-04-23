@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import ValidarEnvioInline from './ValidarEnvioInline';
+
 // Estados que solo el técnico puede ejecutar
 const ESTADOS_TECNICO = new Set(['en_taller', 'reparado', 'irreparable']);
 // Estados que solo admin/master puede ejecutar
@@ -113,30 +115,36 @@ export function OrdenCambioEstadoModal({
             </p>
           </div>
           
-          {nuevoEstado === 'enviado' && (
-            <div>
-              <Label>Código de Envío (Salida) *</Label>
-              <Input
-                value={codigoEnvio}
-                onChange={(e) => setCodigoEnvio(e.target.value)}
-                placeholder="Código de tracking"
-                className="font-mono"
-                data-testid="codigo-envio-input"
+          {nuevoEstado === 'enviado' && orden ? (
+            // Flujo GLS inline (sustituye el código de envío manual)
+            <div className="rounded-md border bg-blue-50/40 p-3 space-y-2">
+              <p className="text-xs font-semibold uppercase text-blue-900">
+                Envío GLS · Validar y enviar
+              </p>
+              <ValidarEnvioInline
+                orden={orden}
+                onDone={(result) => {
+                  onOpenChange(false);
+                  if (onEnvioGenerado) onEnvioGenerado(result);
+                }}
+                onCancel={() => onOpenChange(false)}
               />
             </div>
+          ) : null}
+          {nuevoEstado && nuevoEstado !== 'enviado' && (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => onCambiarEstado()}
+                disabled={!nuevoEstado || !mensajeCambio?.trim()}
+                data-testid="confirmar-cambio-estado-btn"
+              >
+                Guardar
+              </Button>
+            </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={() => onCambiarEstado()} 
-              disabled={!nuevoEstado || !mensajeCambio?.trim()}
-              data-testid="confirmar-cambio-estado-btn"
-            >
-              Guardar
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

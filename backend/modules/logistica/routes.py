@@ -117,8 +117,12 @@ async def _get_orden(order_id: str) -> dict:
 class CrearEnvioRequest(BaseModel):
     order_id: str = Field(..., min_length=1)
     peso_kg: float = Field(0.5, gt=0, le=40)  # default 0.5 kg (móvil típico)
-    referencia: Optional[str] = None
+    referencia: Optional[str] = None  # Si no viene, se usa numero_autorizacion
     observaciones: Optional[str] = None
+    # Si True, exige numero_autorizacion presente (flujo desde "Validar y enviar").
+    require_autorizacion: bool = False
+    # Si True, permite crear otro envío aunque ya exista uno.
+    force_duplicate: bool = False
     # Overrides opcionales de destinatario (si el tramitador ajusta algo en el dialog)
     dest_nombre: Optional[str] = None
     dest_direccion: Optional[str] = None
@@ -183,9 +187,12 @@ class DestinatarioPrefill(BaseModel):
 class OrdenGLSDetailResponse(BaseModel):
     order_id: str
     numero_orden: str
+    numero_autorizacion: str
+    tiene_autorizacion: bool
     destinatario: DestinatarioPrefill
     peso_kg_sugerido: float
     referencia_sugerida: str
+    referencia_fuente: str  # "autorizacion" | "orden"
     envios: list[EnvioResumen]  # vacío si nunca se creó etiqueta
     puede_crear_envio: bool
 
@@ -267,7 +274,40 @@ async def crear_envio_gls(
         raise HTTPException(400, f"Código postal inválido: '{destinatario.cp}'")
 
     client = _build_gls_client()
-    referencia = data.referencia or orden.get("numero_orden") or orden.get("id", "")
+
+    # Referencia: el usuario puede forzarla, pero por defecto se usa el código de
+    # autorización de la aseguradora (campo `numero_autorizacion` de la OT).
+    # Fallback: número de OT para reparaciones particulares sin aseguradora.
+    autorizacion = (orden.get("numero_autorizacion") or "").strip()
+    if data.require_autorizacion and not autorizacion:
+        raise HTTPException(
+            400,
+            "Esta orden no tiene código de autorización de aseguradora. "
+            "Añádelo antes de generar el envío.",
+        )
+    referencia = (
+        (data.referencia and data.referencia.strip())
+        or autorizacion
+        or orden.get("numero_orden")
+        or orden.get("id", "")
+    )
+
+    # Aviso si ya existe un envío GLS para la orden
+    envios_previos = orden.get("gls_envios") or []
+    if envios_previos and not data.force_duplicate:
+        raise HTTPException(
+            409,
+            {
+                "code": "envio_ya_existe",
+                "message": (
+                    f"Ya existe un envío GLS para esta orden "
+                    f"(codbarras {envios_previos[-1].get('codbarras','')}). "
+                    f"Pasa force_duplicate=true para crear otro."
+                ),
+                "envios_previos": len(envios_previos),
+                "ultimo_codbarras": envios_previos[-1].get("codbarras", ""),
+            },
+        )
 
     try:
         resultado = await client.crear_envio(
@@ -353,9 +393,15 @@ async def orden_gls_detalle(order_id: str, user: dict = Depends(require_auth)):
         for d in (orden.get("gls_envios") or [])
     ]
 
+    autorizacion = (orden.get("numero_autorizacion") or "").strip()
+    referencia_sugerida = autorizacion or orden.get("numero_orden", "")
+    referencia_fuente = "autorizacion" if autorizacion else "orden"
+
     return OrdenGLSDetailResponse(
         order_id=orden.get("id", order_id),
         numero_orden=orden.get("numero_orden", ""),
+        numero_autorizacion=autorizacion,
+        tiene_autorizacion=bool(autorizacion),
         destinatario=DestinatarioPrefill(
             nombre=destinatario.nombre,
             direccion=destinatario.direccion,
@@ -368,7 +414,8 @@ async def orden_gls_detalle(order_id: str, user: dict = Depends(require_auth)):
             observaciones=destinatario.observaciones,
         ),
         peso_kg_sugerido=0.5,
-        referencia_sugerida=orden.get("numero_orden", ""),
+        referencia_sugerida=referencia_sugerida,
+        referencia_fuente=referencia_fuente,
         envios=envios,
         puede_crear_envio=bool(destinatario.direccion and destinatario.cp),
     )

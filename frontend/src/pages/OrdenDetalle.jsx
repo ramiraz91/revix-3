@@ -521,10 +521,9 @@ export default function OrdenDetalle() {
       return;
     }
     
-    if (nuevoEstado === 'enviado' && !codigoEnvio) {
-      toast.error('Introduce el código de envío');
-      return;
-    }
+    // Nota: para nuevoEstado === 'enviado' el flujo inline de GLS gestiona su
+    // propio submit (genera etiqueta + llama a cambiarEstado con codbarras).
+    // Esta ruta solo se usa para el resto de estados.
     try {
       await ordenesAPI.cambiarEstado(id, {
         nuevo_estado: nuevoEstado,
@@ -2189,6 +2188,8 @@ export default function OrdenDetalle() {
         mensajeCambio={mensajeCambioEstado}
         setMensajeCambio={setMensajeCambioEstado}
         onCambiarEstado={handleCambiarEstado}
+        onEnvioGenerado={() => fetchOrden()}
+        orden={orden}
         isTecnico={isTecnico()}
         isMaster={isMaster()}
       />
@@ -2699,56 +2700,29 @@ export default function OrdenDetalle() {
         </DialogContent>
       </Dialog>
 
-      {/* Popup Finalizar Orden - Código de envío y cierre */}
+      {/* Popup Finalizar Orden — flujo GLS inline (sustituye al código manual) */}
       <Dialog open={showFinalizarOrden} onOpenChange={setShowFinalizarOrden}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Send className="w-5 h-5 text-blue-600" />
               Finalizar y Enviar Orden
             </DialogTitle>
             <DialogDescription>
-              Introduce el código de seguimiento para marcar como enviada y cerrar la orden.
+              Revisa los datos precargados, ajusta el peso y genera la etiqueta GLS.
+              La orden pasará automáticamente a <b>ENVIADO</b>.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="codigoEnvioFinal">Código de envío / Tracking</Label>
-              <Input
-                id="codigoEnvioFinal"
-                placeholder="Ej: MRW123456789, SEUR000123..."
-                value={codigoEnvioFinal}
-                onChange={(e) => setCodigoEnvioFinal(e.target.value)}
-                autoFocus
-              />
-            </div>
 
-            {orden?.tipo_servicio === 'seguro' || orden?.origen === 'insurama' ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-                <p className="font-medium text-amber-800 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  Orden de seguro
-                </p>
-                <p className="text-amber-700 mt-1">
-                  Se registrará automáticamente en liquidaciones pendientes de cobro.
-                </p>
-              </div>
-            ) : null}
-
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowFinalizarOrden(false)} className="flex-1">
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleFinalizarOrden} 
-                disabled={finalizando || !codigoEnvioFinal.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                {finalizando ? 'Finalizando...' : 'Finalizar Orden'}
-              </Button>
-            </div>
-          </div>
+          <ValidarEnvioInline
+            orden={orden}
+            onDone={() => {
+              setShowFinalizarOrden(false);
+              fetchOrden();
+              toast.success('Orden finalizada y enviada');
+            }}
+            onCancel={() => setShowFinalizarOrden(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -2800,6 +2774,48 @@ export default function OrdenDetalle() {
               <Button
                 onClick={handleConfirmRePresupuesto}
                 disabled={enviandoRePresupuesto || !rePresupuestoData.nuevo_importe}
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                data-testid="btn-confirmar-re-presupuesto"
+              >
+                {enviandoRePresupuesto ? 'Enviando...' : 'Confirmar Re-presupuesto'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden PDF for printing */}
+      <div className="hidden">
+        <OrdenPDF
+          ref={pdfRefFull}
+          orden={orden}
+          cliente={cliente}
+          materiales={orden?.materiales || []}
+          mode="full"
+          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
+          includeFotos={true}
+        />
+        <OrdenPDF
+          ref={pdfRefNoPrices}
+          orden={orden}
+          cliente={cliente}
+          materiales={orden?.materiales || []}
+          mode="no_prices"
+          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
+        />
+        <OrdenPDF
+          ref={pdfRefBlank}
+          orden={orden}
+          cliente={cliente}
+          materiales={orden?.materiales || []}
+          mode="blank_no_prices"
+          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
+        />
+      </div>
+    </div>
+  );
+}
+mporte}
                 className="flex-1 bg-orange-600 hover:bg-orange-700"
                 data-testid="btn-confirmar-re-presupuesto"
               >

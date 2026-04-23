@@ -1032,14 +1032,45 @@ async def buscar_orden_escaner(q: str, user: dict = Depends(require_auth)):
             }
         
         # Si no está pendiente, solo devolver para navegación
+        # Enriquecer con tipo de match (codbarras GLS, autorización, etc.)
+        match_type = "orden"
+        match_meta = {}
+        if str(orden.get("numero_autorizacion", "")).upper() == codigo:
+            match_type = "autorizacion"
+            match_meta["numero_autorizacion"] = orden.get("numero_autorizacion")
+        else:
+            # ¿Es un codbarras GLS?
+            for e in (orden.get("gls_envios") or []):
+                if str(e.get("codbarras", "")) == codigo:
+                    match_type = "gls_codbarras"
+                    try:
+                        from modules.logistica.state_mapper import (
+                            friendly_estado as _fe, interno_estado as _ie,
+                        )
+                        estado_raw = e.get("estado_actual") or e.get("estado") or ""
+                        codigo_est = str(e.get("estado_codigo") or "")
+                        match_meta = {
+                            "codbarras": e.get("codbarras"),
+                            "estado_interno": _ie(estado_raw, codigo_est, e.get("incidencia", "")),
+                            "estado_cliente": _fe(estado_raw, codigo_est),
+                            "tracking_url": e.get("tracking_url"),
+                            "fecha_entrega": e.get("fecha_entrega", ""),
+                        }
+                    except Exception:
+                        match_meta = {"codbarras": e.get("codbarras")}
+                    break
+
         return {
             "ordenes": [{
                 "id": orden["id"],
                 "numero_orden": orden.get("numero_orden"),
                 "estado": orden.get("estado"),
-                "dispositivo": orden.get("dispositivo")
+                "dispositivo": orden.get("dispositivo"),
+                "numero_autorizacion": orden.get("numero_autorizacion"),
             }],
             "accion": "navegacion",
+            "match_type": match_type,
+            "match_meta": match_meta,
             "mensaje": f"Abriendo orden {orden.get('numero_orden')}"
         }
     

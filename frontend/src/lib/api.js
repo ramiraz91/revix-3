@@ -191,6 +191,7 @@ export const ordenesAPI = {
   registrarImpresion: (id, data) => API.post(`/ordenes/${id}/registro-impresion`, data),
   obtenerEventosAuditoria: (id) => API.get(`/ordenes/${id}/eventos-auditoria`),
   escanear: (id, data) => API.post(`/ordenes/${id}/scan`, data),
+  buscarPorCodigo: (q) => API.get(`/ordenes/buscar?q=${encodeURIComponent(q)}`),
   añadirMaterial: (id, data) => API.post(`/ordenes/${id}/materiales`, data),
   actualizarMaterial: (id, index, data) => API.patch(`/ordenes/${id}/materiales/${index}`, data),
   editarMaterialCompleto: (id, index, data) => API.put(`/ordenes/${id}/materiales/${index}`, data),

@@ -100,19 +100,44 @@ export default function Scanner() {
 
   const handleScan = async (data) => {
     if (processing) return;
-    
+
     setProcessing(true);
-    
+
     try {
       // Limpiar el código: eliminar caracteres de control, espacios, enters, etc.
       const ordenRef = data.replace(/[\x00-\x1F\x7F\r\n\t]/g, '').trim();
-      
+
       console.log('Código escaneado (limpio):', ordenRef);
-      
-      // Primero obtener la orden para ver su información
-      const ordenRes = await ordenesAPI.obtener(ordenRef);
+
+      // Usar el endpoint `buscar` que soporta múltiples tipos (ID, nº OT,
+      // autorización, codbarras GLS, IMEI) y nos devuelve match_type.
+      let buscarRes;
+      try {
+        buscarRes = await ordenesAPI.buscarPorCodigo(ordenRef);
+      } catch {
+        // Fallback al endpoint clásico (obtener por ID directo)
+        buscarRes = null;
+      }
+      const buscarData = buscarRes?.data;
+      const ordenes = buscarData?.ordenes || [];
+      if (!ordenes.length) {
+        throw new Error('Orden no encontrada');
+      }
+      const ordenLight = ordenes[0];
+      // Cargar datos completos de la orden
+      const ordenRes = await ordenesAPI.obtener(ordenLight.id);
       const orden = ordenRes.data;
-      
+
+      // Mensaje contextual según tipo de match
+      const matchType = buscarData?.match_type;
+      const matchMeta = buscarData?.match_meta || {};
+      let banner = `Orden encontrada: ${orden.numero_orden}`;
+      if (matchType === 'gls_codbarras') {
+        banner = `Envío GLS ${matchMeta.codbarras} · ${matchMeta.estado_interno || 'sin estado'}`;
+      } else if (matchType === 'autorizacion') {
+        banner = `Autorización ${matchMeta.numero_autorizacion} · OT ${orden.numero_orden}`;
+      }
+
       // MODO CONSULTA: Solo mostrar información, no cambiar estado
       if (tipoEscaneo === 'consulta') {
         setLastScanned({
@@ -122,53 +147,58 @@ export default function Scanner() {
           dispositivo: orden.dispositivo,
           cliente_id: orden.cliente_id,
           bloqueada: orden.bloqueada,
+          match_type: matchType,
+          match_meta: matchMeta,
           success: true,
           modo: 'consulta'
         });
-        
-        toast.success(`Orden encontrada: ${orden.numero_orden}`);
-        
+
+        toast.success(banner);
+
         // Reproducir sonido de éxito
         playSuccessSound();
         return;
       }
-      
+
       // MODO CAMBIO DE ESTADO: Intentar cambiar el estado
       try {
         const res = await ordenesAPI.escanear(ordenRef, {
           tipo_escaneo: tipoEscaneo,
           usuario: 'scanner'
         });
-        
+
         setLastScanned({
           id: orden.id,
           numero_orden: orden.numero_orden,
           estado_anterior: orden.estado,
           nuevo_estado: res.data.nuevo_estado,
           dispositivo: orden.dispositivo,
+          match_type: matchType,
+          match_meta: matchMeta,
           success: true,
           modo: 'cambio_estado'
         });
-        
+
         toast.success(res.data.message);
         playSuccessSound();
-        
+
       } catch (scanError) {
-        // Si el escaneo falla (por ejemplo, estado incorrecto), mostrar la orden de todas formas
         const errorMessage = scanError.response?.data?.detail || 'No se pudo cambiar el estado';
-        
+
         setLastScanned({
           id: orden.id,
           numero_orden: orden.numero_orden,
           estado_actual: orden.estado,
           dispositivo: orden.dispositivo,
           bloqueada: orden.bloqueada,
+          match_type: matchType,
+          match_meta: matchMeta,
           success: true,
           modo: 'consulta',
           warning: errorMessage
         });
-        
-        toast.warning(`${errorMessage}. Mostrando información de la orden.`);
+
+        toast.warning(`${banner}. ${errorMessage}`);
         playWarningSound();
       }
       

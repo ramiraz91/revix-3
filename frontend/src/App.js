@@ -58,9 +58,8 @@ import Incidencias from "@/pages/Incidencias";
 import Analiticas from "@/pages/Analiticas";
 import EmailConfig from "@/pages/EmailConfig";
 import GLSConfigPage from "@/pages/GLSConfigPage";
-import GLSAdmin from "@/pages/GLSAdmin";
 import Comisiones from "@/pages/Comisiones";
-import EtiquetasEnvio from "@/pages/EtiquetasEnvio";
+// Logistica page removed - replaced by GLSAdmin
 import NotificacionesTecnico from "@/pages/NotificacionesTecnico";
 import Insurama from "@/pages/Insurama";
 // Logistica page removed - replaced by GLSAdmin
@@ -325,11 +324,6 @@ function AppRoutes() {
             <Comisiones />
           </ProtectedRoute>
         } />
-        <Route path="etiquetas-envio" element={
-          <ProtectedRoute adminOnly>
-            <EtiquetasEnvio />
-          </ProtectedRoute>
-        } />
         <Route path="insurama" element={
           <ProtectedRoute masterOnly>
             <Insurama />
@@ -368,11 +362,6 @@ function AppRoutes() {
         <Route path="buscar-siniestro" element={
           <ProtectedRoute adminOnly>
             <BuscarSiniestro />
-          </ProtectedRoute>
-        } />
-        <Route path="logistica" element={
-          <ProtectedRoute adminOnly>
-            <GLSAdmin />
           </ProtectedRoute>
         } />
         <Route path="contabilidad" element={

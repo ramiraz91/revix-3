@@ -62,7 +62,6 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import CalidadPantallaBadge from '@/components/CalidadPantallaBadge';
 import AppleManualCard from '@/components/AppleManualCard';
-import GLSLogistica from '@/components/orden/GLSLogistica';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
 import GLSEnvioPanel from '@/components/orden/GLSEnvioPanel';
 import ValidarEnvioInline from '@/components/orden/ValidarEnvioInline';
@@ -2162,14 +2161,6 @@ export default function OrdenDetalle() {
 
         <TabsContent value="logistica" className="mt-6 space-y-6">
           <GLSEnvioPanel orden={orden} onUpdate={fetchOrden} />
-          <details className="rounded-lg border bg-slate-50/40 p-3 text-sm">
-            <summary className="cursor-pointer text-muted-foreground hover:text-slate-700">
-              Módulo GLS legacy (avanzado: recogidas, devoluciones, config)
-            </summary>
-            <div className="mt-4">
-              <GLSLogistica orden={orden} onUpdate={fetchOrden} userRole={user?.role} />
-            </div>
-          </details>
         </TabsContent>
       </Tabs>
 

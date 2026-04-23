@@ -321,7 +321,6 @@ export default function Layout() {
                 <NavItem path="/finanzas" icon={BarChart3} label="Finanzas" />
                 <NavItem path="/contabilidad" icon={Receipt} label="Facturas y Albaranes" />
                 <NavItem path="/comisiones" icon={DollarSign} label="Comisiones" />
-                <NavItem path="/etiquetas-envio" icon={Truck} label="Etiquetas Envío" />
                 <NavItem path="/gls-config" icon={Truck} label="GLS Config" />
               </SidebarGroup>
 

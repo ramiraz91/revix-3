@@ -40,7 +40,11 @@ _INCIDENCIA_KEYWORDS = {
 
 
 def friendly_estado(estado_texto: str, codigo: Optional[str] = None) -> str:
-    """Devuelve el texto cliente-friendly para un estado/codigo GLS."""
+    """Devuelve el texto CLIENTE-FRIENDLY para un estado/codigo GLS.
+
+    Usar en la vista pública /seguimiento. Ver `interno_estado()` para la
+    vista del tramitador.
+    """
     txt = (estado_texto or "").strip().upper()
     codigo = (codigo or "").strip()
 
@@ -64,6 +68,36 @@ def friendly_estado(estado_texto: str, codigo: Optional[str] = None) -> str:
 
     # Desconocido: devolver el texto tal cual, capitalizado bonito
     return (estado_texto or "Estado desconocido").capitalize()
+
+
+def interno_estado(estado_texto: str,
+                   codigo: Optional[str] = None,
+                   incidencia: Optional[str] = None) -> str:
+    """Devuelve el estado CRUDO tal como lo da GLS, para la vista interna del tramitador.
+
+    - Sin mapeo a lenguaje cliente.
+    - Si hay incidencia, se prefija con `INCIDENCIA:` seguido del texto exacto.
+    - Si no hay texto, devuelve '—'.
+    """
+    txt = (estado_texto or "").strip()
+    inc = (incidencia or "").strip()
+    if inc:
+        return f"INCIDENCIA: {inc}"
+    if is_incidencia(txt):
+        return f"INCIDENCIA: {txt}"
+    if not txt:
+        return "—"
+    return txt.upper()
+
+
+def display_estado(estado_texto: str,
+                   codigo: Optional[str] = None,
+                   incidencia: Optional[str] = None,
+                   mode: str = "cliente") -> str:
+    """Dispatcher único: ``mode='interno'`` → raw GLS; ``mode='cliente'`` → amigable."""
+    if (mode or "").lower() == "interno":
+        return interno_estado(estado_texto, codigo, incidencia)
+    return friendly_estado(estado_texto, codigo)
 
 
 def is_incidencia(estado_texto: str) -> bool:

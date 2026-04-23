@@ -13,7 +13,8 @@ import pytest
 sys.path.insert(0, "/app/backend")
 
 from modules.logistica.state_mapper import (  # noqa: E402
-    estado_color, friendly_estado, is_entregado, is_incidencia,
+    display_estado, estado_color, friendly_estado, interno_estado,
+    is_entregado, is_incidencia,
 )
 
 
@@ -60,6 +61,37 @@ def test_is_incidencia_detecta_keywords():
 ])
 def test_estado_color(estado, codigo, expected_color):
     assert estado_color(estado, codigo) == expected_color
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Modo interno vs cliente (vista tramitador vs público)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("estado,codigo,incidencia,expected", [
+    ("EN REPARTO", "6", None, "EN REPARTO"),
+    ("En reparto", "6", None, "EN REPARTO"),
+    ("ENTREGADO", "10", None, "ENTREGADO"),
+    ("EN DELEGACION DESTINO", "4", None, "EN DELEGACION DESTINO"),
+    ("", None, None, "—"),
+    ("EN REPARTO", "6", "Dirección errónea", "INCIDENCIA: Dirección errónea"),
+    ("AUSENTE", "", None, "INCIDENCIA: AUSENTE"),
+    ("INCIDENCIA DIRECCION ERRONEA", "", None, "INCIDENCIA: INCIDENCIA DIRECCION ERRONEA"),
+])
+def test_interno_estado(estado, codigo, incidencia, expected):
+    assert interno_estado(estado, codigo, incidencia) == expected
+
+
+def test_display_estado_dispatcher():
+    # modo cliente (default) → mapeado
+    assert display_estado("ENTREGADO", "10") == "Entregado ✅"
+    assert display_estado("EN REPARTO", "6", mode="cliente") == "En camino a tu domicilio 🚚"
+    # modo interno → raw
+    assert display_estado("EN REPARTO", "6", mode="interno") == "EN REPARTO"
+    assert display_estado("ENTREGADO", "10", mode="interno") == "ENTREGADO"
+    # incidencia en modo interno
+    assert display_estado("EN REPARTO", "6",
+                          incidencia="Ausente domicilio", mode="interno") == \
+        "INCIDENCIA: Ausente domicilio"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

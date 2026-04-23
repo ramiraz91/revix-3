@@ -77,7 +77,9 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
       await fetchDetail();
       if (onUpdate) onUpdate();
       if (data.estado_cambio) {
-        toast.success(`Estado actualizado: ${data.envio.estado_cliente}`);
+        // Para el tramitador mostrar el estado CRUDO de GLS, no el mapeado.
+        const estadoRaw = data.envio.estado_interno || data.envio.estado;
+        toast.success(`Estado actualizado: ${estadoRaw}`);
       } else {
         toast.info('Tracking sin cambios');
       }
@@ -160,12 +162,13 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
             data-testid="gls-panel-envio">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between gap-2 text-lg">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Truck className="w-5 h-5" />
               <span>Envío GLS</span>
-              <Badge className={`${COLOR_MAP[envioActual.estado_color] || COLOR_MAP.slate} border`}
-                     data-testid="gls-badge-estado-cliente">
-                {envioActual.estado_cliente}
+              <Badge className={`${COLOR_MAP[envioActual.estado_color] || COLOR_MAP.slate} border font-mono uppercase tracking-wide`}
+                     data-testid="gls-badge-estado-interno"
+                     title="Estado crudo GLS (vista tramitador)">
+                {envioActual.estado_interno || envioActual.estado || '—'}
               </Badge>
               {envioActual.mock_preview && (
                 <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800">

@@ -11,6 +11,30 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (5) · Estados GLS · vista interna vs pública
+
+### Backend
+- **`state_mapper.py` ampliado**:
+  - `interno_estado(estado, codigo, incidencia?)` → texto crudo GLS en mayúsculas; prefija `INCIDENCIA: {texto}` si hay incidencia o se detecta por keywords.
+  - `display_estado(estado, codigo, incidencia?, mode='cliente'|'interno')` → dispatcher único.
+  - `friendly_estado` intacto (modo cliente).
+- **API** `EnvioResumen` y `TrackingDirectResponse` ahora exponen **los 3 campos** por envío: `estado` (raw de BD), `estado_interno` (formateado tramitador con prefijo INCIDENCIA), `estado_cliente` (amigable).
+
+### Frontend
+- **`GLSEnvioPanel.jsx`** (vista interna del tramitador): badge ahora usa `envio.estado_interno` ("EN REPARTO", "ENTREGADO", "INCIDENCIA: Dirección errónea"). Fuente monoespaciada + mayúsculas. Testid: `gls-badge-estado-interno`.
+- **`Seguimiento.jsx`** (vista pública del cliente): intacto, sigue usando `estado_cliente` ("En camino a tu domicilio 🚚", "Entregado ✅", "En centro de distribución").
+- Toast de "Actualizar tracking" ahora reporta texto crudo.
+
+### Tests — 60/60 ✅
+- 6 nuevos parametrizados para `interno_estado` y `display_estado`: raw sin mapeo, prefijo INCIDENCIA, vacío → `—`, dispatcher cliente/interno.
+
+### Validación E2E
+- Vista interna: badge = `EN REPARTO` (raw).
+- Vista pública: estado = `En camino a tu domicilio 🚚` (mapeado).
+
+---
+
+
 ## Latest — 2026-04-23 (4) · Central de Notificaciones con Categorías
 
 ### Backend

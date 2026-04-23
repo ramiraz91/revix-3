@@ -30,7 +30,7 @@ from modules.logistica.gls import (
     Destinatario, GLSClient, GLSError, Remitente,
 )
 from modules.logistica.state_mapper import (
-    estado_color, friendly_estado, is_entregado, is_incidencia,
+    estado_color, friendly_estado, interno_estado, is_entregado, is_incidencia,
 )
 
 logger = logging.getLogger("gls.routes_logistica")
@@ -144,7 +144,10 @@ class EnvioResumen(BaseModel):
     peso_kg: float
     estado: str
     estado_codigo: str
-    estado_cliente: str  # cliente-friendly
+    # Vista tramitador (texto crudo GLS, INCIDENCIA: {...} si corresponde)
+    estado_interno: str
+    # Vista cliente (amigable)
+    estado_cliente: str
     estado_color: str
     incidencia: str
     fecha_entrega: str
@@ -216,6 +219,7 @@ def _envio_doc_to_resumen(doc: dict) -> EnvioResumen:
         peso_kg=float(doc.get("peso_kg", 0.5)),
         estado=estado,
         estado_codigo=codigo,
+        estado_interno=interno_estado(estado, codigo, doc.get("incidencia", "")),
         estado_cliente=friendly_estado(estado, codigo),
         estado_color=estado_color(estado, codigo),
         incidencia=doc.get("incidencia", ""),
@@ -379,6 +383,7 @@ class TrackingDirectResponse(BaseModel):
     codbarras: str
     estado_actual: str
     estado_codigo: str
+    estado_interno: str
     estado_cliente: str
     estado_color: str
     fecha_entrega: str
@@ -403,6 +408,7 @@ async def tracking_gls(codbarras: str, user: dict = Depends(require_auth)):
         codbarras=tracking.codbarras,
         estado_actual=tracking.estado_actual,
         estado_codigo=tracking.estado_codigo,
+        estado_interno=interno_estado(tracking.estado_actual, tracking.estado_codigo, tracking.incidencia),
         estado_cliente=friendly_estado(tracking.estado_actual, tracking.estado_codigo),
         estado_color=estado_color(tracking.estado_actual, tracking.estado_codigo),
         fecha_entrega=tracking.fecha_entrega,

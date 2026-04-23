@@ -62,6 +62,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import CalidadPantallaBadge from '@/components/CalidadPantallaBadge';
 import AppleManualCard from '@/components/AppleManualCard';
+import ProbarDiagnosticoButton from '@/components/orden/ProbarDiagnosticoButton';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
 import GLSEnvioPanel from '@/components/orden/GLSEnvioPanel';
 import ValidarEnvioInline from '@/components/orden/ValidarEnvioInline';
@@ -1582,6 +1583,23 @@ export default function OrdenDetalle() {
               )}
               <OrdenDispositivoCard dispositivo={orden.dispositivo} />
               
+              {/* Botón IA: Probar diagnóstico (agente triador_averias) */}
+              {(isAdmin() || isTecnico()) && (
+                <div className="flex items-center justify-between px-2 py-1 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-orange-900">Asistente IA de diagnóstico</p>
+                    <p className="text-[10px] text-orange-700 truncate">
+                      Analiza síntomas + stock + técnico disponible en segundos
+                    </p>
+                  </div>
+                  <ProbarDiagnosticoButton
+                    orderId={orden.id}
+                    numeroOrden={orden.numero_orden}
+                    sintomas={orden.averia_descripcion || orden.problema_reportado || orden.diagnostico_tecnico}
+                  />
+                </div>
+              )}
+
               {/* Manual de Reparación Apple - Solo visible para técnicos */}
               {isTecnico() && (
                 <AppleManualCard 

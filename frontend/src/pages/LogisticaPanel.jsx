@@ -279,7 +279,7 @@ export default function LogisticaPanel() {
                 <SelectContent>
                   <SelectItem value="ALL">Todos</SelectItem>
                   <SelectItem value="GLS">GLS</SelectItem>
-                  <SelectItem value="MRW" disabled>MRW (próximamente)</SelectItem>
+                  <SelectItem value="MRW">MRW</SelectItem>
                 </SelectContent>
               </Select>
             </div>

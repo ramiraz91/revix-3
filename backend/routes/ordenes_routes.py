@@ -3700,7 +3700,19 @@ async def _enviar_email_logistica(orden_id: str, tipo: str, codbarras: str):
         from services.email_service import send_email, FRONTEND_URL
 
         numero = orden.get("numero_autorizacion") or orden.get("numero_orden", "")
-        tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras}"
+        # URL de tracking público GLS: formato mygls (codexp/codplaza_dst) cuando
+        # se dispone; fallback al codbarras si es un envío antiguo.
+        codexp = ""
+        codplaza = ""
+        for env in (orden.get("gls_envios") or []):
+            if env.get("codbarras") == codbarras:
+                codexp = env.get("codexp", "")
+                codplaza = env.get("codplaza_dst", "")
+                break
+        if codexp and codplaza:
+            tracking_url = f"https://mygls.gls-spain.es/e/{codexp}/{codplaza}"
+        else:
+            tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras}"
 
         if tipo == "recogida":
             subject = f"Revix - Recogida programada para su orden {numero}"

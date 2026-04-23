@@ -517,8 +517,8 @@ export default function Seguimiento() {
                             {orden.logistics.recogida.incidencia_texto}
                           </p>
                         )}
-                        {/* Tracking link - usa tracking_url si existe, sino URL canónica */}
-                        <a href={orden.logistics?.recogida?.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
+                        {/* Tracking link - usa tracking_url del backend (formato mygls cuando hay codexp/codplaza_dst) */}
+                        <a href={orden.logistics?.recogida?.tracking_url || "https://mygls.gls-spain.es/"}
                           target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
                           <ExternalLink className="w-3 h-3" /> Seguir en GLS
@@ -562,8 +562,8 @@ export default function Seguimiento() {
                             {orden.logistics.envio.incidencia_texto}
                           </p>
                         )}
-                        {/* Tracking link - usa tracking_url si existe, sino URL canónica */}
-                        <a href={orden.logistics?.envio?.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
+                        {/* Tracking link - usa tracking_url del backend (formato mygls cuando hay codexp/codplaza_dst) */}
+                        <a href={orden.logistics?.envio?.tracking_url || "https://mygls.gls-spain.es/"}
                           target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline mt-1">
                           <ExternalLink className="w-3 h-3" /> Seguir en GLS

@@ -135,7 +135,7 @@ export default function AjustesGLS() {
       <Tabs defaultValue="gls" className="w-full">
         <TabsList data-testid="tabs-transportistas">
           <TabsTrigger value="gls" data-testid="tab-gls">GLS</TabsTrigger>
-          <TabsTrigger value="mrw" disabled data-testid="tab-mrw">MRW (próximamente)</TabsTrigger>
+          <TabsTrigger value="mrw" data-testid="tab-mrw">MRW</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gls" className="space-y-6 mt-4">
@@ -326,15 +326,194 @@ export default function AjustesGLS() {
         </TabsContent>
 
         <TabsContent value="mrw">
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              <Truck className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p className="font-medium">Integración MRW — próximamente</p>
-              <p className="text-xs mt-1">Se añadirá con el mismo patrón que GLS: remitente, credenciales, polling y verificación.</p>
-            </CardContent>
-          </Card>
+          <MRWConfigTab />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MRW Config Tab (mismo patrón que GLS)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function MRWConfigTab() {
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [remitenteDraft, setRemitenteDraft] = useState({
+    nombre: '', direccion: '', poblacion: '', provincia: '', cp: '', telefono: '',
+  });
+
+  useEffect(() => {
+    loadMRW();
+  }, []);
+
+  const loadMRW = async () => {
+    try {
+      const { data } = await API.get('/logistica/config/mrw');
+      setConfig(data);
+      setRemitenteDraft(data.remitente);
+    } catch {
+      toast.error('Error cargando configuración MRW');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveRemitente = async () => {
+    setSaving(true);
+    try {
+      const { data } = await API.post('/logistica/config/mrw/remitente', remitenteDraft);
+      setConfig(data);
+      setRemitenteDraft(data.remitente);
+      toast.success('Remitente MRW guardado en BD');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error guardando remitente MRW');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    setVerifying(true);
+    try {
+      const { data } = await API.post('/logistica/config/mrw/verify');
+      if (data.ok) toast.success(data.mensaje);
+      else toast.error(data.mensaje);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error verificando MRW');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+  }
+
+  const isPreview = config?.entorno === 'preview';
+
+  return (
+    <div className="space-y-6 mt-4" data-testid="mrw-config-content">
+      {/* Estado */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="w-4 h-4 text-blue-600" /> Estado integración MRW
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground">Entorno</Label>
+            <div className="mt-1">
+              {isPreview ? (
+                <Badge className="bg-amber-100 text-amber-800 border-amber-300" data-testid="mrw-badge-preview">
+                  <AlertTriangle className="w-3 h-3 mr-1" /> PREVIEW · mocks activos
+                </Badge>
+              ) : (
+                <Badge className="bg-green-100 text-green-800 border-green-300">
+                  <CheckCircle2 className="w-3 h-3 mr-1" /> PRODUCCIÓN
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Último envío</Label>
+            <p className="text-sm font-mono mt-1">{config?.ultimo_envio?.num_envio || '—'}</p>
+            <p className="text-[10px] text-muted-foreground">{config?.ultimo_envio?.creado_en ? new Date(config.ultimo_envio.creado_en).toLocaleString('es-ES') : '—'}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Envíos este mes</Label>
+            <p className="text-2xl font-bold text-blue-700 mt-1">{config?.stats_mes?.envios_mes || 0}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Recogidas pendientes</Label>
+            <p className="text-2xl font-bold text-amber-700 mt-1" data-testid="mrw-recogidas-pendientes">
+              {config?.stats_mes?.recogidas_pendientes || 0}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Credenciales */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-green-600" /> Credenciales
+          </CardTitle>
+          <CardDescription>Solo lectura. Edita en el .env del servidor.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <Label className="text-xs text-muted-foreground">Franquicia</Label>
+            <code className="block mt-1 px-2 py-2 bg-slate-100 rounded font-mono text-sm tracking-wider" data-testid="mrw-franquicia">
+              {config?.franquicia_masked || '(no configurado)'}
+            </code>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Abonado</Label>
+            <code className="block mt-1 px-2 py-2 bg-slate-100 rounded font-mono text-sm tracking-wider">
+              {config?.abonado_masked || '—'}
+            </code>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Usuario</Label>
+            <code className="block mt-1 px-2 py-2 bg-slate-100 rounded font-mono text-sm tracking-wider">
+              {config?.usuario_masked || '—'}
+            </code>
+          </div>
+          <div className="md:col-span-3">
+            <Button variant="outline" onClick={handleVerify} disabled={verifying} data-testid="btn-mrw-verify">
+              {verifying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              Verificar conexión
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Remitente */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Datos del remitente</CardTitle>
+          <CardDescription>Aparecerán en etiquetas MRW. Se guardan en BD (colección `configuracion` tipo=mrw).</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            ['nombre', 'Nombre'],
+            ['direccion', 'Dirección'],
+            ['poblacion', 'Población'],
+            ['provincia', 'Provincia'],
+            ['cp', 'CP'],
+            ['telefono', 'Teléfono'],
+          ].map(([key, label]) => (
+            <div key={key}>
+              <Label className="text-xs flex items-center gap-2">
+                {label}
+                {config?.remitente_source?.[key] && (
+                  <span className="font-mono text-[9px] bg-slate-100 px-1 rounded">
+                    {config.remitente_source[key]}
+                  </span>
+                )}
+              </Label>
+              <Input
+                value={remitenteDraft[key] || ''}
+                onChange={(e) => setRemitenteDraft({ ...remitenteDraft, [key]: e.target.value })}
+                data-testid={`input-mrw-remitente-${key}`}
+                className="mt-1"
+              />
+            </div>
+          ))}
+          <div className="md:col-span-2 flex justify-end gap-2">
+            <Button variant="outline" onClick={loadMRW} disabled={saving}>Descartar</Button>
+            <Button onClick={handleSaveRemitente} disabled={saving} data-testid="btn-mrw-guardar-remitente">
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Guardar remitente
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -124,24 +124,37 @@ async def panel_resumen(user: dict = Depends(require_auth)):
     hoy_inicio = now.replace(hour=0, minute=0, second=0, microsecond=0)
     mes_inicio = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    pipeline_base = [
+    pipeline_base_gls = [
         {"$match": {"gls_envios": {"$exists": True, "$ne": []}}},
         {"$unwind": "$gls_envios"},
     ]
+    pipeline_base_mrw = [
+        {"$match": {"mrw_envios": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$mrw_envios"},
+    ]
 
-    # 1. Activos (no entregados) - estado_codigo == "" o != "7"/"ENTREGADO"
-    activos = await db.ordenes.aggregate(pipeline_base + [
+    # Activos GLS + MRW
+    activos_gls = await db.ordenes.aggregate(pipeline_base_gls + [
         {"$match": {
             "$and": [
                 {"gls_envios.estado_codigo": {"$nin": ["7", "11"]}},
                 {"gls_envios.estado_actual": {"$not": {"$regex": "^ENTREGADO", "$options": "i"}}},
-            ]
+            ],
+        }},
+        {"$count": "n"},
+    ]).to_list(1)
+    activos_mrw = await db.ordenes.aggregate(pipeline_base_mrw + [
+        {"$match": {
+            "$and": [
+                {"mrw_envios.estado_actual": {"$not": {"$regex": "^ENTREGADO", "$options": "i"}}},
+                {"mrw_envios.estado_codigo": {"$nin": ["60"]}},  # 60 = entregado MRW
+            ],
         }},
         {"$count": "n"},
     ]).to_list(1)
 
-    # 2. Entregados hoy
-    entregados_hoy = await db.ordenes.aggregate(pipeline_base + [
+    # Entregados hoy
+    entregados_gls = await db.ordenes.aggregate(pipeline_base_gls + [
         {"$match": {
             "$or": [
                 {"gls_envios.estado_codigo": "7"},
@@ -151,36 +164,54 @@ async def panel_resumen(user: dict = Depends(require_auth)):
         }},
         {"$count": "n"},
     ]).to_list(1)
+    entregados_mrw = await db.ordenes.aggregate(pipeline_base_mrw + [
+        {"$match": {
+            "$or": [
+                {"mrw_envios.estado_codigo": "60"},
+                {"mrw_envios.estado_actual": {"$regex": "^ENTREGADO", "$options": "i"}},
+            ],
+            "mrw_envios.ultima_actualizacion": {"$gte": hoy_inicio.isoformat()},
+        }},
+        {"$count": "n"},
+    ]).to_list(1)
 
-    # 3. Incidencias activas (con texto de incidencia y no entregados)
-    incidencias = await db.ordenes.aggregate(pipeline_base + [
+    # Incidencias
+    incid_gls = await db.ordenes.aggregate(pipeline_base_gls + [
         {"$match": {
             "gls_envios.incidencia": {"$exists": True, "$ne": ""},
             "gls_envios.estado_codigo": {"$nin": ["7"]},
         }},
         {"$count": "n"},
     ]).to_list(1)
-
-    # 4. Total envíos creados este mes (todos, no solo activos)
-    total_mes = await db.ordenes.aggregate(pipeline_base + [
-        {"$match": {"gls_envios.creado_en": {"$gte": mes_inicio.isoformat()}}},
+    incid_mrw = await db.ordenes.aggregate(pipeline_base_mrw + [
+        {"$match": {
+            "mrw_envios.incidencia": {"$exists": True, "$ne": ""},
+            "mrw_envios.estado_codigo": {"$nin": ["60"]},
+        }},
         {"$count": "n"},
     ]).to_list(1)
 
-    # 5. Recogidas MRW: aún no hay colección; 0 por defecto.
-    # Si existe colección "mrw_recogidas" con status="pendiente", contamos.
-    recogidas_pend = 0
-    try:
-        recogidas_pend = await db.mrw_recogidas.count_documents({"estado": "pendiente"})
-    except Exception:
-        recogidas_pend = 0
+    # Total envíos mes (GLS + MRW)
+    total_gls_mes = await db.ordenes.aggregate(pipeline_base_gls + [
+        {"$match": {"gls_envios.creado_en": {"$gte": mes_inicio.isoformat()}}},
+        {"$count": "n"},
+    ]).to_list(1)
+    total_mrw_mes = await db.ordenes.aggregate(pipeline_base_mrw + [
+        {"$match": {"mrw_envios.creado_en": {"$gte": mes_inicio.isoformat()}}},
+        {"$count": "n"},
+    ]).to_list(1)
+
+    recogidas_pend = await db.mrw_recogidas.count_documents({"estado": "pendiente"})
+
+    def _n(r):
+        return r[0]["n"] if r else 0
 
     return PanelResumenResponse(
-        envios_activos=(activos[0]["n"] if activos else 0),
-        entregados_hoy=(entregados_hoy[0]["n"] if entregados_hoy else 0),
-        incidencias_activas=(incidencias[0]["n"] if incidencias else 0),
+        envios_activos=_n(activos_gls) + _n(activos_mrw),
+        entregados_hoy=_n(entregados_gls) + _n(entregados_mrw),
+        incidencias_activas=_n(incid_gls) + _n(incid_mrw),
         recogidas_pendientes=recogidas_pend,
-        total_envios_mes=(total_mes[0]["n"] if total_mes else 0),
+        total_envios_mes=_n(total_gls_mes) + _n(total_mrw_mes),
     )
 
 
@@ -259,24 +290,27 @@ async def panel_listar_envios(
     page_size: int = Query(50, ge=1, le=500),
     user: dict = Depends(require_auth),
 ):
-    # Query base: órdenes con gls_envios no vacío
-    query: dict = {"gls_envios": {"$exists": True, "$ne": []}}
+    # Query base: órdenes con gls_envios O mrw_envios no vacío
+    query: dict = {
+        "$or": [
+            {"gls_envios": {"$exists": True, "$ne": []}},
+            {"mrw_envios": {"$exists": True, "$ne": []}},
+        ],
+    }
     if fecha_desde or fecha_hasta:
         rng: dict = {}
         if fecha_desde:
             rng["$gte"] = fecha_desde
         if fecha_hasta:
             rng["$lte"] = fecha_hasta
-        query["gls_envios.creado_en"] = rng
+        # No podemos filtrar ambos a la vez con el mismo key, aplicamos en memoria.
 
-    # Cargar órdenes completas (paginamos DESPUÉS de aplanar)
     proj = {
         "_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1,
-        "cliente_id": 1, "gls_envios": 1,
+        "cliente_id": 1, "gls_envios": 1, "mrw_envios": 1,
     }
     ordenes = await db.ordenes.find(query, proj).sort("updated_at", -1).to_list(5000)
 
-    # Cachear clientes en un batch
     cliente_ids = {o["cliente_id"] for o in ordenes if o.get("cliente_id")}
     clientes_map: dict = {}
     if cliente_ids:
@@ -289,12 +323,19 @@ async def panel_listar_envios(
     for o in ordenes:
         cli = clientes_map.get(o.get("cliente_id")) or {}
         nombre = (f"{cli.get('nombre','')} {cli.get('apellidos','')}").strip()
+
+        # ── GLS ──
         for envio in (o.get("gls_envios") or []):
             if not envio.get("codbarras"):
                 continue
             if not _envio_filter_matches(envio, transportista or "", estado, solo_incidencias):
                 continue
-
+            if fecha_desde and (envio.get("creado_en", "") < fecha_desde):
+                continue
+            if fecha_hasta and (envio.get("creado_en", "") > fecha_hasta):
+                continue
+            if transportista and transportista.upper() not in ("GLS", ""):
+                continue
             estado_actual = envio.get("estado_actual") or ""
             codigo = str(envio.get("estado_codigo") or "")
             incidencia = envio.get("incidencia") or ""
@@ -302,8 +343,7 @@ async def panel_listar_envios(
                 order_id=o["id"],
                 numero_orden=o.get("numero_orden", ""),
                 numero_autorizacion=o.get("numero_autorizacion") or "",
-                cliente_nombre=nombre,
-                cliente_telefono=cli.get("telefono", ""),
+                cliente_nombre=nombre, cliente_telefono=cli.get("telefono", ""),
                 transportista="GLS",
                 codbarras=envio["codbarras"],
                 referencia=envio.get("referencia", ""),
@@ -319,7 +359,53 @@ async def panel_listar_envios(
                 mock_preview=bool(envio.get("mock_preview", False)),
             ))
 
-    # Ordenar por última_actualizacion desc
+        # ── MRW ──
+        if transportista and transportista.upper() not in ("MRW", ""):
+            continue
+        for envio in (o.get("mrw_envios") or []):
+            if not envio.get("num_envio"):
+                continue
+            if fecha_desde and (envio.get("creado_en", "") < fecha_desde):
+                continue
+            if fecha_hasta and (envio.get("creado_en", "") > fecha_hasta):
+                continue
+            estado_actual = envio.get("estado_actual") or ""
+            codigo = str(envio.get("estado_codigo") or "")
+            incidencia = envio.get("incidencia") or ""
+            entregado_mrw = codigo == "60" or estado_actual.upper().startswith("ENTREGADO")
+            if solo_incidencias and not incidencia:
+                continue
+            if estado:
+                e = estado.upper()
+                if e == "ACTIVO" and entregado_mrw:
+                    continue
+                if e == "ENTREGADO" and not entregado_mrw:
+                    continue
+                if e == "INCIDENCIA" and not incidencia:
+                    continue
+                if e not in ("ACTIVO", "ENTREGADO", "INCIDENCIA") and e not in estado_actual.upper():
+                    continue
+            rows.append(PanelEnvioRow(
+                order_id=o["id"],
+                numero_orden=o.get("numero_orden", ""),
+                numero_autorizacion=o.get("numero_autorizacion") or "",
+                cliente_nombre=nombre, cliente_telefono=cli.get("telefono", ""),
+                transportista="MRW",
+                codbarras=envio["num_envio"],  # reutilizamos el campo como identificador
+                referencia=envio.get("referencia", ""),
+                estado_interno=estado_actual or "creado",
+                estado_codigo=codigo,
+                estado_color=("green" if entregado_mrw
+                              else "red" if incidencia else "blue"),
+                tiene_incidencia=bool(incidencia),
+                incidencia=incidencia,
+                creado_en=envio.get("creado_en", ""),
+                ultima_actualizacion=envio.get("ultima_actualizacion",
+                                               envio.get("creado_en", "")),
+                tracking_url=envio.get("tracking_url", ""),
+                mock_preview=bool(envio.get("mock_preview", False)),
+            ))
+
     rows.sort(key=lambda r: r.ultima_actualizacion or r.creado_en, reverse=True)
 
     total = len(rows)

@@ -1,0 +1,155 @@
+{
+  "summary": "GLS tracking URL update, MRW integration, and Triador UI endpoint testing complete. 16/16 backend tests passed. All frontend UI tests passed. GLS now uses mygls.gls-spain.es/e/{codexp}/{codplaza_dst} format. MRW integration fully functional in preview mode with mock data.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "LogisticaPanel",
+        "issues": ["Console warning: 'Encountered two children with the same key' - duplicate keys for envios with same order_id and codbarras"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gls_mrw_triador.py",
+    "/app/test_reports/pytest/pytest_results_gls_mrw_triador.xml"
+  ],
+  "action_items": [
+    "Fix duplicate key warning in LogisticaPanel.jsx - use unique key combining order_id + transportista + codbarras"
+  ],
+  "critical_code_review_comments": [
+    "GLS tracking URL correctly uses mygls.gls-spain.es/e/{codexp}/{codplaza_dst} format for new envios",
+    "Fallback to legacy URL format works for old envios without codexp/codplaza_dst",
+    "MRW integration follows same pattern as GLS with mock client in preview mode",
+    "MRW num_envio format: M + 11 digits (total 12 chars)",
+    "MRW num_recogida format: R + 11 digits (total 12 chars)",
+    "Panel resumen correctly counts GLS + MRW envios and recogidas_pendientes",
+    "Triador diagnostico endpoint chains 3 tools: proponer_diagnostico, sugerir_repuestos, recomendar_tecnico",
+    "Triador returns success=false with error=sin_averia_descripcion when order has no averia",
+    "Triador tecnico section only shows when technicians with matching specialty exist",
+    "Email tracking URL in ordenes_routes.py line 3703 uses mygls format when codexp/codplaza available"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_gls_mrw_triador.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 pytest tests passed)",
+    "frontend": "100% (All UI tests passed)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "MRW envios and recogidas created during testing (mock preview mode)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "MCP_ENV=preview active. GLS and MRW both use mock clients. GLS tracking URL format changed to mygls.gls-spain.es/e/{codexp}/{codplaza_dst}. MRW endpoints: /api/logistica/mrw/crear-envio, /api/logistica/mrw/orden/{id}, /api/logistica/mrw/actualizar-tracking/{num_envio}, /api/logistica/mrw/solicitar-recogida, /api/logistica/config/mrw, /api/logistica/config/mrw/remitente, /api/logistica/config/mrw/verify. Triador endpoint: /api/ordenes/{id}/triador-diagnostico. Panel resumen at /api/logistica/panel/resumen counts both GLS and MRW. Panel envios at /api/logistica/panel/envios supports transportista=GLS|MRW filter.",
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "GLS SOAP preview - generates deterministic codexp/codplaza_dst",
+      "MRW SOAP preview - generates M+11 digits num_envio, R+11 digits num_recogida",
+      "Portal Insurama preview"
+    ]
+  },
+  "verified_features": [
+    {
+      "feature": "POST /api/logistica/gls/crear-envio returns mygls tracking URL",
+      "tests": ["tracking_url contains mygls.gls-spain.es/e/{codexp}/{codplaza_dst}"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/gls/orden/{id} returns mygls URL for new envios",
+      "tests": ["envios with codexp/codplaza_dst have mygls format URL"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/config/mrw returns config",
+      "tests": ["Returns entorno, franquicia_masked, abonado_masked, usuario_masked, credenciales_set, remitente, stats_mes, ultimo_envio"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/config/mrw/remitente persists in BD",
+      "tests": ["Saves remitente data, marks source=bd"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/config/mrw/verify in preview",
+      "tests": ["Returns ok=true, preview=true"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/mrw/crear-envio in preview",
+      "tests": ["Returns num_envio starting with M, 12 chars total", "tracking_url contains mrw.es/seguimiento_envios/Tracking.asp", "mock_preview=true"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/mrw/orden/{id}",
+      "tests": ["Returns envios list with num_envio, estado, tracking_url"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/mrw/actualizar-tracking/{num_envio}",
+      "tests": ["Updates estado in preview mode"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/mrw/solicitar-recogida",
+      "tests": ["Returns num_recogida starting with R", "Creates doc with estado=pendiente"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/resumen counts GLS + MRW",
+      "tests": ["Returns envios_activos, entregados_hoy, incidencias_activas, recogidas_pendientes, total_envios_mes"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/envios?transportista=MRW",
+      "tests": ["Filters only MRW envios"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/envios?transportista=GLS",
+      "tests": ["Filters only GLS envios"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/ordenes/{id}/triador-diagnostico without averia",
+      "tests": ["Returns diagnostico.success=false, error=sin_averia_descripcion"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/ordenes/{id}/triador-diagnostico with averia",
+      "tests": ["Returns diagnostico with causas_probables, tipo_reparacion_sugerido, confianza_global", "Returns repuestos section", "Returns tecnico section when applicable"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/ordenes/{id}/triador-diagnostico with 'pantalla rota'",
+      "tests": ["Returns diagnostico_match=true, tipo_reparacion_sugerido=pantalla, confianza_global>=0.5"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GLS envio stores codexp and codplaza_dst in BD",
+      "tests": ["Verified envios have codexp and codplaza_dst fields"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: LogisticaPanel shows GLS + MRW envios",
+      "tests": ["Panel loads with 4 summary cards", "Transportista dropdown has GLS and MRW options", "Table shows both transportistas with mock badge"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: AjustesGLS MRW tab",
+      "tests": ["MRW tab clickable", "MRW config content loads", "PREVIEW badge visible", "Credenciales section shows masked values", "Remitente form editable", "Verificar conexión button visible", "Guardar remitente button visible"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: OrdenDetalle Probar diagnóstico button",
+      "tests": ["IA assistant banner visible", "Probar diagnóstico button clickable", "Dialog opens with 3 sections (diagnóstico, repuestos, técnico)", "90% confianza badge for pantalla rota", "Causas probables with confidence bars", "Repuestos section shows stock status"],
+      "status": "PASSED"
+    }
+  ]
+}

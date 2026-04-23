@@ -106,6 +106,8 @@ class ResultadoEnvio:
     uid: str
     etiqueta_pdf_base64: str
     referencia: str
+    codexp: str = ""          # Código de expedición (para tracking público)
+    codplaza_dst: str = ""    # Código de plaza destino (para tracking público)
     raw_request: str = ""
     raw_response: str = ""
 
@@ -116,6 +118,8 @@ class ResultadoEnvio:
             "uid": self.uid,
             "etiqueta_pdf_base64": self.etiqueta_pdf_base64,
             "referencia": self.referencia,
+            "codexp": self.codexp,
+            "codplaza_dst": self.codplaza_dst,
         }
 
 
@@ -389,6 +393,27 @@ xmlns:soap12="{SOAP12_NS}">
 
         codbarras = envio_el.get("codbarras", "")
         uid = envio_el.get("uid", "")
+        # Atributos adicionales para URL de tracking público (mygls.gls-spain.es)
+        codexp = (envio_el.get("codexp")
+                  or envio_el.get("CodExp")
+                  or "")
+        codplaza_dst = (envio_el.get("codplaza_dst")
+                        or envio_el.get("CodPlazaDst")
+                        or envio_el.get("codplazadst")
+                        or envio_el.get("CodigoPlazaDestino")
+                        or "")
+
+        # También buscar en nodos hijos por si no están como atributos
+        if not codexp:
+            exp_child = self._find_by_localname(envio_el, "codexp")
+            if exp_child is not None and exp_child.text:
+                codexp = exp_child.text.strip()
+        if not codplaza_dst:
+            for name in ("codplaza_dst", "codplazadst", "PlazaDestino", "plazadestino"):
+                plaza_child = self._find_by_localname(envio_el, name)
+                if plaza_child is not None and plaza_child.text:
+                    codplaza_dst = plaza_child.text.strip()
+                    break
 
         # Resultado / error code
         resultado_el = self._find_by_localname(envio_el, "Resultado")
@@ -437,6 +462,8 @@ xmlns:soap12="{SOAP12_NS}">
             uid=uid,
             etiqueta_pdf_base64=etiqueta_b64,
             referencia=referencia,
+            codexp=codexp,
+            codplaza_dst=codplaza_dst,
             raw_request=raw_request,
             raw_response=response_text[:5000],
         )
@@ -497,18 +524,29 @@ xmlns:soap12="{SOAP12_NS}">
         while len(codbarras) < 14:
             codbarras += "0"
         uid_env = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"gls-preview-{order_id}"))
+        # Codexp y codplaza deterministas para que la URL sea estable en preview
+        digest_hex = digest[:10]
+        codexp = str(int(digest_hex, 16))[:10]  # 10 dígitos
+        # Derivamos un CP de 5 dígitos (08015 por defecto si nada parsea)
+        remitente_cp = (self.remitente.cp or "").strip()
+        if remitente_cp.isdigit() and len(remitente_cp) == 5:
+            codplaza_dst = remitente_cp
+        else:
+            codplaza_dst = str(int(digest[10:14], 16))[:5].zfill(5)
         pdf_bytes = _MOCK_PDF_TEMPLATE.replace(
             b"__CODBARRAS__", codbarras.encode("ascii"),
         )
         pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
-        logger.info("GLS[preview] crear_envio order=%s → codbarras=%s",
-                    order_id, codbarras)
+        logger.info("GLS[preview] crear_envio order=%s → codbarras=%s codexp=%s plaza=%s",
+                    order_id, codbarras, codexp, codplaza_dst)
         return ResultadoEnvio(
             success=True,
             codbarras=codbarras,
             uid=uid_env,
             etiqueta_pdf_base64=pdf_b64,
             referencia=referencia,
+            codexp=codexp,
+            codplaza_dst=codplaza_dst,
             raw_request="<preview-mode/>",
             raw_response="<preview-mode/>",
         )

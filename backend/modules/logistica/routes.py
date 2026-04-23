@@ -71,7 +71,20 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _tracking_url(codbarras: str) -> str:
+def _tracking_url(codbarras: str, codexp: str = "", codplaza_dst: str = "") -> str:
+    """
+    URL de tracking público GLS.
+
+    Formato oficial (verificado con GLS Spain): 
+        https://mygls.gls-spain.es/e/{codexp}/{codplaza_dst}
+
+    Se usa este formato SIEMPRE que tengamos `codexp` y `codplaza_dst` de la
+    respuesta de GLS. Si falta alguno (envíos antiguos pre-refactor), caemos al
+    formato legacy por match de codbarras para no perder el enlace.
+    """
+    if codexp and codplaza_dst:
+        return f"https://mygls.gls-spain.es/e/{codexp}/{codplaza_dst}"
+    # Fallback legacy (compatibilidad con envíos creados antes del cambio)
     return (f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
             f"?match={codbarras}")
 
@@ -231,7 +244,11 @@ def _envio_doc_to_resumen(doc: dict) -> EnvioResumen:
         estado_color=estado_color(estado, codigo),
         incidencia=doc.get("incidencia", ""),
         fecha_entrega=doc.get("fecha_entrega", ""),
-        tracking_url=doc.get("tracking_url") or _tracking_url(doc.get("codbarras", "")),
+        tracking_url=doc.get("tracking_url") or _tracking_url(
+            doc.get("codbarras", ""),
+            codexp=doc.get("codexp", ""),
+            codplaza_dst=doc.get("codplaza_dst", ""),
+        ),
         creado_en=doc.get("creado_en", ""),
         ultima_actualizacion=doc.get("ultima_actualizacion", doc.get("creado_en", "")),
         mock_preview=bool(doc.get("mock_preview", False)),
@@ -320,13 +337,19 @@ async def crear_envio_gls(
         logger.error("GLS rechazó envío orden=%s: %s", data.order_id, exc)
         raise HTTPException(400, f"GLS: {exc}") from exc
 
-    tracking_url = _tracking_url(resultado.codbarras)
+    tracking_url = _tracking_url(
+        resultado.codbarras,
+        codexp=resultado.codexp,
+        codplaza_dst=resultado.codplaza_dst,
+    )
     mock_preview = _is_preview()
     now = _now_iso()
 
     envio_doc = {
         "codbarras": resultado.codbarras,
         "uid": resultado.uid,
+        "codexp": resultado.codexp,
+        "codplaza_dst": resultado.codplaza_dst,
         "referencia": resultado.referencia,
         "tracking_url": tracking_url,
         "peso_kg": data.peso_kg,
@@ -450,6 +473,17 @@ async def tracking_gls(codbarras: str, user: dict = Depends(require_auth)):
     if not tracking.success:
         raise HTTPException(404, f"Envío {codbarras} no encontrado en GLS")
 
+    # Busca el envío en BD para recuperar codexp + codplaza_dst y usar URL mygls
+    envio_bd = await db.ordenes.find_one(
+        {"gls_envios.codbarras": codbarras},
+        {"_id": 0, "gls_envios.$": 1},
+    )
+    codexp, codplaza_dst = "", ""
+    if envio_bd and envio_bd.get("gls_envios"):
+        e0 = envio_bd["gls_envios"][0]
+        codexp = e0.get("codexp", "")
+        codplaza_dst = e0.get("codplaza_dst", "")
+
     return TrackingDirectResponse(
         success=True,
         codbarras=tracking.codbarras,
@@ -461,7 +495,7 @@ async def tracking_gls(codbarras: str, user: dict = Depends(require_auth)):
         fecha_entrega=tracking.fecha_entrega,
         incidencia=tracking.incidencia,
         eventos=[EventoTrackingOut(**e.to_dict()) for e in tracking.eventos],
-        tracking_url=_tracking_url(tracking.codbarras),
+        tracking_url=_tracking_url(tracking.codbarras, codexp=codexp, codplaza_dst=codplaza_dst),
         mock_preview=_is_preview(),
     )
 

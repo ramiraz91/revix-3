@@ -1,0 +1,203 @@
+{
+  "summary": "Logística Panel and GLS Ajustes - All 23 features verified. Backend 13/13 pytest tests passing. Frontend UI fully functional with all data-testids present. GLS SOAP integration uses MOCKED preview mode (MCP_ENV=preview).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_logistica_panel.py",
+    "/app/test_reports/pytest/pytest_results_logistica_panel.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "panel_config.py correctly excludes MongoDB _id from responses",
+    "UID masking works correctly: bullets + last 8 chars visible",
+    "Remitente source tracking (bd/env) implemented correctly",
+    "Polling validation enforces 0.25-48h range with 422 on invalid",
+    "CSV export includes BOM for Excel compatibility",
+    "LogisticaPanel.jsx has all required data-testids",
+    "AjustesGLS.jsx has all required data-testids",
+    "Layout.jsx correctly shows 'Logística' in PRINCIPAL and 'GLS · Ajustes' in INTEGRACIONES",
+    "Notification bell correctly removed from top-right corner"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (13/13 pytest tests passed)",
+    "frontend": "100% (All 23 features verified)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "Test data created by test_logistica_panel.py with TEST_MCP_PANEL_ prefix",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Logística Panel (/crm/logistica) and GLS Ajustes (/crm/ajustes/gls) are complete. Backend uses MCP_ENV=preview for mocked GLS SOAP calls. Key endpoints: /api/logistica/panel/resumen, /panel/envios, /panel/actualizar-todos, /panel/export-csv, /config/gls, /config/gls/remitente, /config/gls/polling, /config/gls/verify. All data-testids documented in review_request.",
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["GLS SOAP (uses GLSClient mock in preview mode - MCP_ENV=preview)"]
+  },
+  "verified_features": [
+    {
+      "feature": "GET /api/logistica/panel/resumen",
+      "tests": ["Returns envios_activos, entregados_hoy, incidencias_activas, recogidas_pendientes, total_envios_mes"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/envios with filters",
+      "tests": ["Filters by estado=ACTIVO|ENTREGADO|INCIDENCIA", "Filters by transportista=GLS", "Filters by solo_incidencias=true", "Filters by fecha_desde/fecha_hasta"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/panel/actualizar-todos",
+      "tests": ["Returns ok=true, preview=true in preview mode", "Returns procesados, cambios_estado, incidencias, entregas, errores"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/panel/export-csv",
+      "tests": ["Returns text/csv content-type", "Includes correct columns (numero_orden, codbarras, etc.)", "Has BOM for Excel"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/logistica/config/gls",
+      "tests": ["Returns entorno (preview/production)", "Returns uid_cliente_masked with bullets + last 8 chars", "Returns remitente with source (bd/env)", "Returns polling_hours, stats_mes, ultimo_envio"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/config/gls/remitente",
+      "tests": ["Saves to BD collection configuracion {tipo:'gls'}", "Returns updated config with source='bd'"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/config/gls/polling",
+      "tests": ["Validates range 0.25-48h", "Returns 422 if out of range", "Saves to BD"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/config/gls/verify",
+      "tests": ["Returns ok=true, preview=true in preview mode", "Returns mensaje about mock active"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "/crm/logistica loads LogisticaPanel",
+      "tests": ["Page loads with data-testid='logistica-panel'", "4 summary cards visible"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "LogisticaPanel summary cards",
+      "tests": ["card-envios-activos shows count", "card-entregados-hoy shows count", "card-incidencias shows count", "card-recogidas shows count"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "LogisticaPanel table",
+      "tests": ["Shows envío rows with cliente, codbarras, estado_interno", "Badges colored by estado_color", "mock badge shown for preview data"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "LogisticaPanel filters",
+      "tests": ["select-estado-envios works", "select-transportista works", "input-fecha-desde/hasta work", "btn-solo-incidencias toggles", "input-busqueda-envios filters client-side"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "LogisticaPanel action buttons",
+      "tests": ["btn-refrescar-panel refreshes data", "btn-actualizar-todos calls endpoint and shows toast", "btn-export-csv downloads CSV"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "LogisticaPanel row click navigation",
+      "tests": ["Clicking row navigates to /crm/ordenes/{order_id}"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "/crm/ajustes/gls loads AjustesGLS",
+      "tests": ["Page loads with data-testid='ajustes-gls-page'", "GLS tab active, MRW tab disabled"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "AjustesGLS environment badge",
+      "tests": ["Shows PREVIEW badge (yellow) in preview mode", "Badge shows 'mocks activos'"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "AjustesGLS UID masked",
+      "tests": ["Shows bullets + last 8 chars (e.g., ••••••••cf190020)", "Shows 'seteado' badge when configured"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "AjustesGLS verify connection",
+      "tests": ["btn-verificar-conexion shows toast on click", "Toast shows preview message in preview mode"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "AjustesGLS remitente form",
+      "tests": ["All 7 input fields present (nombre, direccion, poblacion, provincia, cp, telefono, pais)", "Source indicators (env/bd) shown", "btn-guardar-remitente saves to BD"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "AjustesGLS polling config",
+      "tests": ["input-polling-hours editable", "btn-guardar-polling saves", "btn-force-poll triggers immediate update"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Sidebar menu - Logística",
+      "tests": ["'Logística' nav item visible in PRINCIPAL group", "Links to /crm/logistica"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Sidebar menu - GLS Ajustes",
+      "tests": ["'GLS · Ajustes' nav item visible in INTEGRACIONES group", "Links to /crm/ajustes/gls"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Notification bell removed",
+      "tests": ["No notification bell in top-right corner of CRM"],
+      "status": "PASSED"
+    }
+  ],
+  "data_testids_verified": [
+    "logistica-panel",
+    "btn-refrescar-panel",
+    "btn-actualizar-todos",
+    "btn-export-csv",
+    "card-envios-activos",
+    "card-entregados-hoy",
+    "card-incidencias",
+    "card-recogidas",
+    "input-busqueda-envios",
+    "select-estado-envios",
+    "select-transportista",
+    "input-fecha-desde",
+    "input-fecha-hasta",
+    "btn-solo-incidencias",
+    "btn-limpiar-filtros",
+    "envio-row-{codbarras}",
+    "ajustes-gls-page",
+    "tabs-transportistas",
+    "tab-gls",
+    "tab-mrw",
+    "card-estado-integracion",
+    "badge-entorno-preview",
+    "card-credenciales",
+    "uid-masked",
+    "btn-verificar-conexion",
+    "card-remitente",
+    "input-remitente-nombre",
+    "input-remitente-direccion",
+    "input-remitente-poblacion",
+    "input-remitente-provincia",
+    "input-remitente-cp",
+    "input-remitente-telefono",
+    "input-remitente-pais",
+    "btn-guardar-remitente",
+    "card-polling",
+    "input-polling-hours",
+    "btn-guardar-polling",
+    "btn-force-poll",
+    "stats-envios-mes",
+    "stats-incidencias-mes"
+  ]
+}

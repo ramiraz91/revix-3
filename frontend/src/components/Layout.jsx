@@ -282,7 +282,7 @@ export default function Layout() {
             <NavItem path="/dashboard" icon={LayoutDashboard} label="Dashboard" />
             {isAdmin() && <NavItem path="/nuevas-ordenes" icon={PackagePlus} label="Nuevas Órdenes" badge={nuevasOrdenesCount} />}
             <NavItem path="/ordenes" icon={ClipboardList} label="Órdenes de Trabajo" />
-            {isAdmin() && <NavItem path="/logistica" icon={Truck} label="Envíos y Recogidas" />}
+            {isAdmin() && <NavItem path="/logistica" icon={Truck} label="Logística" />}
             {isAdmin() && <NavItem path="/calendario" icon={Calendar} label="Calendario" />}
             <NavItem path="/scanner" icon={QrCode} label="Escáner QR" />
             {isAdmin() && <NavItem path="/incidencias" icon={AlertTriangle} label="Incidencias" />}
@@ -316,11 +316,12 @@ export default function Layout() {
                 <NavItem path="/finanzas" icon={BarChart3} label="Finanzas" />
                 <NavItem path="/contabilidad" icon={Receipt} label="Facturas y Albaranes" />
                 <NavItem path="/comisiones" icon={DollarSign} label="Comisiones" />
-                <NavItem path="/gls-config" icon={Truck} label="GLS Config" />
+                <NavItem path="/gls-config" icon={Truck} label="GLS Config (legacy)" />
               </SidebarGroup>
 
               {/* Integraciones */}
               <SidebarGroup label="Integraciones">
+                <NavItem path="/ajustes/gls" icon={Truck} label="GLS · Ajustes" />
                 <NavItem path="/buscar-siniestro" icon={Shield} label="Buscar Siniestro" />
                 {isMaster() && <NavItem path="/insurama" icon={Settings} label="Config. Insurama" />}
                 {isMaster() && <NavItem path="/liquidaciones" icon={Receipt} label="Liquidaciones" />}

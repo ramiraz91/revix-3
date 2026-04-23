@@ -58,6 +58,8 @@ import Incidencias from "@/pages/Incidencias";
 import Analiticas from "@/pages/Analiticas";
 import EmailConfig from "@/pages/EmailConfig";
 import GLSConfigPage from "@/pages/GLSConfigPage";
+import LogisticaPanel from "@/pages/LogisticaPanel";
+import AjustesGLS from "@/pages/AjustesGLS";
 import Comisiones from "@/pages/Comisiones";
 // Logistica page removed - replaced by GLSAdmin
 import NotificacionesTecnico from "@/pages/NotificacionesTecnico";
@@ -223,6 +225,16 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="ordenes/:id" element={<OrdenRoute />} />
+        <Route path="logistica" element={
+          <ProtectedRoute adminOnly>
+            <LogisticaPanel />
+          </ProtectedRoute>
+        } />
+        <Route path="ajustes/gls" element={
+          <ProtectedRoute adminOnly>
+            <AjustesGLS />
+          </ProtectedRoute>
+        } />
         <Route path="clientes" element={
           <ProtectedRoute adminOnly>
             <Clientes />

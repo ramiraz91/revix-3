@@ -1,0 +1,132 @@
+{
+  "summary": "Agents Panel (/crm/agentes) testing complete. 26/26 backend tests passed. All frontend UI tests passed. 8 agents displayed with stats, pause/activate, timeline, config, metrics, and approval queue all working. Regression tests for /crm/logistica and /crm/ajustes/gls passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_agents_panel.py",
+    "/app/test_reports/pytest/pytest_results_agents_panel.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/agents/panel/overview returns 8 agents with estado, acciones_hoy, tasa_exito_7d, tools_count + resumen global",
+    "POST /api/agents/{id}/pause correctly requires master/admin role (403 for tecnico)",
+    "POST /api/agents/{id}/activate works and persists in agent_states collection",
+    "GET /api/agents/{id}/timeline returns audit_logs with tool/resultado filters working",
+    "GET /api/agents/{id}/config returns rate_limit_soft/hard, system_prompt_default+effective, override flag, history, scopes, tools",
+    "POST /api/agents/{id}/config validates hard>=soft and persists in mcp_rate_limits and agent_overrides",
+    "GET /api/agents/panel/metrics returns por_agente, top_tools, por_dia, top_errors for configurable days",
+    "GET /api/agents/panel/pending-approvals returns empty queue (placeholder ready for future approval flows)",
+    "Frontend AgentesPanel.jsx displays all 8 agent cards with emoji, badge estado, metrics, buttons",
+    "Agent detail Sheet has 5 tabs: ¿Qué hace?, Actividad, Tareas, Config, Cola - all functional",
+    "Wizard '¿Qué puedo hacer?' shows 6 use cases that navigate to /crm/agente-aria with agent+prompt params",
+    "Auto-refresh 60s implemented via setInterval in useEffect",
+    "Role check uses user.role (English) correctly per agent_to_agent_context_note"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_agents_panel.py"
+  ],
+  "success_rate": {
+    "backend": "100% (26/26 pytest tests passed)",
+    "frontend": "100% (All UI tests passed)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "tecnico_user": "tecnico1@revix.es / Tecnico1Demo!"
+  },
+  "seed_data_creation": "Rate limits and system prompt overrides created during testing (cleaned up)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "MCP_ENV=preview active. Agents panel at /crm/agentes fully functional. 8 agents defined in agent_defs.py: kpi_analyst, auditor, supervisor_cola, iso_officer, finance_officer, gestor_siniestros, triador_averias, seguimiento_publico. Pending approvals queue is empty by design (no approval flow generates items yet). Agent states stored in agent_states collection, rate limits in mcp_rate_limits, prompt overrides in agent_overrides. Audit logs in audit_logs collection with timestamp_dt for date queries.",
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "GLS SOAP preview - generates deterministic codexp/codplaza_dst",
+      "MRW SOAP preview - generates M+11 digits num_envio",
+      "Portal Insurama preview"
+    ]
+  },
+  "verified_features": [
+    {
+      "feature": "GET /api/agents/panel/overview",
+      "tests": ["Returns 8 agents", "Each agent has agent_id, nombre, descripcion, emoji, estado, tools_count, acciones_hoy, tasa_exito_7d", "Resumen has total_agentes=8, acciones_hoy, errores_24h, agente_mas_activo, aprobaciones_pendientes, tareas_proximas_24h"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/{id}/pause",
+      "tests": ["Master can pause agent", "Returns estado=pausado", "Persists in agent_states", "Non-master gets 403"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/{id}/activate",
+      "tests": ["Master can activate agent", "Returns estado=activo"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/{id}/timeline",
+      "tests": ["Returns items array", "Filter by tool works", "Filter by resultado (ok/error) works", "404 for non-existent agent"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/{id}/config",
+      "tests": ["Returns rate_limit_soft, rate_limit_hard", "Returns system_prompt_default, system_prompt_effective, system_prompt_override", "Returns scopes, tools, history"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/{id}/config - rate limits",
+      "tests": ["Updates rate limits", "Validates hard >= soft (400 if not)", "Persists in mcp_rate_limits"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/{id}/config - system prompt",
+      "tests": ["Updates system_prompt", "Persists in agent_overrides with history"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/panel/metrics",
+      "tests": ["Returns por_agente with agent_id, total, errores, tasa_exito", "Returns top_tools with agent_id, tool, total", "Returns por_dia, top_errors", "Accepts days=1,7,30"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/panel/pending-approvals",
+      "tests": ["Returns items array (empty by design)", "Returns total count"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/panel/pending-approvals/{id}/decide",
+      "tests": ["404 for non-existent approval", "Validates decision must be aprobar/rechazar/modificar"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: /crm/agentes panel",
+      "tests": ["8 agent cards displayed", "Each card has emoji, ACTIVO badge, metrics (Hoy, Éxito 7d, Tools)", "Pausar/Hablar/Detalle buttons present", "Summary cards (Acciones hoy, Errores 24h, Aprobaciones pendientes, Tareas 24h, Más activo)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: Agent detail Sheet",
+      "tests": ["Opens on Detalle click", "5 tabs: ¿Qué hace?, Actividad, Tareas, Config, Cola", "Actividad tab has tool filter", "Config tab has rate limit inputs and edit prompt button", "Cola tab shows empty state"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI: Wizard '¿Qué puedo hacer?'",
+      "tests": ["Opens on button click", "6 use cases displayed", "Each case clickable"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression: /crm/logistica",
+      "tests": ["Panel loads with envios table", "GLS and MRW envios displayed"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression: /crm/ajustes/gls",
+      "tests": ["GLS tab loads with credentials and remitente form", "MRW tab available"],
+      "status": "PASSED"
+    }
+  ]
+}

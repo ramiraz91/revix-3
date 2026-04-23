@@ -77,6 +77,7 @@ import PeticionesExteriores from "@/pages/PeticionesExteriores";
 import FAQsAdmin from "@/pages/FAQsAdmin";
 import AgentARIA from "@/pages/AgentARIA";
 import AgentesIA from "@/pages/AgentesIA";
+import AgentesPanel from "@/pages/AgentesPanel";
 import HistorialImpresion from "@/pages/HistorialImpresion";
 
 // Public website pages
@@ -357,6 +358,11 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="agentes" element={
+          <ProtectedRoute adminOnly>
+            <AgentesPanel />
+          </ProtectedRoute>
+        } />
+        <Route path="agentes/legacy" element={
           <ProtectedRoute adminOnly>
             <AgentesIA />
           </ProtectedRoute>

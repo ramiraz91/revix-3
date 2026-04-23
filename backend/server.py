@@ -66,6 +66,7 @@ from modules.logistica.panel_config import router as logistica_panel_router
 from modules.logistica.daily_summary import router as logistica_daily_router
 from modules.logistica.mrw_routes import router as logistica_mrw_router
 from modules.agents.triador_ui_routes import router as triador_ui_router
+from modules.agents.panel_routes import router as agents_panel_router
 from routes.finanzas_routes import router as finanzas_router
 from routes.inventario_mejorado_routes import router as inventario_mejorado_router
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
@@ -167,6 +168,7 @@ api_router.include_router(logistica_panel_router)
 api_router.include_router(logistica_daily_router)
 api_router.include_router(logistica_mrw_router)
 api_router.include_router(triador_ui_router)
+api_router.include_router(agents_panel_router)
 api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
 api_router.include_router(print_router)

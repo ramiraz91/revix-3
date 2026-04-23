@@ -65,6 +65,7 @@ import AppleManualCard from '@/components/AppleManualCard';
 import GLSLogistica from '@/components/orden/GLSLogistica';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
 import GLSEnvioPanel from '@/components/orden/GLSEnvioPanel';
+import ValidarEnvioInline from '@/components/orden/ValidarEnvioInline';
 
 // Import refactored components
 import {
@@ -2774,48 +2775,6 @@ export default function OrdenDetalle() {
               <Button
                 onClick={handleConfirmRePresupuesto}
                 disabled={enviandoRePresupuesto || !rePresupuestoData.nuevo_importe}
-                className="flex-1 bg-orange-600 hover:bg-orange-700"
-                data-testid="btn-confirmar-re-presupuesto"
-              >
-                {enviandoRePresupuesto ? 'Enviando...' : 'Confirmar Re-presupuesto'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hidden PDF for printing */}
-      <div className="hidden">
-        <OrdenPDF
-          ref={pdfRefFull}
-          orden={orden}
-          cliente={cliente}
-          materiales={orden?.materiales || []}
-          mode="full"
-          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
-          includeFotos={true}
-        />
-        <OrdenPDF
-          ref={pdfRefNoPrices}
-          orden={orden}
-          cliente={cliente}
-          materiales={orden?.materiales || []}
-          mode="no_prices"
-          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
-        />
-        <OrdenPDF
-          ref={pdfRefBlank}
-          orden={orden}
-          cliente={cliente}
-          materiales={orden?.materiales || []}
-          mode="blank_no_prices"
-          modoB2B={(cliente?.tipo_cliente || '').toLowerCase() === 'empresa'}
-        />
-      </div>
-    </div>
-  );
-}
-mporte}
                 className="flex-1 bg-orange-600 hover:bg-orange-700"
                 data-testid="btn-confirmar-re-presupuesto"
               >

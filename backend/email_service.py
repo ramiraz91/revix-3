@@ -20,7 +20,39 @@ logger = logging.getLogger(__name__)
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "notificaciones@revix.es").strip()
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://revix.es").rstrip("/")
+
+# ── FRONTEND_URL con salvaguarda anti-preview ─────────────────────────────────
+# En production, si el deployment inyecta accidentalmente una URL de preview
+# (o de localhost), los emails que se envíen a clientes reales llevarían links
+# inservibles. Filtramos dominios no válidos y caemos al dominio oficial.
+_UNSAFE_URL_PATTERNS = (
+    "preview.emergentagent.com", "preview.emergent.host",
+    "emergentagent.com", "emergent.host",
+    "localhost", "127.0.0.1", "0.0.0.0",
+    ".local", ".test",
+)
+_PUBLIC_FALLBACK = "https://revix.es"
+
+
+def _safe_public_url(raw: Optional[str]) -> str:
+    """Devuelve una URL pública segura. Filtra previews/localhost."""
+    val = (raw or "").strip().rstrip("/")
+    if not val:
+        return _PUBLIC_FALLBACK
+    low = val.lower()
+    if not (low.startswith("http://") or low.startswith("https://")):
+        return _PUBLIC_FALLBACK
+    if any(p in low for p in _UNSAFE_URL_PATTERNS):
+        logger.warning(
+            "⚠️ FRONTEND_URL detectada como no-producción (%s). "
+            "Usando fallback %s para links de emails.",
+            val, _PUBLIC_FALLBACK,
+        )
+        return _PUBLIC_FALLBACK
+    return val
+
+
+FRONTEND_URL = _safe_public_url(os.getenv("FRONTEND_URL"))
 
 # Configurar Resend
 if RESEND_API_KEY:

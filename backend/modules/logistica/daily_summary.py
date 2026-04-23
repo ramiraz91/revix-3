@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from config import db
 from auth import require_admin
-from email_service import send_email_async
+from email_service import send_email_async, _safe_public_url
 
 from modules.logistica.state_mapper import is_entregado, is_incidencia
 
@@ -185,7 +185,7 @@ async def send_daily_summary(*, force: bool = False) -> dict:
         to=to, subject=subject,
         titulo="Resumen diario de logística",
         contenido=html_body,
-        link_url=os.environ.get("FRONTEND_URL", "https://revix.es") + "/crm/logistica",
+        link_url=_safe_public_url(os.environ.get("FRONTEND_URL")) + "/crm/logistica",
         link_text="Abrir panel de logística",
     )
 

@@ -133,6 +133,8 @@ async def seed_default_limits(db: AsyncIOMotorDatabase) -> None:
         ('supervisor_cola', 120, 600),
         ('iso_officer', 120, 600),
         ('finance_officer', 120, 600),
+        ('gestor_siniestros', 120, 600),
+        ('triador_averias', 120, 600),
         ('seguimiento_publico', 60, 300),
     ]
     for agent_id, soft, hard in defaults:

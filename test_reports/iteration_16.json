@@ -1,0 +1,112 @@
+{
+  "summary": "Daily Summary + Fase 3 MCP Agents testing complete. All 13 backend tests passed. Frontend regression tests passed. Email sent to ramirez91@gmail.com (correct recipient). Both new agents (gestor_siniestros, triador_averias) registered with correct tools and rate limits (120/600).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_daily_summary_agents.py",
+    "/app/test_reports/pytest/pytest_results_daily_summary_agents.xml",
+    "/app/revix_mcp/tests/test_insurance_triador.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "daily_summary.py correctly sends to LOGISTICA_DAILY_EMAIL (default ramirez91@gmail.com), NOT master@revix.es",
+    "Idempotency via mcp_daily_runs collection works correctly (already_sent_today)",
+    "Scheduler starts on backend startup with 10-min check interval",
+    "Scheduler stops correctly on shutdown (no memory leaks)",
+    "gestor_siniestros has 8 tools: listar_peticiones_pendientes, crear_orden_desde_peticion, actualizar_portal_insurama, subir_evidencias, cerrar_siniestro, buscar_orden, buscar_cliente, ping",
+    "triador_averias has 6 tools: proponer_diagnostico, sugerir_repuestos, recomendar_tecnico, buscar_orden, consultar_inventario, ping",
+    "Rate limits seeded correctly: 120 soft / 600 hard for both new agents",
+    "Agent chat works with EMERGENT_LLM_KEY - proponer_diagnostico and listar_peticiones_pendientes tools execute correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_daily_summary_agents.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 pytest tests passed)",
+    "frontend": "100% (Regression tests passed - /crm/logistica and /crm/ajustes/gls load correctly)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "Rate limits seeded for gestor_siniestros and triador_averias on startup",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Daily summary endpoint at /api/logistica/panel/enviar-resumen-diario works. force=true sends email, force=false checks idempotency. 7 agents total in /api/agents (excluding seguimiento_publico which is public). Rate limits at /api/agents/rate-limits. Agent chat at /api/agents/{agent_id}/chat returns 'reply' field (not 'response' or 'message'). MCP_ENV=preview means Insurama portal updates are MOCKED.",
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "Insurama portal (mock en MCP_ENV=preview - actualizar_portal_insurama returns preview:true)",
+      "GLS SOAP (mock en preview)",
+      "Resend email API sends real emails when RESEND_API_KEY configured"
+    ]
+  },
+  "verified_features": [
+    {
+      "feature": "POST /api/logistica/panel/enviar-resumen-diario?force=true",
+      "tests": ["Returns sent:true, to:ramirez91@gmail.com, date, summary with envios_activos/incidencias_24h/entregas_ayer"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/logistica/panel/enviar-resumen-diario (no force, already sent)",
+      "tests": ["Returns sent:false, reason:already_sent_today"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents lists 7 agents",
+      "tests": ["Returns 7 agents including gestor_siniestros and triador_averias"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "gestor_siniestros agent details",
+      "tests": ["Has scopes insurance:ops, orders:write", "Has 8 tools including listar_peticiones_pendientes, crear_orden_desde_peticion, actualizar_portal_insurama, subir_evidencias, cerrar_siniestro", "Emoji is 🛡️"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "triador_averias agent details",
+      "tests": ["Has scopes orders:suggest, inventory:read", "Has 6 tools including proponer_diagnostico, sugerir_repuestos, recomendar_tecnico", "Emoji is 🔧"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "mcp_rate_limits seed for new agents",
+      "tests": ["gestor_siniestros has soft=120, hard=600", "triador_averias has soft=120, hard=600"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Agent chat - triador_averias",
+      "tests": ["POST /api/agents/triador_averias/chat executes proponer_diagnostico tool", "Returns reply with diagnosis"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Agent chat - gestor_siniestros",
+      "tests": ["POST /api/agents/gestor_siniestros/chat executes listar_peticiones_pendientes tool"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - /crm/logistica panel",
+      "tests": ["Panel loads with data-testid='logistica-panel'", "4 summary cards visible", "Envíos table shows data"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - /crm/ajustes/gls",
+      "tests": ["Page loads with data-testid='ajustes-gls-page'", "PREVIEW badge visible", "Remitente form populated"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Backend startup",
+      "tests": ["Daily summary scheduler started (logs show 'Daily summary scheduler arrancado')", "MCP scheduler started", "Rate limits seeded"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Scheduler shutdown",
+      "tests": ["stop_daily_summary_scheduler called on shutdown event"],
+      "status": "PASSED (verified in code)"
+    }
+  ]
+}

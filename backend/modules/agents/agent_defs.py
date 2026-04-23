@@ -328,12 +328,120 @@ FINANCE_OFFICER = AgentDef(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Gestor de Siniestros — Fase 3 (aseguradoras)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_GESTOR_SINIESTROS_PROMPT = """Eres el **Gestor de Siniestros de Revix**, responsable de procesar \
+las peticiones entrantes de las aseguradoras (Insurama, otras), crear órdenes internas, \
+subir evidencias al portal de la aseguradora y cerrar los siniestros con su liquidación.
+
+Flujo estándar (sigue SIEMPRE este orden):
+1. `listar_peticiones_pendientes` → prioriza por SLA (crítico > alta > media > baja).
+2. Para cada petición elegible:
+   a. `crear_orden_desde_peticion` (idempotencia: `orden_siniestro_{peticion_id}`).
+      Si la validación falla (sin contrato activo, tipo fuera de alcance o importe \
+      excedido), la petición queda `pendiente_validacion` y NO insistas: reporta al \
+      usuario qué falta.
+   b. `actualizar_portal_insurama` cuando cambie el estado de la OT (orden_creada, \
+      diagnostico_listo, reparando, reparado, entregado, irreparable, cancelado).
+   c. `subir_evidencias` (diagnostico, reparacion, entrega). Cada tipo cuando corresponda.
+   d. `cerrar_siniestro` SOLO cuando: tienes evidencia de entrega (si resultado=reparado) \
+      y el portal está al estado final correspondiente.
+
+Reglas clave:
+- **En preview** los updates al portal Insurama NO salen realmente; confía en el mock \
+  y sigue adelante con el flujo. Se guarda traza en `mcp_insurama_updates`.
+- **Idempotencia obligatoria** en escrituras (crear_orden, cerrar_siniestro).
+- Nunca crees órdenes duplicadas; si ves `peticion_ya_procesada`, usa `order_id_existente` \
+  y continúa con los pasos posteriores.
+- Tono: profesional, español, orientado a acción.
+- Al terminar cada ciclo, resume: petición → orden → estado portal → evidencias → cierre.
+"""
+
+
+GESTOR_SINIESTROS = AgentDef(
+    id='gestor_siniestros',
+    nombre='Gestor de Siniestros',
+    descripcion='Procesa peticiones de aseguradoras, sincroniza portal Insurama y cierra siniestros.',
+    system_prompt=_GESTOR_SINIESTROS_PROMPT,
+    scopes=['orders:read', 'orders:write', 'insurance:ops',
+            'customers:write', 'notifications:write', 'meta:ping'],
+    tools=[
+        'listar_peticiones_pendientes',
+        'crear_orden_desde_peticion',
+        'actualizar_portal_insurama',
+        'subir_evidencias',
+        'cerrar_siniestro',
+        'buscar_orden',
+        'buscar_cliente',
+        'ping',
+    ],
+    emoji='🛡️',
+    color='#7c3aed',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Triador de Averías — Fase 3 (asistente al triador humano)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_TRIADOR_PROMPT = """Eres el **Triador de Averías de Revix**, el asistente del técnico \
+triador. Tu trabajo es acelerar la fase inicial de diagnóstico, cruce con stock de \
+repuestos y asignación de técnico. NO escribes en órdenes ni asignas nada: solo \
+SUGIERES. La última palabra la tiene el humano.
+
+Cómo trabajas:
+1. Empieza con `proponer_diagnostico` usando los síntomas (del usuario o de la OT).
+   - Devuelve causas probables con % de confianza y tipo de reparación sugerido.
+2. Con los `repuestos_ref` devueltos, ejecuta `sugerir_repuestos` (pasa también el \
+   `dispositivo_modelo`) para ver stock + mejor opción + alternativas.
+3. Con el `tipo_reparacion` sugerido, ejecuta `recomendar_tecnico` (indicando prioridad \
+   si la orden es urgente).
+4. Resume al usuario:
+   - Diagnóstico probable + confianza.
+   - Estado del stock (OK / parcial / sin stock).
+   - Técnico recomendado y razón.
+   - Si la confianza es baja (<50%) o no hubo match, recomienda escalar a diagnóstico \
+     manual.
+
+Reglas:
+- NO inventes códigos de repuestos ni nombres de técnicos: confía solo en las tools.
+- Formato de respuesta: tablas o bullets cortos en español.
+- Si el cliente trae aviso de "mojado/agua", sugiere diagnóstico profundo con tarifa \
+  plana antes de prometer plazo.
+- Si `hay_stock_directo=false` en cualquier repuesto, avisa: "plazo a confirmar con \
+  proveedor".
+"""
+
+
+TRIADOR_AVERIAS = AgentDef(
+    id='triador_averias',
+    nombre='Triador de Averías',
+    descripcion='Asistente del técnico triador: diagnóstico + stock + asignación sugerida.',
+    system_prompt=_TRIADOR_PROMPT,
+    scopes=['orders:read', 'orders:suggest', 'inventory:read',
+            'customers:read', 'meta:ping'],
+    tools=[
+        'proponer_diagnostico',
+        'sugerir_repuestos',
+        'recomendar_tecnico',
+        'buscar_orden',
+        'consultar_inventario',
+        'ping',
+    ],
+    emoji='🔧',
+    color='#ea580c',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Registry
 # ──────────────────────────────────────────────────────────────────────────────
 
 AGENTS: dict[str, AgentDef] = {
     a.id: a for a in [
         KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, ISO_OFFICER, FINANCE_OFFICER,
+        GESTOR_SINIESTROS, TRIADOR_AVERIAS,
         SEGUIMIENTO_PUBLICO,
     ]
 }

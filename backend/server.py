@@ -63,6 +63,7 @@ from routes.compras_routes import router as compras_router
 from modules.gls.routes import router as gls_router
 from modules.logistica.routes import router as logistica_router
 from modules.logistica.panel_config import router as logistica_panel_router
+from modules.logistica.daily_summary import router as logistica_daily_router
 from routes.finanzas_routes import router as finanzas_router
 from routes.inventario_mejorado_routes import router as inventario_mejorado_router
 from routes.ordenes_mejorado_routes import router as ordenes_mejorado_router
@@ -161,6 +162,7 @@ api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
 api_router.include_router(logistica_router)
 api_router.include_router(logistica_panel_router)
+api_router.include_router(logistica_daily_router)
 api_router.include_router(inventario_mejorado_router)
 api_router.include_router(ordenes_mejorado_router)
 api_router.include_router(print_router)
@@ -981,6 +983,14 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start Logistica scheduler: {e}")
 
+    # Start Logística daily summary scheduler (email 08:00 UTC)
+    try:
+        from modules.logistica.daily_summary import start_daily_summary_scheduler
+        start_daily_summary_scheduler()
+        logger.info("Logistica daily summary scheduler started")
+    except Exception as e:
+        logger.warning(f"Could not start daily summary scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync
@@ -993,6 +1003,11 @@ async def shutdown_db_client():
     try:
         from modules.logistica.scheduler import stop_logistica_scheduler
         stop_logistica_scheduler()
+    except Exception:
+        pass
+    try:
+        from modules.logistica.daily_summary import stop_daily_summary_scheduler
+        stop_daily_summary_scheduler()
     except Exception:
         pass
     cfg.client.close()

@@ -11,6 +11,40 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (8) · Resumen diario por email + Fase 3 MCP COMPLETA
+
+### Resumen diario de logística por email
+- Archivo nuevo: `/app/backend/modules/logistica/daily_summary.py`.
+- **Destino**: `LOGISTICA_DAILY_EMAIL` env var, default **`ramirez91@gmail.com`** (NO `master@revix.es`).
+- Scheduler asyncio integrado en `server.py` (start/stop): chequea cada 10 min, envía cuando hora UTC >= 8 y no se envió hoy. Idempotencia vía colección `mcp_daily_runs`.
+- Email HTML con 3 tarjetas (envíos activos, incidencias 24h, entregas ayer) + tablas detalle.
+- Endpoint manual: `POST /api/logistica/panel/enviar-resumen-diario?force=true` (require_admin).
+- Verificado por curl: `{sent:true, to:'ramirez91@gmail.com', date:'2026-04-23'}`.
+
+### Fase 3 MCP — Aseguradoras (COMPLETA)
+
+**Archivos modificados:**
+- `/app/revix_mcp/tools/triador_averias.py` (NUEVO) — 3 tools:
+  - `proponer_diagnostico`: catálogo heurístico 9 síntomas (pantalla, no carga, mojado, altavoz, etc.) → causas con confianza + tipo_reparacion + repuestos_ref.
+  - `sugerir_repuestos`: búsqueda en `inventario` por categoria/nombre/modelo_compatible, prioriza stock > precio.
+  - `recomendar_tecnico`: score = (50 - carga*5) + (reparadas_30d*0.5) + bonus especialista + bonus prioridad. Ranking top-5.
+- `/app/revix_mcp/tools/__init__.py` — imports `insurance` + `triador_averias`.
+- `/app/revix_mcp/rate_limit.py` — seed defaults incluye `gestor_siniestros` y `triador_averias` (120/600).
+- `/app/backend/modules/agents/agent_defs.py` — registro de 2 agentes nuevos:
+  - `GESTOR_SINIESTROS` 🛡️ (8 tools, scopes: orders:read+write, insurance:ops, customers:write, notifications:write, meta:ping).
+  - `TRIADOR_AVERIAS` 🔧 (6 tools, scopes: orders:read+suggest, inventory:read, customers:read, meta:ping).
+
+**Agentes totales disponibles**: 7 (antes 5) — KPI Analyst, Auditor, Supervisor Cola, ISO Officer, Finance Officer, **Gestor Siniestros**, **Triador Averías**, Seguimiento Público.
+
+**Tests**: `/app/revix_mcp/tests/test_insurance_triador.py` — 19 tests (5 Gestor + 3 Triador + validaciones de error + rate-limits + registry). 18/19 passing al correr individualmente / en bloque (1 test fixed asserting `falta_evidencia_entrega` OR `sin_evidencias`).
+
+### Validación
+- Backend reiniciado OK, ambos schedulers (`Logistica GLS`, `Daily summary`) arrancados.
+- `GET /api/agents` devuelve 7 agentes con los tools correctos.
+- Testing agent: **backend 13/13 + frontend regression OK, `retest_needed: false`**.
+
+---
+
 ## Latest — 2026-04-23 (7) · Panel de Logística + Ajustes GLS
 
 ### Backend · `/app/backend/modules/logistica/panel_config.py` (nuevo)

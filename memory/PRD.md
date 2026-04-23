@@ -11,6 +11,30 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-23 (11) · GLS Tracking URL Fix + Sincronizador Histórico
+
+### (A) Fix tracking_url → usa cp_destinatario (CP cliente) no codplaza_dst (plaza GLS)
+- **`/app/backend/modules/logistica/routes.py`** línea 343-347: `_tracking_url` ahora usa `destinatario.cp` en lugar de `codplaza_dst`.
+- `envio_doc` guarda `cp_destinatario` para regenerar tracking URL en consultas posteriores.
+- Formato final: `https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}` ✅.
+
+### (B) Sincronizador Histórico GLS — `/app/backend/modules/logistica/sync_historico.py`
+- `GET /api/logistica/gls/sincronizar-ordenes/candidatas?dias_atras=N` → cuenta órdenes con `numero_autorizacion` sin `gls_envios`, devuelve muestra de 10.
+- `POST /api/logistica/gls/sincronizar-ordenes` → consulta SOAP GetExpCli con refC, crea/actualiza envío en BD. Respuesta: `{total_procesadas, sincronizadas, creadas, actualizadas, no_encontradas, con_error, resultados[]}`.
+- Solo master/admin (403 tecnico). Escribe `audit_logs` con `tool='_sync_gls_historico'`, `source='admin_panel'`.
+- Mock preview: codexp/codbarras deterministas del SHA1 de `numero_autorizacion`; prefijo `NOENCONTRADO-*` fuerza `not_found`.
+
+### (C) UI — Card "Sincronizar pedidos históricos" en `/crm/ajustes/gls`
+- Input `dias_atras` (default 45) + botón buscar candidatas + botón ejecutar sync + tabla resultados.
+- data-testids: `card-sync-historico`, `input-sync-dias`, `sync-total-candidatas`, `btn-ejecutar-sync`.
+
+### Validación
+- Testing agent **iteration_19**: 11/12 backend pytest + UI + regresión OK. `retest_needed: false`, `action_items: []`.
+- Regresión confirmada: `/crm/logistica` (6 envíos GLS+MRW), `/crm/agentes` (8 agentes ACTIVO).
+
+---
+
+
 ## Latest — 2026-04-23 (10) · Panel Avanzado Agentes IA (/crm/agentes)
 
 ### Backend — `/app/backend/modules/agents/panel_routes.py` (nuevo)

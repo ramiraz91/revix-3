@@ -21,7 +21,8 @@ import {
   XCircle,
   Truck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Inbox
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ordenesAPI, clientesAPI } from '@/lib/api';
+import { ordenesAPI, clientesAPI, insuramaAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/usePerformance';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
@@ -87,6 +88,7 @@ export default function Ordenes() {
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState({});
   const [loading, setLoading] = useState(true);
+  const [insuramaInboxCounts, setInsuramaInboxCounts] = useState({});
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [telefonoBusqueda, setTelefonoBusqueda] = useState('');
   const [autorizacionBusqueda, setAutorizacionBusqueda] = useState('');
@@ -223,6 +225,28 @@ export default function Ordenes() {
   useEffect(() => {
     fetchOrdenes();
   }, [page, debouncedSearch, debouncedTelefono, debouncedAutorizacion, estadoFilter]);
+
+  // Carga conteos del inbox Insurama (una sola llamada cada 60s)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchInboxCounts = async () => {
+      try {
+        const { data } = await insuramaAPI.inboxPorOrden();
+        if (!cancelled) setInsuramaInboxCounts(data?.por_orden || {});
+      } catch {
+        // silencio — si falla, no pinta badge
+      }
+    };
+    fetchInboxCounts();
+    const interval = setInterval(fetchInboxCounts, 60000);
+    const handler = () => fetchInboxCounts();
+    window.addEventListener('insurama-inbox-updated', handler);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('insurama-inbox-updated', handler);
+    };
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -471,8 +495,20 @@ export default function Ordenes() {
                       >
                         <TableCell>
                           {orden.numero_autorizacion ? (
-                            <span className="font-mono text-sm font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                              {orden.numero_autorizacion}
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-mono text-sm font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                                {orden.numero_autorizacion}
+                              </span>
+                              {insuramaInboxCounts[orden.id] > 0 && (
+                                <Badge
+                                  className="bg-orange-600 hover:bg-orange-600 text-white text-[10px] h-5 px-1.5 gap-0.5 animate-pulse"
+                                  title={`${insuramaInboxCounts[orden.id]} mensaje(s) Insurama sin leer`}
+                                  data-testid={`badge-insurama-inbox-${orden.id}`}
+                                >
+                                  <Inbox className="w-3 h-3" />
+                                  {insuramaInboxCounts[orden.id]}
+                                </Badge>
+                              )}
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>

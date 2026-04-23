@@ -47,6 +47,7 @@ from routes.ordenes_routes import router as ordenes_router
 from routes.admin_routes import router as admin_router
 from routes.websocket_routes import router as ws_router
 from routes.insurama_routes import router as insurama_router
+from modules.insurama.inbox import router as insurama_inbox_router
 from routes.insurama_ia_routes import router as insurama_ia_router
 from routes.logistica_routes import router as logistica_router
 from routes.contabilidad_routes import router as contabilidad_router
@@ -150,6 +151,7 @@ api_router.include_router(agent_router)
 api_router.include_router(ordenes_router)
 api_router.include_router(admin_router)
 api_router.include_router(insurama_router)
+api_router.include_router(insurama_inbox_router)
 api_router.include_router(insurama_ia_router)
 api_router.include_router(logistica_router)
 api_router.include_router(contabilidad_router)
@@ -1001,6 +1003,14 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start daily summary scheduler: {e}")
 
+    # Start Insurama inbox scheduler (cada 6h)
+    try:
+        from modules.insurama.scheduler import start_insurama_inbox_scheduler
+        start_insurama_inbox_scheduler()
+        logger.info("Insurama inbox scheduler started (6h)")
+    except Exception as e:
+        logger.warning(f"Could not start Insurama inbox scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync
@@ -1013,6 +1023,11 @@ async def shutdown_db_client():
     try:
         from modules.logistica.scheduler import stop_logistica_scheduler
         stop_logistica_scheduler()
+    except Exception:
+        pass
+    try:
+        from modules.insurama.scheduler import stop_insurama_inbox_scheduler
+        stop_insurama_inbox_scheduler()
     except Exception:
         pass
     try:

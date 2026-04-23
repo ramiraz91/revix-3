@@ -30,6 +30,7 @@ CATEGORIAS = (
     "LOGISTICA",
     "INCIDENCIA_LOGISTICA",
     "COMUNICACION_INTERNA",
+    "PROVEEDORES",
     "RECHAZO",
     "MODIFICACION",
     "INCIDENCIA",
@@ -61,6 +62,11 @@ TIPO_A_CATEGORIA: dict[str, str] = {
     # Comunicación interna
     "mensaje_admin":              "COMUNICACION_INTERNA",
     "mensaje_tecnico":            "COMUNICACION_INTERNA",
+    # Proveedores (Insurama/Sumbroker y otros)
+    "insurama_mensaje":           "PROVEEDORES",
+    "insurama_estado_cambio":     "PROVEEDORES",
+    "insurama_precio_cambio":     "PROVEEDORES",
+    "insurama_cambio":            "PROVEEDORES",
     # General
     "orden_reparada":             "GENERAL",
     "orden_asignada":             "GENERAL",

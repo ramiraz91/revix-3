@@ -530,6 +530,15 @@ export const insuramaAPI = {
   // Observaciones
   obtenerObservaciones: (codigo) => API_SLOW.get(`/insurama/presupuesto/${codigo}/observaciones`),
   enviarObservacion: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/observacion`, data),
+
+  // Inbox de mensajes Insurama (observaciones + cambios estado/precio)
+  inboxResumen: () => API.get('/insurama/inbox/resumen'),
+  inboxPorOrden: () => API.get('/insurama/inbox/por-orden'),
+  inboxOrden: (orderId, soloNoLeidas = false) =>
+    API.get(`/insurama/inbox/orden/${orderId}${soloNoLeidas ? '?solo_no_leidas=true' : ''}`),
+  inboxRefrescarOrden: (orderId) => API_SLOW.post(`/insurama/inbox/orden/${orderId}/refresh`),
+  inboxMarcarLeido: (notifId) => API.post(`/insurama/inbox/mensaje/${notifId}/marcar-leido`),
+  inboxSweep: () => API_SLOW.post('/insurama/inbox/sweep'),
   
   // Acciones de escritura
   enviarPresupuesto: (codigo, data) => API_SLOW.post(`/insurama/presupuesto/${codigo}/enviar-presupuesto`, data),

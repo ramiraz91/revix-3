@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Bell, Check, Trash2, ExternalLink, AlertTriangle, Package, Wrench, CheckCircle2,
   MessageSquare, Unlock, Square, XSquare,
-  Truck, XCircle, Edit3, MessagesSquare, Inbox,
+  Truck, XCircle, Edit3, MessagesSquare, Inbox, Euro, Shield,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,10 @@ const notificationIcons = {
   incidencia_abierta: AlertTriangle,
   incidencia_agente: AlertTriangle,
   mensaje_tecnico: MessagesSquare,
+  insurama_mensaje: Inbox,
+  insurama_estado_cambio: Edit3,
+  insurama_precio_cambio: Euro,
+  insurama_cambio: Shield,
 };
 
 const notificationColors = {
@@ -57,6 +61,10 @@ const notificationColors = {
   incidencia_abierta: { bg: 'bg-red-100', text: 'text-red-600' },
   incidencia_agente: { bg: 'bg-red-100', text: 'text-red-600' },
   mensaje_tecnico: { bg: 'bg-purple-100', text: 'text-purple-600' },
+  insurama_mensaje: { bg: 'bg-orange-100', text: 'text-orange-600' },
+  insurama_estado_cambio: { bg: 'bg-orange-100', text: 'text-orange-600' },
+  insurama_precio_cambio: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  insurama_cambio: { bg: 'bg-orange-100', text: 'text-orange-600' },
 };
 
 // Tipos de notificaciones que puede ver un técnico
@@ -74,6 +82,7 @@ const CATEGORIAS = [
   { id: 'INCIDENCIA_LOGISTICA',    label: 'Incidencias GLS', icon: AlertTriangle },
   { id: 'INCIDENCIA',              label: 'Incidencias',  icon: AlertTriangle },
   { id: 'COMUNICACION_INTERNA',    label: 'Comunicación', icon: MessagesSquare },
+  { id: 'PROVEEDORES',             label: 'Proveedores (Insurama)', icon: Shield },
   { id: 'RECHAZO',                 label: 'Rechazos',     icon: XCircle },
   { id: 'MODIFICACION',            label: 'Modificaciones', icon: Edit3 },
   { id: 'GENERAL',                 label: 'Otras',        icon: Bell },
@@ -93,7 +102,17 @@ export default function Notificaciones() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isTecnico, isAdmin } = useAuth();
+
+  // Lee ?cat=... de la URL al montar y cuando cambie
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const cat = params.get('cat');
+    if (cat && CATEGORIAS.some(c => c.id === cat)) {
+      setCategoriaSel(cat);
+    }
+  }, [location.search]);
 
   const fetchContadores = async () => {
     try {

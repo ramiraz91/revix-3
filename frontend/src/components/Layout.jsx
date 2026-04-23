@@ -8,6 +8,7 @@ import {
   Truck, 
   QrCode, 
   Bell,
+  Inbox,
   Menu,
   X,
   Smartphone,
@@ -78,6 +79,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificacionesPendientes, setNotificacionesPendientes] = useState(0);
   const [nuevasOrdenesCount, setNuevasOrdenesCount] = useState(0);
+  const [insuramaInboxNoLeidas, setInsuramaInboxNoLeidas] = useState(0);
   const [empresaLogo, setEmpresaLogo] = useState(null);
   const [empresaNombre, setEmpresaNombre] = useState('Mi Empresa');
   const location = useLocation();
@@ -168,6 +170,32 @@ export default function Layout() {
       };
     }
   }, [isAdmin, isTecnico, user]);
+
+  // Insurama Inbox — contador de mensajes no leídos (categoría PROVEEDORES)
+  useEffect(() => {
+    if (!isAdmin()) return;
+    let cancelled = false;
+    const fetchInbox = async () => {
+      try {
+        const { insuramaAPI } = await import('@/lib/api');
+        const { data } = await insuramaAPI.inboxResumen();
+        if (!cancelled) setInsuramaInboxNoLeidas(data?.no_leidas || 0);
+      } catch {
+        // silencio — endpoint puede no estar disponible si no hay config
+      }
+    };
+    fetchInbox();
+    const interval = setInterval(fetchInbox, 60000);
+    const handler = () => fetchInbox();
+    window.addEventListener('insurama-inbox-updated', handler);
+    window.addEventListener('notificaciones-updated', handler);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('insurama-inbox-updated', handler);
+      window.removeEventListener('notificaciones-updated', handler);
+    };
+  }, [isAdmin]);
 
   // Cargar count de nuevas órdenes
   useEffect(() => {
@@ -287,6 +315,15 @@ export default function Layout() {
             <NavItem path="/scanner" icon={QrCode} label="Escáner QR" />
             {isAdmin() && <NavItem path="/incidencias" icon={AlertTriangle} label="Incidencias" />}
             <NavItem path="/notificaciones" icon={Bell} label="Notificaciones" badge={notificacionesPendientes} />
+            {isAdmin() && (
+              <NavItem
+                path="/notificaciones?cat=PROVEEDORES"
+                icon={Inbox}
+                label="Bandeja Insurama"
+                badge={insuramaInboxNoLeidas}
+                data-testid="nav-insurama-inbox"
+              />
+            )}
           </SidebarGroup>
 
           {isAdmin() && (

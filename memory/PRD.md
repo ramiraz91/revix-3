@@ -11,7 +11,23 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (18) · Panel Avanzado de Agentes /crm/agentes — CERRADO
+## Latest — 2026-02-XX (19) · ChatBox web revix.es ahora usa MCP presupuestador_publico
+
+### Cambios clave (sin tocar diseño)
+- **Backend** `POST /api/web/chatbot`: dejó de usar `LlmChat(gemini-2.5-flash)` con system prompt FAQ hardcoded. Ahora invoca `run_agent_turn(presupuestador_publico, ...)` para que el agente use sus tools MCP (`consultar_catalogo_servicios`, `estimar_precio_reparacion`, `crear_presupuesto_publico`). Response añade `disclaimer` orientativo manteniendo `respuesta`+`session_id` legacy.
+- **Backend nuevo** `POST /api/web/lead`: captura nombre/email/teléfono+consent RGPD. En `MCP_ENV=preview` devuelve mock; en producción reutiliza la tool MCP `crear_presupuesto_publico` (idempotente, notifica admins).
+- **Frontend** `ChatBot.jsx`: añadidos disclaimer pequeño bajo cada bubble bot, CTA "Quiero que me contactéis" tras 1 turno usuario, form lead capture inline (sin modal). Branding `#0055FF` y diseño visual original preservados al 100%.
+- **Persistencia** unificada: ahora guarda en `agent_messages` (el mismo formato del panel `/crm/agentes`).
+
+### Limpieza
+- Eliminados: `/app/frontend/public/widget/*`, `/app/backend/routes/widget_publico_routes.py`, `test_widget_publico*.py`, imports en `server.py`. El widget vanilla JS independiente NO existe (no se duplica funcionalidad con el chatbox de revix.es).
+
+### Tests
+- Testing agent E2E **48/48 PASS** + 1 skip. 0 issues. Sin regresión en Fase 4 MCP, panel /crm/agentes, ni demás módulos.
+
+---
+
+## 2026-02-XX (18) · Panel Avanzado de Agentes /crm/agentes — CERRADO
 
 ### Funcionalidades disponibles
 - **Tarjetas visuales** por los 11 agentes con estado, KPIs (acciones hoy, éxito 7d, tools), última acción, errores 24h, botones pausar/activar/chat/detalle.

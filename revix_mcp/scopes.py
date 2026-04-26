@@ -24,6 +24,8 @@ SCOPES_CATALOG: FrozenSet[str] = frozenset({
     'customers:read', 'customers:write',
     # Inventario
     'inventory:read', 'inventory:write',
+    # Compras y aprovisionamiento
+    'purchases:read', 'purchases:write',
     # Finanzas
     'finance:read', 'finance:bill', 'finance:dunning', 'finance:fiscal_calc',
     # Aseguradoras
@@ -88,4 +90,6 @@ AGENT_PROFILES: dict[str, list[str]] = {
     'seguimiento_publico': ['public:track_by_token', 'meta:ping'],
     'iso_officer': ['iso:quality', 'orders:read', 'notifications:write', 'meta:ping'],
     'auditor': ['audit:read', 'audit:report', '*:read', 'meta:ping'],
+    'gestor_compras': ['inventory:read', 'inventory:write',
+                       'purchases:read', 'purchases:write', 'meta:ping'],
 }

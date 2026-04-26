@@ -61,6 +61,7 @@ from routes.peticiones_routes import router as peticiones_router
 from routes.faqs_routes import router as faqs_router
 from routes.apple_manuals_routes import router as apple_manuals_router
 from routes.compras_routes import router as compras_router
+from routes.lista_compras_routes import router as lista_compras_router
 from modules.gls.routes import router as gls_router
 from modules.logistica.routes import router as logistica_router
 from modules.logistica.panel_config import router as logistica_panel_router
@@ -163,6 +164,7 @@ api_router.include_router(web_publica_router)
 api_router.include_router(iso_router)
 api_router.include_router(peticiones_router)
 api_router.include_router(faqs_router)
+api_router.include_router(lista_compras_router)
 api_router.include_router(compras_router)
 api_router.include_router(finanzas_router)
 api_router.include_router(gls_router)
@@ -1011,6 +1013,14 @@ async def create_default_users():
     except Exception as e:
         logger.warning(f"Could not start Insurama inbox scheduler: {e}")
 
+    # Start Compras daily scheduler (resumen diario 17:00 UTC)
+    try:
+        from modules.compras.scheduler import start_compras_daily_scheduler
+        start_compras_daily_scheduler()
+        logger.info("Compras daily scheduler started (17:00 UTC)")
+    except Exception as e:
+        logger.warning(f"Could not start Compras daily scheduler: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     from modules.gls.sync_service import stop_gls_sync
@@ -1028,6 +1038,11 @@ async def shutdown_db_client():
     try:
         from modules.insurama.scheduler import stop_insurama_inbox_scheduler
         stop_insurama_inbox_scheduler()
+    except Exception:
+        pass
+    try:
+        from modules.compras.scheduler import stop_compras_daily_scheduler
+        stop_compras_daily_scheduler()
     except Exception:
         pass
     try:

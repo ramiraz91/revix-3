@@ -11,6 +11,43 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-26 (16) · Compras y Aprovisionamiento (#11)
+
+### Bloque 1 — Diagnóstico
+Identificados 3 problemas raíz: (a) `triador_averias.sugerir_repuestos` consultaba `db.inventario` (colección vacía) en lugar de `db.repuestos` → nunca encontraba ni creaba nada; (b) no existía colección/lista de compras (solo módulo de **facturas** mal nombrado); (c) 0 proveedores y 0 repuestos en BD.
+
+### Bloque 2 — Fix base
+- **Bug crítico fix**: `db.inventario` → `db.repuestos` en 2 puntos (`revix_mcp/tools/triador_averias.py:282` + `backend/modules/agents/triador_ui_routes.py:134`).
+- **`modules/compras/helpers.py`** (nuevo): `get_or_create_repuesto` (idempotente, case-insensitive), `agregar_a_lista_compras` (dedupe por repuesto_id + suma cantidades + sube urgencia mayor), `trigger_alerta_stock_minimo`.
+- **Auto-creación** de Repuesto al añadir material custom a OT (`ordenes_routes.py`, blindado con try/except — flujo legacy preservado).
+- **Hook stock<=mínimo** en `data_routes.py:actualizar_stock` y al descontar material en OT.
+
+### Bloque 3 — Lista de compras
+- **Colección nueva** `lista_compras` con estados `pendiente → aprobado → pedido → recibido → cancelado`.
+- **Endpoints REST** (`/api/compras/lista/*`, archivo `routes/lista_compras_routes.py`): listar, resumen, add manual, aprobar selección (master), marcar-pedido, marcar-recibido (suma stock + notifica OTs), cancelar, email-pedido por proveedor, scan-stock-minimo.
+- **Scheduler diario 17:00 UTC** (`modules/compras/scheduler.py`): notificación PROVEEDORES a todos los admins + email a `ramirez91@gmail.com`. Idempotente (colección `compras_daily_sent`).
+- **UI** (`Compras.jsx` ahora con 5 tabs): Lista pendiente (default) / Nueva Factura / Facturas / Trazabilidad / Dashboard. Componente `ListaComprasPanel.jsx` con KPIs, filtros, selección múltiple, "Generar email pedido" por proveedor con dialog de copia.
+
+### Bloque 4 — Agente MCP `gestor_compras` (#11)
+- **5 tools** en `revix_mcp/tools/gestor_compras.py`: `listar_compras_pendientes`, `añadir_a_lista_compras`, `generar_email_pedido`, `marcar_recibido`, `consultar_stock`.
+- **Scopes nuevos** en catálogo: `purchases:read`, `purchases:write`.
+- **Agente** registrado en `agent_defs.py` (🛒 #0d9488). Sin acceso a `finance:*`, `orders:write`, `customers:write`.
+
+### Validación
+- **14/14 tests E2E** (`test_compras_lista.py`): bug fix triador, helpers idempotentes, dedupe lista, hook stock min, CRUD endpoints (add → aprobar → pedido → recibido → stock actualizado), permisos master, agente registrado con scopes correctos, plantilla email completa, regresión endpoints legacy.
+- **27/27 tests sesiones anteriores** siguen verdes (emails, GLS sync, Insurama inbox).
+- Smoke test endpoints `/api/compras/*` antes/después del registro: 8/8 OK sin shadowing.
+- UI verificada: 5 tabs visibles, "Facturas" sigue funcional, KPIs renderizan, sidebar intacto.
+
+### Garantías de retrocompatibilidad
+- Cero campos renombrados/eliminados en modelos.
+- Cero rutas eliminadas (lista_compras_router se registra ANTES de compras_router para evitar shadowing por `/{compra_id}`).
+- Hooks blindados en try/except → si helper falla, flujo legacy continúa.
+- Colección `inventario` (vacía) preservada por si hubiera datos legacy externos.
+
+---
+
+
 ## Latest — 2026-04-23 (12) · Salvaguardas Production Sync GLS
 
 ### Colecciones nuevas

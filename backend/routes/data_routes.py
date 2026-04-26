@@ -1498,6 +1498,13 @@ async def actualizar_stock(repuesto_id: str, cantidad: int, operacion: str = "se
     else:
         nuevo_stock = cantidad
     await db.repuestos.update_one({"id": repuesto_id}, {"$set": {"stock": nuevo_stock, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    # Hook stock <= mínimo → lista de compras (silencioso)
+    try:
+        from modules.compras.helpers import trigger_alerta_stock_minimo
+        repuesto_actualizado = {**repuesto, "stock": nuevo_stock}
+        await trigger_alerta_stock_minimo(db, repuesto_actualizado)
+    except Exception:
+        pass
     return {"message": "Stock actualizado", "nuevo_stock": nuevo_stock}
 
 @router.post("/repuestos/etiquetas")

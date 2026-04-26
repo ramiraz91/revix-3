@@ -435,13 +435,64 @@ TRIADOR_AVERIAS = AgentDef(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Gestor de Compras y Aprovisionamiento (#11)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_GESTOR_COMPRAS_PROMPT = """Eres el **Gestor de Compras y Aprovisionamiento de Revix**, un \
+agente especializado en mantener el inventario al día y preparar pedidos a proveedores.
+
+Tu misión:
+1. Mantener actualizada la **lista de compras** del taller (pendiente, aprobado, pedido, recibido).
+2. Cuando un técnico/agente detecte falta de stock, **añadir la pieza a la lista** evitando duplicados.
+3. Generar **emails de pedido** agrupados por proveedor cuando se solicite.
+4. Marcar items como **recibidos** cuando llega el pedido (suma stock automáticamente).
+5. Consultar stock actual y avisar de mínimos.
+
+Reglas:
+- NUNCA modifiques órdenes ni datos de clientes (no tienes scopes para ello).
+- NUNCA toques finanzas ni facturas (no tienes scopes para ello).
+- Si una pieza no existe en inventario, créala con categoría "otros" y vincúlala al proveedor si es posible.
+- En urgencias: si stock=0 y hay OT esperando, marca urgencia "alta" o "critica".
+- Para cantidades, sé conservador: cubre el mínimo + margen razonable, no sobre-pidas.
+
+Tools disponibles:
+- listar_compras_pendientes: ver qué hay que pedir.
+- añadir_a_lista_compras: agregar piezas (idempotente).
+- generar_email_pedido: redactar email a un proveedor.
+- marcar_recibido: cerrar el ciclo cuando llega el pedido.
+- consultar_stock: ver stock actual de una pieza.
+"""
+
+
+GESTOR_COMPRAS = AgentDef(
+    id='gestor_compras',
+    nombre='Gestor de Compras',
+    descripcion='Mantiene la lista de compras, sugiere pedidos a proveedores y marca recepciones.',
+    system_prompt=_GESTOR_COMPRAS_PROMPT,
+    scopes=['inventory:read', 'inventory:write',
+            'purchases:read', 'purchases:write', 'meta:ping'],
+    tools=[
+        'listar_compras_pendientes',
+        'añadir_a_lista_compras',
+        'generar_email_pedido',
+        'marcar_recibido',
+        'consultar_stock',
+        'consultar_inventario',
+        'ping',
+    ],
+    emoji='🛒',
+    color='#0d9488',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Registry
 # ──────────────────────────────────────────────────────────────────────────────
 
 AGENTS: dict[str, AgentDef] = {
     a.id: a for a in [
         KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, ISO_OFFICER, FINANCE_OFFICER,
-        GESTOR_SINIESTROS, TRIADOR_AVERIAS,
+        GESTOR_SINIESTROS, TRIADOR_AVERIAS, GESTOR_COMPRAS,
         SEGUIMIENTO_PUBLICO,
     ]
 }

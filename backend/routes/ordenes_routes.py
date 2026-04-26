@@ -1984,11 +1984,65 @@ async def añadir_material_orden(orden_id: str, request: AñadirMaterialRequest)
             raise HTTPException(status_code=404, detail="Repuesto no encontrado")
         material = {"repuesto_id": request.repuesto_id, "nombre": repuesto['nombre'], "sku": repuesto.get('sku', ''), "cantidad": request.cantidad, "precio_unitario": request.precio_unitario if request.precio_unitario is not None else repuesto.get('precio_venta', 0), "coste": request.coste if request.coste is not None else repuesto.get('precio_coste', 0), "iva": request.iva or 21.0, "descuento": request.descuento or 0, "añadido_por_tecnico": request.añadido_por_tecnico, "aprobado": not request.añadido_por_tecnico, "pendiente_precios": False}
         await db.repuestos.update_one({"id": request.repuesto_id}, {"$inc": {"stock": -request.cantidad}})
+        # Hook stock <= mínimo tras descuento (silencioso)
+        try:
+            from modules.compras.helpers import trigger_alerta_stock_minimo
+            r2 = await db.repuestos.find_one({"id": request.repuesto_id}, {"_id": 0})
+            if r2:
+                await trigger_alerta_stock_minimo(db, r2)
+        except Exception:
+            pass
     else:
         if not request.nombre:
             raise HTTPException(status_code=400, detail="Se requiere nombre para material personalizado")
         pendiente_precios = request.añadido_por_tecnico and (request.precio_unitario is None or request.coste is None)
-        material = {"repuesto_id": None, "nombre": request.nombre, "cantidad": request.cantidad, "precio_unitario": request.precio_unitario or 0, "coste": request.coste or 0, "iva": request.iva or 21.0, "descuento": request.descuento or 0, "añadido_por_tecnico": request.añadido_por_tecnico, "aprobado": not request.añadido_por_tecnico, "pendiente_precios": pendiente_precios}
+        # Hook autocreate: intenta resolver/crear repuesto en inventario por nombre
+        # Si falla, sigue el flujo legacy (material sin repuesto_id) — NO debe romper.
+        repuesto_auto = None
+        try:
+            from modules.compras.helpers import get_or_create_repuesto, agregar_a_lista_compras, FUENTE_AUTO_MATERIAL
+            repuesto_auto = await get_or_create_repuesto(
+                db, request.nombre,
+                precio_compra=float(request.coste or 0),
+                precio_venta=float(request.precio_unitario or 0),
+                creado_por="auto_material_ot",
+            )
+            # Si el técnico añadió y NO hay stock, agrega a lista compras (urgencia alta)
+            if request.añadido_por_tecnico and (repuesto_auto.get("stock") or 0) < request.cantidad:
+                await agregar_a_lista_compras(
+                    db,
+                    repuesto_id=repuesto_auto["id"],
+                    cantidad=max(request.cantidad - (repuesto_auto.get("stock") or 0), 1),
+                    urgencia="alta" if (repuesto_auto.get("stock") or 0) == 0 else "normal",
+                    fuente=FUENTE_AUTO_MATERIAL,
+                    order_id=orden_id,
+                    creado_por="auto_material_ot",
+                )
+        except Exception as _exc:  # noqa: BLE001
+            repuesto_auto = None  # fallback silencioso al flujo legacy
+        material = {
+            "repuesto_id": repuesto_auto["id"] if repuesto_auto else None,
+            "nombre": request.nombre,
+            "sku": (repuesto_auto.get("sku") if repuesto_auto else None),
+            "cantidad": request.cantidad,
+            "precio_unitario": request.precio_unitario or 0,
+            "coste": request.coste or 0,
+            "iva": request.iva or 21.0,
+            "descuento": request.descuento or 0,
+            "añadido_por_tecnico": request.añadido_por_tecnico,
+            "aprobado": not request.añadido_por_tecnico,
+            "pendiente_precios": pendiente_precios,
+            "auto_creado": bool(repuesto_auto and repuesto_auto.get("auto_creado")),
+        }
+        # Si tenemos repuesto y hay stock disponible, descontar
+        if repuesto_auto and (repuesto_auto.get("stock") or 0) >= request.cantidad:
+            try:
+                await db.repuestos.update_one(
+                    {"id": repuesto_auto["id"]},
+                    {"$inc": {"stock": -request.cantidad}},
+                )
+            except Exception:
+                pass
     materiales = orden.get('materiales', [])
     materiales.append(material)
     update_data = {"materiales": materiales, "updated_at": datetime.now(timezone.utc).isoformat()}

@@ -12,12 +12,13 @@ import { toast } from 'sonner';
 import { 
   Upload, FileText, Package, CheckCircle, XCircle, AlertTriangle, 
   Plus, RefreshCw, Search, Eye, Truck, DollarSign, BarChart3,
-  ArrowRight, Edit2, Trash2, History, QrCode
+  ArrowRight, Edit2, Trash2, History, QrCode, ShoppingCart
 } from 'lucide-react';
 import API from '@/lib/api';
+import ListaComprasPanel from '@/components/compras/ListaComprasPanel';
 
 export default function Compras() {
-  const [activeTab, setActiveTab] = useState('nueva');
+  const [activeTab, setActiveTab] = useState('lista');
   const [loading, setLoading] = useState(false);
   const [proveedores, setProveedores] = useState([]);
   const [compras, setCompras] = useState([]);
@@ -175,14 +176,18 @@ export default function Compras() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="lista" className="flex items-center gap-2" data-testid="tab-lista-compras">
+            <ShoppingCart className="w-4 h-4" />
+            Lista pendiente
+          </TabsTrigger>
           <TabsTrigger value="nueva" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
-            Nueva Compra
+            Nueva Factura
           </TabsTrigger>
           <TabsTrigger value="historial" className="flex items-center gap-2">
             <History className="w-4 h-4" />
-            Historial
+            Facturas
           </TabsTrigger>
           <TabsTrigger value="trazabilidad" className="flex items-center gap-2">
             <QrCode className="w-4 h-4" />
@@ -193,6 +198,11 @@ export default function Compras() {
             Dashboard
           </TabsTrigger>
         </TabsList>
+
+        {/* TAB LISTA DE COMPRAS PENDIENTES (nueva) */}
+        <TabsContent value="lista" className="space-y-6">
+          <ListaComprasPanel />
+        </TabsContent>
 
         {/* TAB NUEVA COMPRA */}
         <TabsContent value="nueva" className="space-y-6">

@@ -131,9 +131,9 @@ async def ejecutar_triador_diagnostico(
                 {"modelo_compatible": {"$regex": modelo, "$options": "i"}},
                 {"nombre": {"$regex": modelo, "$options": "i"}},
             ]}]}
-        items = await db.inventario.find(
+        items = await db.repuestos.find(
             query,
-            {"_id": 0, "id": 1, "sku_corto": 1, "nombre": 1, "stock": 1,
+            {"_id": 0, "id": 1, "sku": 1, "sku_corto": 1, "nombre": 1, "stock": 1,
              "precio_venta": 1, "proveedor": 1, "ubicacion": 1, "categoria": 1},
         ).limit(8).to_list(8)
         items.sort(key=lambda it: (0 if (it.get("stock") or 0) >= 1 else 1,

@@ -158,10 +158,115 @@ SEGUIMIENTO_PUBLICO = AgentDef(
     descripcion='Chat para clientes finales con token de seguimiento.',
     system_prompt=_SEGUIMIENTO_PROMPT,
     scopes=['public:track_by_token', 'meta:ping'],
-    tools=['buscar_por_token_seguimiento', 'ping'],
+    tools=[
+        'buscar_por_token',
+        'buscar_por_token_seguimiento',  # alias legacy
+        'obtener_timeline_cliente',
+        'obtener_fotos_diagnostico',
+        'ping',
+    ],
     visible_to_public=True,
     emoji='📱',
     color='#10B981',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Call Center Agent (Fase 4)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_CALL_CENTER_PROMPT = """Eres el **Asistente de Call Center de Revix**, atiendes \
+consultas de clientes ya identificados y resuelves dudas sobre sus reparaciones.
+
+Tus principios:
+- Empatía primero. Saluda con el nombre del cliente.
+- Sé conciso y claro. Cifras y fechas concretas.
+- Si no sabes algo con seguridad, **escala a humano** mediante `escalar_a_humano`.
+
+ESCALAR A HUMANO ES OBLIGATORIO cuando:
+1. El cliente expresa frustración intensa (insultos, gritos en mayúsculas, "estoy harto/a", "no puedo más").
+2. Amenaza con acciones legales, redes sociales, denuncias, OCU, juzgados.
+3. Pide hablar con un responsable / supervisor / encargado de forma explícita.
+4. Reclama una garantía y la conversación lleva ≥2 turnos sin solución clara.
+5. Cualquier petición que requiera modificar precio, fecha de entrega, o anular un cargo.
+
+Tools que tienes:
+- buscar_orden_por_cliente: encontrar las OTs activas del cliente.
+- obtener_historial_comunicacion: ver mensajes/llamadas/notif previas.
+- enviar_mensaje_portal: enviar mensajes al portal cliente (idempotency_key obligatoria).
+- escalar_a_humano: abrir ticket con resumen y motivo (urgencia normal|alta).
+
+Reglas:
+- NUNCA modifiques órdenes ni datos del cliente.
+- NUNCA prometas plazos exactos. Usa "estimación".
+- Cierra cada conversación con un resumen y los próximos pasos.
+"""
+
+
+CALL_CENTER = AgentDef(
+    id='call_center',
+    nombre='Asistente Call Center',
+    descripcion='Atención al cliente sobre sus reparaciones; escala a humano cuando es necesario.',
+    system_prompt=_CALL_CENTER_PROMPT,
+    scopes=['customers:read', 'orders:read', 'comm:write', 'comm:escalate', 'meta:ping'],
+    tools=[
+        'buscar_orden_por_cliente',
+        'obtener_historial_comunicacion',
+        'enviar_mensaje_portal',
+        'escalar_a_humano',
+        'buscar_cliente',         # útil para resolver cliente_id desde email/dni
+        'ping',
+    ],
+    emoji='☎️',
+    color='#1d4ed8',
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Presupuestador Público (Fase 4) — NO accede a datos personales reales
+# ──────────────────────────────────────────────────────────────────────────────
+
+_PRESUPUESTADOR_PROMPT = """Eres el **Presupuestador Público de Revix**, atiendes a \
+visitantes de la web que aún NO son clientes y quieren un presupuesto orientativo.
+
+Reglas estrictas:
+- NUNCA accedes a datos de clientes existentes ni a órdenes reales (no tienes scopes para ello).
+- Solo usas el catálogo de servicios/repuestos disponible.
+- SIEMPRE presentas precios como **rango (min-max)**, nunca como precio fijo.
+- SIEMPRE incluyes el disclaimer: "Este presupuesto es orientativo y puede variar tras \
+diagnóstico presencial. No constituye compromiso de precio ni plazo."
+- Para registrar una solicitud usas `crear_presupuesto_publico`, que escribe en `pre_registros` \
+(NO crea OT). Un humano revisará el pre-registro luego.
+
+Flujo típico:
+1. Pregunta amable: tipo de dispositivo + modelo + descripción de la avería.
+2. Llamas a `estimar_precio_reparacion` para obtener el rango.
+3. Si el visitante quiere registrar la solicitud → pides nombre, email, opcional teléfono → \
+`crear_presupuesto_publico` con `idempotency_key`.
+4. Confirmas registro y explicas próximos pasos: "Te contactaremos en X horas laborables".
+
+Tools:
+- consultar_catalogo_servicios
+- estimar_precio_reparacion
+- crear_presupuesto_publico
+"""
+
+
+PRESUPUESTADOR_PUBLICO = AgentDef(
+    id='presupuestador_publico',
+    nombre='Presupuestador Web',
+    descripcion='Presupuestos orientativos para visitantes de la web. No accede a datos privados.',
+    system_prompt=_PRESUPUESTADOR_PROMPT,
+    scopes=['catalog:read', 'quotes:write_public', 'meta:ping'],
+    tools=[
+        'consultar_catalogo_servicios',
+        'estimar_precio_reparacion',
+        'crear_presupuesto_publico',
+        'ping',
+    ],
+    visible_to_public=True,
+    emoji='💬',
+    color='#7c3aed',
 )
 
 
@@ -493,6 +598,8 @@ AGENTS: dict[str, AgentDef] = {
     a.id: a for a in [
         KPI_ANALYST, AUDITOR, SUPERVISOR_COLA, ISO_OFFICER, FINANCE_OFFICER,
         GESTOR_SINIESTROS, TRIADOR_AVERIAS, GESTOR_COMPRAS,
+        # Fase 4 · cara al cliente
+        CALL_CENTER, PRESUPUESTADOR_PUBLICO,
         SEGUIMIENTO_PUBLICO,
     ]
 }

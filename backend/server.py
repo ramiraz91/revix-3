@@ -133,6 +133,12 @@ app.add_middleware(SecurityHeadersMiddleware)
 from middleware.security import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
 
+# Auth guard: requiere JWT en /api/* salvo whitelist explícita.
+# Cierra la fuga histórica de endpoints CRUD sin Depends(require_auth).
+from middleware.auth_guard import AuthGuardMiddleware
+from config import JWT_SECRET, JWT_ALGORITHM
+app.add_middleware(AuthGuardMiddleware, jwt_secret=JWT_SECRET, jwt_algorithm=JWT_ALGORITHM)
+
 # Performance monitoring middleware
 from middleware.performance import PerformanceMiddleware, metrics, query_profiler
 app.add_middleware(PerformanceMiddleware)

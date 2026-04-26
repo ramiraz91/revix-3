@@ -50,7 +50,7 @@ def _normalizar_cliente_doc(cliente: dict) -> dict:
 # ==================== CLIENTES ====================
 
 @router.post("/clientes", response_model=Cliente)
-async def crear_cliente(cliente: ClienteCreate):
+async def crear_cliente(cliente: ClienteCreate, user: dict = Depends(require_auth)):
     cliente_obj = Cliente(**cliente.model_dump())
     doc = cliente_obj.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -59,10 +59,18 @@ async def crear_cliente(cliente: ClienteCreate):
     return cliente_obj
 
 @router.get("/clientes", response_model=List[Cliente])
-async def listar_clientes(search: Optional[str] = None):
+async def listar_clientes(search: Optional[str] = None, user: dict = Depends(require_auth)):
     query = {}
     if search:
-        query = {"$or": [{"nombre": {"$regex": search, "$options": "i"}}, {"apellidos": {"$regex": search, "$options": "i"}}, {"dni": {"$regex": search, "$options": "i"}}, {"telefono": {"$regex": search, "$options": "i"}}]}
+        # ReDoS-safe: re.escape() neutraliza meta-caracteres antes de pasarlos a $regex
+        import re as _re
+        s = _re.escape(search.strip()[:80])
+        query = {"$or": [
+            {"nombre":    {"$regex": s, "$options": "i"}},
+            {"apellidos": {"$regex": s, "$options": "i"}},
+            {"dni":       {"$regex": s, "$options": "i"}},
+            {"telefono":  {"$regex": s, "$options": "i"}},
+        ]}
     clientes = await db.clientes.find(query, {"_id": 0}).to_list(1000)
 
     clientes_normalizados = []
@@ -86,7 +94,7 @@ async def obtener_cliente(cliente_id: str):
     return normalized
 
 @router.put("/clientes/{cliente_id}", response_model=Cliente)
-async def actualizar_cliente(cliente_id: str, cliente: ClienteCreate):
+async def actualizar_cliente(cliente_id: str, cliente: ClienteCreate, user: dict = Depends(require_auth)):
     existing = await db.clientes.find_one({"id": cliente_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -331,7 +339,7 @@ async def obtener_incidencias_cliente(cliente_id: str, user: dict = Depends(requ
 # ==================== PROVEEDORES ====================
 
 @router.post("/proveedores", response_model=Proveedor)
-async def crear_proveedor(proveedor: ProveedorCreate):
+async def crear_proveedor(proveedor: ProveedorCreate, user: dict = Depends(require_auth)):
     proveedor_obj = Proveedor(**proveedor.model_dump())
     doc = proveedor_obj.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -364,7 +372,7 @@ async def obtener_proveedor(proveedor_id: str):
     return proveedor
 
 @router.put("/proveedores/{proveedor_id}", response_model=Proveedor)
-async def actualizar_proveedor(proveedor_id: str, proveedor: ProveedorCreate):
+async def actualizar_proveedor(proveedor_id: str, proveedor: ProveedorCreate, user: dict = Depends(require_auth)):
     existing = await db.proveedores.find_one({"id": proveedor_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -379,7 +387,7 @@ async def actualizar_proveedor(proveedor_id: str, proveedor: ProveedorCreate):
     return updated
 
 @router.delete("/proveedores/{proveedor_id}")
-async def eliminar_proveedor(proveedor_id: str):
+async def eliminar_proveedor(proveedor_id: str, user: dict = Depends(require_admin)):
     result = await db.proveedores.delete_one({"id": proveedor_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -395,7 +403,7 @@ def generate_barcode_number() -> str:
     return code
 
 @router.post("/repuestos", response_model=Repuesto)
-async def crear_repuesto(repuesto: RepuestoCreate):
+async def crear_repuesto(repuesto: RepuestoCreate, user: dict = Depends(require_auth)):
     repuesto_obj = Repuesto(**repuesto.model_dump())
     doc = repuesto_obj.model_dump()
     
@@ -1465,7 +1473,7 @@ async def obtener_repuesto(repuesto_id: str):
     return repuesto
 
 @router.put("/repuestos/{repuesto_id}", response_model=Repuesto)
-async def actualizar_repuesto(repuesto_id: str, repuesto: RepuestoCreate):
+async def actualizar_repuesto(repuesto_id: str, repuesto: RepuestoCreate, user: dict = Depends(require_auth)):
     existing = await db.repuestos.find_one({"id": repuesto_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Repuesto no encontrado")
@@ -1480,7 +1488,7 @@ async def actualizar_repuesto(repuesto_id: str, repuesto: RepuestoCreate):
     return updated
 
 @router.delete("/repuestos/{repuesto_id}")
-async def eliminar_repuesto(repuesto_id: str):
+async def eliminar_repuesto(repuesto_id: str, user: dict = Depends(require_admin)):
     result = await db.repuestos.delete_one({"id": repuesto_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Repuesto no encontrado")
@@ -2064,3 +2072,4 @@ async def eliminar_resto(resto_id: str, user: dict = Depends(require_admin)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Dispositivo de restos no encontrado")
     return {"message": "Dispositivo de restos eliminado"}
+

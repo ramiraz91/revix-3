@@ -73,6 +73,7 @@ async def listar_notificaciones(
     no_leidas: Optional[bool] = None,
     categoria: Optional[str] = None,
     limit: int = 200,
+    user: dict = Depends(require_auth),
 ):
     from modules.notificaciones.helper import (
         CATEGORIAS, TIPO_A_CATEGORIA, categoria_from_tipo,
@@ -98,14 +99,14 @@ async def listar_notificaciones(
     return notificaciones
 
 @router.patch("/notificaciones/{notificacion_id}/leer")
-async def marcar_leida(notificacion_id: str):
+async def marcar_leida(notificacion_id: str, user: dict = Depends(require_auth)):
     result = await db.notificaciones.update_one({"id": notificacion_id}, {"$set": {"leida": True}})
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
     return {"message": "Notificación marcada como leída"}
 
 @router.delete("/notificaciones/{notificacion_id}")
-async def eliminar_notificacion(notificacion_id: str):
+async def eliminar_notificacion(notificacion_id: str, user: dict = Depends(require_auth)):
     result = await db.notificaciones.delete_one({"id": notificacion_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")

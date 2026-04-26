@@ -12,7 +12,7 @@ from auth import require_auth, require_admin
 router = APIRouter(tags=["dashboard"])
 
 @router.get("/dashboard/stats")
-async def obtener_estadisticas():
+async def obtener_estadisticas(user: dict = Depends(require_auth)):
     """Dashboard stats - OPTIMIZADO con aggregation pipeline"""
     now = datetime.now(timezone.utc)
     hace_30_dias = now - timedelta(days=30)

@@ -363,7 +363,10 @@ function QueHaceTab({ agent }) {
     finance_officer: ['Lista facturas pendientes', 'Prepara Modelo 303'],
     gestor_siniestros: ['Lista peticiones de aseguradora pendientes', 'Crea la orden de siniestro 123'],
     triador_averias: ['Se cayó y tiene la pantalla rota, iPhone 12', 'Recomienda técnico para una reparación de agua'],
-    seguimiento_publico: ['¿Cuál es el estado de la OT 123?'],
+    gestor_compras: ['Lista lo que hay que pedir hoy', 'Genera email de pedido para Utopya', 'Marca como recibido el pedido del lunes'],
+    call_center: ['Ana López está enfadada por su orden 1234', 'Envía mensaje al cliente sobre su presupuesto', 'Escala a humano: cliente amenaza con OCU'],
+    presupuestador_publico: ['Pantalla rota iPhone 13, ¿cuánto?', 'Batería no carga, Samsung S22', 'Registra mi solicitud: Juan, juan@x.com'],
+    seguimiento_publico: ['¿Cuál es el estado del token AB12CD34EF56?', 'Ver fotos de mi diagnóstico'],
   };
   return (
     <div className="space-y-4">
@@ -502,7 +505,7 @@ function TareasTab({ agentId, isMaster }) {
   const load = useCallback(async () => {
     try {
       const { data } = await API.get(`/agents/scheduled-tasks?agent_id=${agentId}`);
-      setTasks(Array.isArray(data) ? data : data.items || []);
+      setTasks(data.tasks || data.items || (Array.isArray(data) ? data : []));
     } catch {
       toast.error('Error cargando tareas');
     } finally {
@@ -521,6 +524,16 @@ function TareasTab({ agentId, isMaster }) {
     }
   };
 
+  const togglePause = async (task) => {
+    try {
+      await API.patch(`/agents/scheduled-tasks/${task.id}`, { activo: !task.activo });
+      toast.success(task.activo ? 'Tarea pausada' : 'Tarea activada');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error');
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (tasks.length === 0) {
     return (
@@ -532,26 +545,47 @@ function TareasTab({ agentId, isMaster }) {
   }
   return (
     <div className="space-y-2">
-      {tasks.map((t) => (
-        <div key={t.id} className="border rounded-lg p-3 text-sm" data-testid={`task-${t.id}`}>
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className="font-medium">{t.nombre || t.tool}</span>
-            <Badge variant="outline" className="text-[10px]">{t.estado}</Badge>
+      {tasks.map((t) => {
+        const activo = t.activo !== false;
+        return (
+          <div key={t.id} className="border rounded-lg p-3 text-sm" data-testid={`task-${t.id}`}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="font-medium truncate">{t.descripcion || t.tool}</span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${activo ? 'bg-green-50 text-green-800 border-green-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}
+              >
+                {activo ? 'ACTIVA' : 'PAUSADA'}
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p>Tool: <code className="font-mono">{t.tool}</code></p>
+              <p>Cron: <code className="font-mono">{t.cron_expression || '—'}</code></p>
+              <p>Próxima: {t.proxima_ejecucion || '—'}</p>
+              <p>Última: {t.ultima_ejecucion || '—'}</p>
+              {t.consecutive_failures > 0 && (
+                <p className="text-red-600">Fallos consecutivos: {t.consecutive_failures}</p>
+              )}
+            </div>
+            {isMaster && (
+              <div className="flex gap-1.5 mt-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => togglePause(t)}
+                        data-testid={`btn-toggle-task-${t.id}`}>
+                  {activo
+                    ? <><Pause className="w-3 h-3 mr-1" /> Pausar</>
+                    : <><Play className="w-3 h-3 mr-1" /> Activar</>}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => runNow(t.id)} disabled={!activo}
+                        data-testid={`btn-run-task-${t.id}`}>
+                  <Play className="w-3 h-3 mr-1" /> Ejecutar ahora
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="text-xs text-muted-foreground space-y-0.5">
-            <p>Cron: <code className="font-mono">{t.cron_expression || t.cron || '—'}</code></p>
-            <p>Próxima: {t.proxima_ejecucion || '—'}</p>
-            <p>Última: {t.ultima_ejecucion || '—'}</p>
-          </div>
-          {isMaster && (
-            <Button size="sm" variant="outline" className="mt-2 h-7 text-xs"
-                    onClick={() => runNow(t.id)}
-                    data-testid={`btn-run-task-${t.id}`}>
-              <Play className="w-3 h-3 mr-1" /> Ejecutar ahora
-            </Button>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -873,6 +907,12 @@ function AgentUseCaseWizard({ agents, onClose, navigate }) {
       prompt: 'Se cayó un iPhone 12, pantalla rota, no responde. Analiza', icon: '🔧' },
     { id: 'auditoria', pregunta: 'Necesito auditar SLA e incumplimientos', agent: 'auditor',
       prompt: 'Genera un informe de SLA e incumplimientos del mes', icon: '🔍' },
+    { id: 'compras', pregunta: '¿Qué tengo que pedir esta semana?', agent: 'gestor_compras',
+      prompt: 'Lista lo que hay que pedir y agrúpalo por proveedor', icon: '🛒' },
+    { id: 'call-center', pregunta: 'Cliente enfadado, ¿cómo respondo?', agent: 'call_center',
+      prompt: 'Cliente con OT 1234 está enfadado por el plazo. Búscame su historial y sugiere respuesta.', icon: '☎️' },
+    { id: 'presupuesto-web', pregunta: 'Visitante web pide presupuesto', agent: 'presupuestador_publico',
+      prompt: 'iPhone 13 con pantalla rota, dame rango de precio orientativo', icon: '💬' },
   ];
   return (
     <>

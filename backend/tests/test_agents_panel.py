@@ -65,8 +65,8 @@ def tecnico_headers(tecnico_token):
 class TestAgentsPanelOverview:
     """Tests for GET /api/agents/panel/overview"""
     
-    def test_overview_returns_8_agents(self, master_headers):
-        """Overview should return list of 8 agents with stats"""
+    def test_overview_returns_11_agents(self, master_headers):
+        """Overview should return list of 11 agents with stats (8 legacy + 3 Fase 4)"""
         response = requests.get(f"{BASE_URL}/api/agents/panel/overview", headers=master_headers)
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         
@@ -75,7 +75,7 @@ class TestAgentsPanelOverview:
         assert "resumen" in data, "Response should have 'resumen' key"
         
         agents = data["agents"]
-        assert len(agents) == 8, f"Expected 8 agents, got {len(agents)}"
+        assert len(agents) == 11, f"Expected 11 agents, got {len(agents)}"
         
         # Verify agent structure
         for agent in agents:
@@ -101,7 +101,7 @@ class TestAgentsPanelOverview:
         assert "aprobaciones_pendientes" in resumen
         assert "tareas_proximas_24h" in resumen
         
-        assert resumen["total_agentes"] == 8
+        assert resumen["total_agentes"] == 11
     
     def test_overview_requires_auth(self):
         """Overview should require authentication"""

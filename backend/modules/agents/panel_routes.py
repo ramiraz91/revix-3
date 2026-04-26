@@ -100,6 +100,7 @@ class AgentCardStats(BaseModel):
     estado: str                 # activo | pausado | error
     pausado_por: Optional[str] = None
     tools_count: int
+    tools: list[str] = Field(default_factory=list)
     scopes: list[str]
     acciones_hoy: int
     tasa_exito_7d: float
@@ -142,6 +143,7 @@ async def panel_overview(user: dict = Depends(require_auth)):
             estado=estado,
             pausado_por=state.get('pausado_por'),
             tools_count=len(a.tools),
+            tools=list(a.tools),
             scopes=list(a.scopes),
             acciones_hoy=accs_hoy_r,
             tasa_exito_7d=stats_7d['tasa_exito'],

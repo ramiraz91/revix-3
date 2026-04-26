@@ -1,0 +1,111 @@
+{
+  "summary": "PUNTO 1 Roadmap - Panel Avanzado de Agentes E2E Testing Complete. 83 tests passed (1 skipped). All 11 agents correctly displayed with tools array. Pause/activate, timeline, config, metrics, pending-approvals, and scheduled-tasks endpoints all working. Master/admin role enforcement verified (403 for tecnico). UI verified with Playwright.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "AgentesPanel",
+        "issues": ["Minor: WebSocket connection warning in console (non-blocking)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_agents_panel_sprint.py",
+    "/app/backend/tests/test_agents_panel.py",
+    "/app/backend/tests/test_fase4_agentes.py",
+    "/app/test_reports/pytest/pytest_results_agents_panel_sprint.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/agents/panel/overview returns 11 agents with tools array (not just tools_count) - VERIFIED",
+    "POST /api/agents/{id}/pause and /activate require master/admin role (403 for tecnico) - VERIFIED",
+    "GET /api/agents/{id}/timeline supports filters: tool, resultado=ok|error|all, desde/hasta, limit - VERIFIED",
+    "GET /api/agents/{id}/config returns system_prompt_default, system_prompt_effective, system_prompt_override, rate_limit_soft, rate_limit_hard, history, scopes, tools - VERIFIED",
+    "POST /api/agents/{id}/config validates hard >= soft (400 if not), creates audit_log entry with tool='_config_update' - VERIFIED",
+    "GET /api/agents/panel/metrics?days=N returns por_agente, top_tools, por_dia, top_errors (days 1-30) - VERIFIED",
+    "GET /api/agents/panel/pending-approvals returns items with estado=pendiente - VERIFIED",
+    "POST /api/agents/panel/pending-approvals/{id}/decide requires master/admin, accepts aprobar|rechazar|modificar - VERIFIED",
+    "GET /api/agents/scheduled-tasks?agent_id=X filters tasks by agent - VERIFIED",
+    "POST /api/agents/scheduled-tasks/{task_id}/run-now executes immediately - VERIFIED",
+    "PATCH /api/agents/scheduled-tasks/{task_id} accepts {activo: true/false} - VERIFIED",
+    "UI: 11 agent cards displayed with Pausar/Hablar/Detalle buttons - VERIFIED",
+    "UI: Detail sheet has 5 tabs (¿Qué hace?, Actividad, Tareas, Config, Cola) - VERIFIED",
+    "UI: Wizard shows 9 use cases for different agents - VERIFIED",
+    "UI: TareasTab shows ACTIVA/PAUSADA badge and Pausar/Activar buttons - VERIFIED",
+    "UI: ConfigTab shows rate limits inputs and system prompt with Editar prompt button - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_agents_panel_sprint.py",
+    "/app/backend/tests/test_agents_panel.py"
+  ],
+  "success_rate": {
+    "backend": "100% (83/83 passed, 1 skipped)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "tecnico_user": "tecnico1@revix.es / Tecnico1Demo!"
+  },
+  "seed_data_creation": "No seed data created - used existing demo data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Panel Avanzado de Agentes fully tested. 11 agents (8 legacy + 3 Fase 4). All endpoints working: overview, pause/activate, timeline, config, metrics, pending-approvals, scheduled-tasks. Role enforcement working (master/admin only for write operations). UI verified with Playwright - all tabs, buttons, and wizard working correctly.",
+  "verified_features": [
+    {
+      "feature": "GET /api/agents/panel/overview",
+      "tests": ["Returns 11 agents", "Each agent has tools array", "Resumen has all required fields"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/{id}/pause and /activate",
+      "tests": ["Master can pause/activate", "Idempotent", "Persists in agent_states", "404 for non-existent", "403 for tecnico"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/{id}/timeline",
+      "tests": ["Returns items", "Filter by tool", "Filter by resultado=ok|error", "Filter by desde/hasta", "Limit parameter", "404 for non-existent"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET/POST /api/agents/{id}/config",
+      "tests": ["Returns all fields", "Update rate limits", "Validates hard >= soft (400)", "Update system prompt with history", "Creates audit_log entry", "403 for tecnico", "404 for non-existent"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents/panel/metrics",
+      "tests": ["Returns structure", "days=1,7,30", "por_agente structure", "top_tools structure"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET/POST /api/agents/panel/pending-approvals",
+      "tests": ["List pending approvals", "404 for non-existent", "Validates decision", "403 for tecnico"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET/POST/PATCH /api/agents/scheduled-tasks",
+      "tests": ["List tasks", "Filter by agent_id", "run-now 404 for non-existent", "PATCH activo toggle", "PATCH 404 for non-existent"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Fase 4 MCP",
+      "tests": ["All 11 agents have correct scopes", "Basic endpoints work", "Logistica panel works", "Finanzas dashboard works"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "UI - AgentesPanel",
+      "tests": ["Panel loads", "11 agent cards", "Metrics section", "Wizard button", "Detail sheet with 5 tabs", "Config tab with rate limits", "Tareas tab with ACTIVA/PAUSADA badge", "Pause/Activate button for master"],
+      "status": "PASSED"
+    }
+  ],
+  "skipped_tests": [
+    {
+      "test": "test_estimar_usa_catalogo_utopya",
+      "reason": "No catálogo de referencia (es_catalogo_referencia=True) in revix_preview DB"
+    }
+  ]
+}

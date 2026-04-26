@@ -276,6 +276,7 @@ class ProveedorBase(BaseModel):
     contacto: Optional[str] = None
     telefono: Optional[str] = None
     email: Optional[str] = None
+    web: Optional[str] = None
     direccion: Optional[str] = None
     notas: Optional[str] = None
 

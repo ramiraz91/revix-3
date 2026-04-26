@@ -11,7 +11,31 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (17) · Fase 4 MCP cara al cliente — CERRADA
+## Latest — 2026-02-XX (18) · Panel Avanzado de Agentes /crm/agentes — CERRADO
+
+### Funcionalidades disponibles
+- **Tarjetas visuales** por los 11 agentes con estado, KPIs (acciones hoy, éxito 7d, tools), última acción, errores 24h, botones pausar/activar/chat/detalle.
+- **Panel central**: 5 tarjetas resumen — acciones hoy, errores 24h, aprobaciones pendientes, tareas próximas 24h, agente más activo.
+- **Panel lateral con 5 pestañas**:
+  - `¿Qué hace?` · descripción + tools + scopes + ejemplos por agente (incluye call_center, presupuestador_publico, gestor_compras).
+  - `Actividad` · timeline 100 audit_logs con filtros tool/resultado, expandible por entrada.
+  - `Tareas` · scheduled tasks por agente con badge ACTIVA/PAUSADA, botones Pausar/Activar (PATCH `activo`) y Ejecutar ahora.
+  - `Config` · rate limits editables (validación hard>=soft), system prompt editable + reset a default + historial de cambios.
+  - `Cola` · pending-approvals filtradas por agente con aprobar/rechazar.
+- **Métricas globales**: Selector 1/7/30 días. Acciones por agente (barras), top tools, errores frecuentes.
+- **Wizard** "¿Qué puedo hacer con los agentes?" con 9 casos de uso predefinidos que abren chat directo con prompt en AgentARIA.
+- **Master/admin only** para pausar agentes, editar config, decidir aprobaciones, gestionar tasks. Resto en read-only.
+- **Audit log** automático de cambios en `audit_logs` (tool=`_config_update`) + history en `agent_overrides`.
+
+### Backend cambio
+- `AgentCardStats` en `panel_routes.py` ahora expone `tools: list[str]` además de `tools_count`.
+
+### Tests
+- Testing agent E2E: **83/83 PASS** (backend + UI Playwright). 0 issues críticos. Sin regresión en Fase 4 MCP.
+
+---
+
+## 2026-02-XX (17) · Fase 4 MCP cara al cliente
 
 ### 3 nuevos agentes orientados al cliente
 - **`call_center`** (interno): scopes `customers:read · orders:read · comm:write · comm:escalate · meta:ping`. Tools: `buscar_orden_por_cliente`, `obtener_historial_comunicacion`, `enviar_mensaje_portal` (idempotente), `escalar_a_humano` (crea ticket + notif admins), `buscar_cliente`, `ping`. Rate limit 120/600.

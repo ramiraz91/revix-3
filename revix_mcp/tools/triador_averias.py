@@ -279,12 +279,12 @@ async def _sugerir_repuestos_handler(
                 ],
             }
 
-        items = await db.inventario.find(
+        items = await db.repuestos.find(
             query,
-            {'_id': 0, 'id': 1, 'sku_corto': 1, 'nombre': 1,
+            {'_id': 0, 'id': 1, 'sku': 1, 'sku_corto': 1, 'nombre': 1,
              'stock': 1, 'stock_minimo': 1, 'precio_venta': 1,
-             'precio_compra': 1, 'proveedor': 1, 'categoria': 1,
-             'ubicacion': 1},
+             'precio_compra': 1, 'proveedor': 1, 'proveedor_id': 1,
+             'categoria': 1, 'ubicacion': 1},
         ).limit(20).to_list(20)
 
         # Priorizar: (con stock suficiente) > (precio venta más bajo) > (por proveedor)

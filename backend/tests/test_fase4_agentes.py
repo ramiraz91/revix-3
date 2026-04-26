@@ -19,7 +19,12 @@ import pytest
 import requests
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# Load frontend .env for REACT_APP_BACKEND_URL
+from dotenv import load_dotenv
+load_dotenv("/app/frontend/.env")
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+if not BASE:
+    raise RuntimeError("REACT_APP_BACKEND_URL not set - check /app/frontend/.env")
 MASTER = ("master@revix.es", "RevixMaster2026!")
 
 
@@ -77,32 +82,33 @@ def test_call_center_scopes_y_tools_correctos(tok):
 
 
 def test_presupuestador_scopes_correctos(tok):
-    r = requests.get(f"{BASE}/api/agents", headers=H(tok))
-    ags = r.json() if isinstance(r.json(), list) else (
-        r.json().get("agents") or r.json().get("agentes") or []
-    )
-    pp = next((a for a in ags if a.get("id") == "presupuestador_publico"), None)
-    assert pp is not None
+    # /api/agents excluye agentes visible_to_public, por eso usamos panel/overview
+    # que devuelve TODOS los agentes registrados con sus scopes.
+    r = requests.get(f"{BASE}/api/agents/panel/overview", headers=H(tok))
+    assert r.status_code == 200
+    ags = r.json().get("agents", [])
+    pp = next((a for a in ags if a.get("agent_id") == "presupuestador_publico"), None)
+    assert pp is not None, "Falta presupuestador_publico en panel/overview"
     scopes = set(pp.get("scopes", []))
     for s in ("catalog:read", "quotes:write_public"):
-        assert s in scopes
+        assert s in scopes, f"Falta scope {s} en presupuestador"
     # NO tiene customers:read ni orders:write
     for forbidden in ("customers:read", "orders:write", "finance:read"):
-        assert forbidden not in scopes
+        assert forbidden not in scopes, f"Scope prohibido {forbidden} presente"
 
 
 def test_seguimiento_scopes_correctos(tok):
-    r = requests.get(f"{BASE}/api/agents", headers=H(tok))
-    ags = r.json() if isinstance(r.json(), list) else (
-        r.json().get("agents") or r.json().get("agentes") or []
-    )
-    sp = next((a for a in ags if a.get("id") == "seguimiento_publico"), None)
-    assert sp is not None
-    assert "public:track_by_token" in sp.get("scopes", [])
+    r = requests.get(f"{BASE}/api/agents/panel/overview", headers=H(tok))
+    assert r.status_code == 200
+    ags = r.json().get("agents", [])
+    sp = next((a for a in ags if a.get("agent_id") == "seguimiento_publico"), None)
+    assert sp is not None, "Falta seguimiento_publico en panel/overview"
+    scopes = set(sp.get("scopes", []))
+    assert "public:track_by_token" in scopes
     # Solo el scope público + ping
     for forbidden in ("customers:read", "orders:read", "finance:read",
                       "comm:write"):
-        assert forbidden not in sp.get("scopes", [])
+        assert forbidden not in scopes, f"Scope prohibido {forbidden} presente"
 
 
 # ── 2. Tools registradas en el _registry ──────────────────────────────────
@@ -396,7 +402,8 @@ async def test_rate_limits_seedeados():
         "seguimiento_publico": (60, 300),
     }
     for agent_id, (soft, hard) in expected.items():
-        doc = await db.mcp_rate_limits.find_one({"agent_id": agent_id})
+        # Rate limits are stored in mcp_agent_limits collection
+        doc = await db.mcp_agent_limits.find_one({"agent_id": agent_id})
         # Si no existe el doc en preview, lo seedearíamos en prod via seed_default_limits
         if not doc:
             continue

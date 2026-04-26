@@ -1,0 +1,142 @@
+{
+  "summary": "Fase 4 MCP E2E Testing Complete - 42 tests passed, 1 skipped. All 3 new customer-facing agents (call_center, presupuestador_publico, seguimiento_publico) are correctly registered with proper scopes. Regression tests for Compras, Insurama, Logística, Finanzas, and legacy agents all pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "test_fase4_agentes.py",
+        "issue": "Test was checking wrong collection (mcp_rate_limits instead of mcp_agent_limits) - FIXED"
+      },
+      {
+        "endpoint": "test_fase4_agentes.py",
+        "issue": "Missing REACT_APP_BACKEND_URL env var loading - FIXED by adding dotenv load"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fase4_agentes.py",
+    "/app/backend/tests/test_fase4_e2e_completo.py",
+    "/app/test_reports/pytest/pytest_results_fase4_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All 11 agents correctly registered in AGENTS dict (agent_defs.py line 597)",
+    "GET /api/agents/panel/overview returns all 11 agents with correct scopes",
+    "GET /api/agents correctly excludes visible_to_public=True agents (presupuestador_publico, seguimiento_publico)",
+    "call_center has scopes: customers:read, orders:read, comm:write, comm:escalate, meta:ping - NO finance/orders:write",
+    "presupuestador_publico has scopes: catalog:read, quotes:write_public, meta:ping - NO customers:read/orders:read",
+    "seguimiento_publico has scopes: public:track_by_token, meta:ping - ONLY public scope",
+    "All MCP tools registered in _registry: buscar_orden_por_cliente, obtener_historial_comunicacion, enviar_mensaje_portal, escalar_a_humano, consultar_catalogo_servicios, estimar_precio_reparacion, crear_presupuesto_publico, buscar_por_token, obtener_timeline_cliente, obtener_fotos_diagnostico",
+    "Idempotency working: enviar_mensaje_portal and crear_presupuesto_publico return deduped=true on second call",
+    "escalar_a_humano creates ticket in escalation_tickets + notifies admins",
+    "AuthError raised when agent lacks required scopes",
+    "Rate limits seeded in mcp_agent_limits: call_center 120/600, presupuestador_publico 60/300, seguimiento_publico 60/300"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fase4_agentes.py",
+    "/app/backend/tests/test_fase4_e2e_completo.py"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42 passed, 1 skipped)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "No seed data created - used existing demo data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fase 4 MCP agents fully tested. 3 new customer-facing agents: call_center (internal, visible in /api/agents), presupuestador_publico and seguimiento_publico (public, visible_to_public=True, excluded from /api/agents but included in /api/agents/panel/overview). All tools registered and working. Rate limits seeded in mcp_agent_limits collection. Public endpoint POST /api/public/agents/seguimiento/chat works without auth.",
+  "verified_features": [
+    {
+      "feature": "GET /api/agents/panel/overview",
+      "tests": ["Returns 11 agents", "Includes call_center, presupuestador_publico, seguimiento_publico", "Correct scopes for each agent", "Includes resumen global"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "GET /api/agents (internal only)",
+      "tests": ["Excludes presupuestador_publico (visible_to_public=True)", "Excludes seguimiento_publico (visible_to_public=True)", "Includes call_center", "Includes all 8 legacy agents"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "MCP Tools - Call Center",
+      "tests": ["buscar_orden_por_cliente", "obtener_historial_comunicacion", "enviar_mensaje_portal (idempotent)", "escalar_a_humano (creates ticket + notifies)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "MCP Tools - Presupuestador",
+      "tests": ["consultar_catalogo_servicios", "estimar_precio_reparacion (returns disclaimer + rango_precio)", "crear_presupuesto_publico (idempotent)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "MCP Tools - Seguimiento",
+      "tests": ["buscar_por_token (found=false for invalid)", "obtener_timeline_cliente (found=false + mensaje_cliente)", "obtener_fotos_diagnostico (found=false)"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Auth strict - AuthError without scopes",
+      "tests": ["crear_presupuesto_publico raises AuthError without quotes:write_public", "escalar_a_humano raises AuthError without comm:escalate"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Rate limits seeded",
+      "tests": ["call_center: 120/600", "presupuestador_publico: 60/300", "seguimiento_publico: 60/300"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Compras module",
+      "tests": ["/api/compras/lista/pendientes", "/api/compras/lista"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Insurama inbox",
+      "tests": ["/api/insurama/inbox", "/api/insurama/inbox/pendientes"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Legacy agents",
+      "tests": ["kpi_analyst, auditor, supervisor_cola, iso_officer, finance_officer, gestor_siniestros, triador_averias, gestor_compras all present"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Basic endpoints",
+      "tests": ["/api/health", "/api/ordenes", "/api/clientes", "/api/dashboard/stats"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Agent panel endpoints",
+      "tests": ["/api/agents/{id}/config", "/api/agents/{id}/timeline", "/api/agents/panel/metrics", "/api/agents/panel/pending-approvals"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Logística",
+      "tests": ["/api/logistica/panel/resumen", "/api/logistica/panel/envios"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Notificaciones",
+      "tests": ["/api/notificaciones", "/api/notificaciones/contadores"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Finanzas",
+      "tests": ["/api/finanzas/dashboard", "/api/finanzas/balance"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Public agent endpoint",
+      "tests": ["POST /api/public/agents/seguimiento/chat works without auth"],
+      "status": "PASSED"
+    }
+  ],
+  "skipped_tests": [
+    {
+      "test": "test_estimar_usa_catalogo_utopya",
+      "reason": "No catálogo de referencia (es_catalogo_referencia=True) in revix_preview DB"
+    }
+  ]
+}

@@ -11,7 +11,24 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (19) · ChatBox web revix.es ahora usa MCP presupuestador_publico
+## Latest — 2026-02-XX (20) · Auditoría de Seguridad Exhaustiva — CERRADA
+
+### Hallazgos y fixes
+- **🔴 3 CRÍTICAS cerradas**: data_routes (clientes/proveedores/repuestos), dashboard_routes y notificaciones_routes estaban CRUD-expuestos sin auth → ahora protegidos por **AuthGuard middleware** (`backend/middleware/auth_guard.py`) + `Depends(require_auth/admin)` defensivo en endpoints CRUD.
+- **🟠 5 ALTAS cerradas**: ReDoS fix con `re.escape()` en queries `$regex`; **17 dependencias actualizadas** (FastAPI 0.110→0.136, starlette 0.37→1.0, aiohttp, cryptography, pyjwt, requests, lxml, pillow, pypdf, flask-cors, etc.) cerrando 47 CVEs.
+- **🟡 4 MEDIAS** abordadas o documentadas como aceptables.
+- **🟠 1 ALTA + 🟢 4 BAJAS** documentadas como acción manual del operador (rotación de EMERGENCY_ACCESS_KEY, npm audit migration plan, magic-bytes en uploads, deshabilitar /docs en prod).
+
+### Verificación
+- Testing agent E2E **49/49 PASS** + 0 issues críticos + 0 frontend regressions. Backend y frontend operativos al 100%. Sin regresión en Fase 4 MCP, panel `/crm/agentes`, chatbox revix.es, módulos Compras/Insurama/Logística.
+- Informe completo en **`/app/docs/security_audit.md`** con CVSS por hallazgo, fix aplicado e instrucciones manuales.
+
+### Dependencia upstream pendiente (no bloqueante)
+- `litellm==1.80.0` con 3 CVEs cuyo fix requiere `openai>=1.100`, pineado por `emergentintegrations==0.1.1`. Esperar nueva versión de Emergent. CVEs no explotables en nuestro despliegue (afectan endpoints admin de litellm que no exponemos).
+
+---
+
+## 2026-02-XX (19) · ChatBox web revix.es ahora usa MCP presupuestador_publico
 
 ### Cambios clave (sin tocar diseño)
 - **Backend** `POST /api/web/chatbot`: dejó de usar `LlmChat(gemini-2.5-flash)` con system prompt FAQ hardcoded. Ahora invoca `run_agent_turn(presupuestador_publico, ...)` para que el agente use sus tools MCP (`consultar_catalogo_servicios`, `estimar_precio_reparacion`, `crear_presupuesto_publico`). Response añade `disclaimer` orientativo manteniendo `respuesta`+`session_id` legacy.

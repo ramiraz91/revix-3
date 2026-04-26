@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from config import db
-from auth import require_auth, require_admin
+from auth import require_auth, require_admin, require_master
 
 from .agent_defs import (
     AGENTS, AgentDef, get_agent, list_internal_agents, list_public_agents,
@@ -421,6 +421,129 @@ async def ejecutar_scheduled_task_ahora(
         raise HTTPException(status_code=404, detail='Tarea no encontrada')
     res = await ejecutar_tarea_una_vez(db, task)
     return res
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pausa de emergencia GLOBAL — detiene TODOS los agentes autónomos
+# ──────────────────────────────────────────────────────────────────────────────
+
+KILL_SWITCH_DOC_ID = 'kill_switch'
+
+
+@router.get('/agents/autonomy/status')
+async def estado_autonomia_global(user: dict = Depends(require_auth)):
+    """Devuelve el estado del kill-switch global y el nº de tareas activas."""
+    doc = await db.mcp_global_state.find_one({'id': KILL_SWITCH_DOC_ID}, {'_id': 0})
+    paused = bool(doc and doc.get('paused'))
+    activas = await db.mcp_scheduled_tasks.count_documents({'activo': True})
+    pausadas = await db.mcp_scheduled_tasks.count_documents({'activo': False})
+    return {
+        'paused': paused,
+        'paused_at': doc.get('paused_at') if doc else None,
+        'paused_by': doc.get('paused_by') if doc else None,
+        'reason': doc.get('reason') if doc else None,
+        'tasks_activas': activas,
+        'tasks_pausadas': pausadas,
+    }
+
+
+class KillSwitchRequest(BaseModel):
+    reason: Optional[str] = Field(None, max_length=300)
+
+
+@router.post('/agents/autonomy/pause-all')
+async def pausa_global_emergencia(
+    body: KillSwitchRequest,
+    user: dict = Depends(require_master),
+):
+    """Pausa de emergencia: detiene TODAS las tareas programadas activas.
+
+    Sólo el rol master puede activar este kill-switch. Persiste en
+    `mcp_global_state` para que el scheduler también lo respete y guarda
+    snapshot de las tareas afectadas para poder restaurarlas con resume-all.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+
+    # Snapshot de las tareas que vamos a pausar (para poder restaurarlas)
+    affected_ids = [
+        t['id'] async for t in db.mcp_scheduled_tasks.find(
+            {'activo': True}, {'_id': 0, 'id': 1},
+        )
+    ]
+    # Pausar todas
+    res = await db.mcp_scheduled_tasks.update_many(
+        {'activo': True}, {'$set': {'activo': False}},
+    )
+    # Persistir kill-switch
+    await db.mcp_global_state.update_one(
+        {'id': KILL_SWITCH_DOC_ID},
+        {'$set': {
+            'id': KILL_SWITCH_DOC_ID,
+            'paused': True,
+            'paused_at': now,
+            'paused_by': user.get('email') or user.get('id') or 'master',
+            'reason': body.reason or 'Pausa de emergencia manual',
+            'snapshot_task_ids': affected_ids,
+        }},
+        upsert=True,
+    )
+    # Audit
+    await db.audit_logs.insert_one({
+        'id': str(uuid.uuid4()),
+        'agent_id': '_system',
+        'tool': '_kill_switch_activated',
+        'created_at': now,
+        'user_email': user.get('email'),
+        'detalle': f'Pausa global activada. Tareas pausadas: {res.modified_count}',
+    })
+    return {
+        'paused': True,
+        'tasks_pausadas': res.modified_count,
+        'paused_at': now,
+        'reason': body.reason or 'Pausa de emergencia manual',
+    }
+
+
+@router.post('/agents/autonomy/resume-all')
+async def reanudar_global(user: dict = Depends(require_master)):
+    """Reanuda las tareas que estaban activas antes de la pausa global.
+
+    Sólo reactiva las tareas presentes en el snapshot del kill-switch
+    (no toca las que el master pausó individualmente).
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+
+    doc = await db.mcp_global_state.find_one({'id': KILL_SWITCH_DOC_ID}, {'_id': 0})
+    if not doc or not doc.get('paused'):
+        return {'paused': False, 'tasks_reanudadas': 0, 'mensaje': 'No estaba pausado'}
+
+    snapshot_ids = list(doc.get('snapshot_task_ids') or [])
+    res = await db.mcp_scheduled_tasks.update_many(
+        {'id': {'$in': snapshot_ids}, 'activo': False},
+        {'$set': {'activo': True, 'consecutive_failures': 0}},
+    )
+    await db.mcp_global_state.update_one(
+        {'id': KILL_SWITCH_DOC_ID},
+        {'$set': {
+            'paused': False,
+            'resumed_at': now,
+            'resumed_by': user.get('email') or user.get('id') or 'master',
+        }},
+    )
+    await db.audit_logs.insert_one({
+        'id': str(uuid.uuid4()),
+        'agent_id': '_system',
+        'tool': '_kill_switch_resumed',
+        'created_at': now,
+        'user_email': user.get('email'),
+        'detalle': f'Pausa global desactivada. Tareas reanudadas: {res.modified_count}',
+    })
+    return {
+        'paused': False,
+        'tasks_reanudadas': res.modified_count,
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bot, Pause, Play, MessageSquare, Eye, AlertTriangle, Activity,
   Clock, CheckCircle2, XCircle, TrendingUp, Loader2, RefreshCw, Sparkles,
-  Calendar, ShieldCheck, Save, Users,
+  Calendar, ShieldCheck, Save, Users, AlertOctagon, Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,9 @@ import { Separator } from '@/components/ui/separator';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -98,10 +101,11 @@ export default function AgentesPanel() {
             Centro de control de los {resumen.total_agentes || 0} agentes MCP · auto-refresh 60s
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={load} data-testid="btn-refrescar-panel-agentes">
             <RefreshCw className="w-4 h-4 mr-2" /> Refrescar
           </Button>
+          <KillSwitchControl isMaster={isMaster} />
           <Button
             variant="default" size="sm"
             onClick={() => setShowWizard(true)}
@@ -466,6 +470,16 @@ function ActividadTab({ agentId }) {
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                   )}
                   <span className="font-mono font-medium">{it.tool}</span>
+                  {it.key_id?.startsWith?.('scheduler:') && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] h-4 px-1.5 bg-indigo-50 text-indigo-700 border-indigo-200 font-medium"
+                      data-testid="badge-automatico"
+                      title="Acción ejecutada por el scheduler autónomo"
+                    >
+                      AUTO
+                    </Badge>
+                  )}
                   <span className="text-[10px] text-muted-foreground">{timeAgo(it.timestamp)}</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{it.duration_ms}ms</span>
@@ -949,6 +963,116 @@ function AgentUseCaseWizard({ agents, onClose, navigate }) {
           );
         })}
       </div>
+    </>
+  );
+}
+
+
+
+// ─── Kill-Switch global de emergencia ────────────────────────────────────────
+function KillSwitchControl({ isMaster }) {
+  const [status, setStatus] = useState({ paused: false, tasks_activas: 0, tasks_pausadas: 0 });
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await API.get('/agents/autonomy/status');
+      setStatus(data);
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const pauseAll = async () => {
+    setLoading(true);
+    try {
+      const { data } = await API.post('/agents/autonomy/pause-all', { reason });
+      toast.success(`Pausa global activada · ${data.tasks_pausadas} tareas detenidas`);
+      setOpen(false);
+      setReason('');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error al pausar');
+    } finally { setLoading(false); }
+  };
+
+  const resumeAll = async () => {
+    setLoading(true);
+    try {
+      const { data } = await API.post('/agents/autonomy/resume-all');
+      toast.success(`Autonomía reanudada · ${data.tasks_reanudadas} tareas activas`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error al reanudar');
+    } finally { setLoading(false); }
+  };
+
+  if (status.paused) {
+    return (
+      <Button
+        variant="destructive" size="sm" disabled={!isMaster || loading}
+        onClick={resumeAll}
+        data-testid="btn-resume-autonomia-global"
+        className="animate-pulse"
+        title={status.reason || 'Autonomía pausada'}
+      >
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+        REANUDAR autonomía ({status.tasks_pausadas})
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <Button
+        variant="outline" size="sm" disabled={!isMaster}
+        onClick={() => setOpen(true)}
+        data-testid="btn-pausa-emergencia-global"
+        className="border-red-300 text-red-700 hover:bg-red-50"
+        title={isMaster ? 'Pausa de emergencia global' : 'Solo Master puede activar'}
+      >
+        <AlertOctagon className="w-4 h-4 mr-2" /> Pausa de emergencia
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent data-testid="dialog-pausa-emergencia">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertOctagon className="w-5 h-5" /> Pausa de emergencia global
+            </DialogTitle>
+            <DialogDescription>
+              Detendrá <b>{status.tasks_activas}</b> tareas autónomas activas. Los agentes
+              dejarán de ejecutar tareas programadas hasta que pulses "REANUDAR".
+              <br />
+              Las acciones manuales (chat, run-now) siguen disponibles.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-xs">Motivo (opcional, queda en audit log)</Label>
+            <Input
+              value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder="Ej. Mantenimiento BD, comportamiento anómalo, ..."
+              maxLength={300}
+              data-testid="input-motivo-pausa"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button
+              variant="destructive" disabled={loading} onClick={pauseAll}
+              data-testid="btn-confirmar-pausa-emergencia"
+            >
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlertOctagon className="w-4 h-4 mr-2" />}
+              PAUSAR TODOS LOS AGENTES
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

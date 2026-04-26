@@ -1,0 +1,160 @@
+{
+  "summary": "TAREA 2 Roadmap - Oleada 1 Autonomía Agentes + Kill-Switch Global COMPLETO. 6/6 tests oleada1_autonomia pasados, 14/15 fase4 pasados (1 skipped), 8/8 chatbot pasados. Kill-switch funciona correctamente: pause-all detiene 6 tareas, resume-all las restaura. Frontend KillSwitchControl con dialog de confirmación verificado. Badge AUTO en timeline para acciones del scheduler verificado (32 badges encontrados). Variable MCP_FAILURE_NOTIFY_EMAIL=ramirez91@gmail.com configurada correctamente.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Agents Panel",
+        "issues": ["WebSocket connection warnings (non-blocking) - 'WebSocket is closed before the connection is established'"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_oleada1_autonomia.py",
+    "/app/backend/tests/test_oleada1_completo.py",
+    "/app/backend/tests/test_fase4_agentes.py",
+    "/app/backend/tests/test_chatbot_web_mcp.py",
+    "/app/test_reports/pytest/pytest_results_oleada1.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/agents/autonomy/status - Devuelve {paused, paused_at, paused_by, reason, tasks_activas, tasks_pausadas} - VERIFIED",
+    "POST /api/agents/autonomy/pause-all - Solo master puede activar (require_master) - VERIFIED",
+    "POST /api/agents/autonomy/resume-all - Solo master puede reanudar - VERIFIED",
+    "Kill-switch persistencia en MongoDB (mcp_global_state.kill_switch) - VERIFIED",
+    "Snapshot de tareas pausadas guardado para restauración - VERIFIED",
+    "Audit logs con tool='_kill_switch_activated' y '_kill_switch_resumed' - VERIFIED",
+    "4 tareas Oleada 1 sembradas: kpi_analyst.obtener_dashboard '0 8 * * *', auditor.ejecutar_audit_operacional '0 22 * * *', auditor.generar_audit_report '0 9 * * 1', iso_officer.generar_revision_direccion '0 6 1 * *' - VERIFIED",
+    "Scheduler respeta kill-switch (línea 343-350 scheduler.py) - VERIFIED",
+    "Frontend btn-pausa-emergencia-global visible y funcional - VERIFIED",
+    "Frontend dialog-pausa-emergencia con input-motivo-pausa y btn-confirmar-pausa-emergencia - VERIFIED",
+    "Frontend btn-resume-autonomia-global con animate-pulse y color destructive - VERIFIED",
+    "Frontend badge-automatico (AUTO) en timeline para acciones del scheduler - VERIFIED (32 badges encontrados)",
+    "MCP_FAILURE_NOTIFY_EMAIL=ramirez91@gmail.com en backend/.env - VERIFIED",
+    "NOTIFY_EMAIL en scheduler.py usa MCP_FAILURE_NOTIFY_EMAIL - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_oleada1_completo.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 oleada1 + 14/15 fase4 + 8/8 chatbot = 28/29 passed, 1 skipped)",
+    "frontend": "100% (kill-switch dialog, pause/resume cycle, AUTO badges all verified)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "note": "Rate limit activo tras tests - reiniciar backend para limpiar"
+  },
+  "seed_data_creation": "4 tareas Oleada 1 ya sembradas por seed_oleada_1.py",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "TAREA 2 (Oleada 1 autonomía) COMPLETO. Kill-switch global funciona: pause-all detiene todas las tareas activas, resume-all las restaura desde snapshot. Frontend KillSwitchControl verificado con dialog de confirmación. Badge AUTO en timeline funciona para acciones del scheduler. Variable MCP_FAILURE_NOTIFY_EMAIL configurada. Regresión: fase4 y chatbot siguen funcionando.",
+  "verified_features": [
+    {
+      "feature": "GET /api/agents/autonomy/status",
+      "tests": [
+        "Devuelve paused, paused_at, paused_by, reason, tasks_activas, tasks_pausadas",
+        "Sin auth → 401",
+        "Con auth → 200 con al menos 4 tareas activas"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/autonomy/pause-all",
+      "tests": [
+        "Sin auth → 401",
+        "Con master auth → 200, pausa todas las tareas",
+        "Guarda snapshot de tareas pausadas",
+        "Crea audit_log con tool='_kill_switch_activated'",
+        "Idempotente (segunda llamada pausa 0 tareas)"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/agents/autonomy/resume-all",
+      "tests": [
+        "Sin auth → 401",
+        "Con master auth → 200, restaura tareas del snapshot",
+        "Resetea consecutive_failures a 0",
+        "Crea audit_log con tool='_kill_switch_resumed'"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "4 Tareas Oleada 1 Sembradas",
+      "tests": [
+        "kpi_analyst.obtener_dashboard '0 8 * * *' - ACTIVA",
+        "auditor.ejecutar_audit_operacional '0 22 * * *' - ACTIVA",
+        "auditor.generar_audit_report '0 9 * * 1' - ACTIVA",
+        "iso_officer.generar_revision_direccion '0 6 1 * *' - ACTIVA"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "run-now kpi_analyst",
+      "tests": [
+        "POST /api/agents/scheduled-tasks/{task_id}/run-now → success=true",
+        "Devuelve dashboard con datos reales"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Frontend KillSwitchControl",
+      "tests": [
+        "btn-pausa-emergencia-global visible en header",
+        "Solo Master puede pulsarlo (disabled en otros roles)",
+        "Dialog con input-motivo-pausa y btn-confirmar-pausa-emergencia",
+        "Tras pausar: btn-resume-autonomia-global con animate-pulse",
+        "Tras reanudar: btn-pausa-emergencia-global vuelve"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Frontend Timeline AUTO Badge",
+      "tests": [
+        "Acciones del scheduler (key_id starts with 'scheduler:') muestran badge AUTO",
+        "32 badges AUTO encontrados en timeline de kpi_analyst"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "MCP_FAILURE_NOTIFY_EMAIL",
+      "tests": [
+        "Variable en backend/.env = ramirez91@gmail.com",
+        "scheduler.py usa NOTIFY_EMAIL = os.environ.get('MCP_FAILURE_NOTIFY_EMAIL', 'master@revix.es')"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regresión - Fase 4 MCP",
+      "tests": [
+        "3 agentes fase4 registrados",
+        "Tools en registry",
+        "Rate limits seedeados"
+      ],
+      "status": "PASSED (14/15, 1 skipped)"
+    },
+    {
+      "feature": "Regresión - Chatbot Web",
+      "tests": [
+        "Chatbot responde con disclaimer",
+        "Mantiene contexto por session",
+        "Lead preview devuelve mock"
+      ],
+      "status": "PASSED (8/8)"
+    }
+  ],
+  "mocked_apis": {
+    "POST /api/web/lead": "En MCP_ENV=preview devuelve mock (no escribe a MongoDB)"
+  },
+  "skipped_tests": [
+    {
+      "test": "test_estimar_usa_catalogo_utopya",
+      "reason": "No catálogo de referencia (es_catalogo_referencia=True) in revix_preview DB"
+    }
+  ]
+}

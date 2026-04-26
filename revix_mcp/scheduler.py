@@ -338,7 +338,17 @@ _SCHEDULER_STOP_EVENT: Optional[asyncio.Event] = None
 
 
 async def scheduler_tick(db: AsyncIOMotorDatabase) -> int:
-    """Ejecuta todas las tareas vencidas. Retorna cuántas se ejecutaron."""
+    """Ejecuta todas las tareas vencidas. Retorna cuántas se ejecutaron.
+
+    Respeta el kill-switch global (`mcp_global_state.kill_switch.paused=True`):
+    si está activo, NO se ejecuta ninguna tarea, sólo se loguea (1 vez/min).
+    """
+    # Kill-switch global de emergencia
+    state = await db.mcp_global_state.find_one({'id': 'kill_switch'}, {'_id': 0})
+    if state and state.get('paused'):
+        logger.debug('[scheduler] kill-switch activo, tick saltado')
+        return 0
+
     now_iso = datetime.now(timezone.utc).isoformat()
     cursor = db[TASKS_COLLECTION].find(
         {'activo': True, 'proxima_ejecucion': {'$lte': now_iso}},

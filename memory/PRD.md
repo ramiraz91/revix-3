@@ -11,7 +11,33 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (20) · Auditoría de Seguridad Exhaustiva — CERRADA
+## Latest — 2026-02-XX (21) · Oleada 1 Autonomía Agentes + Kill-Switch Global
+
+### Limpieza GLS (Tarea 1)
+- Auditoría reveló que `modules/gls/` legacy aún está en uso activo (server.py:680, 974; ordenes_routes.py 7 imports; 4 UIs frontend). Borrarlo hoy rompería el sistema.
+- Acordado con usuario: **aplazado al sprint MRW conjunto** (refactor completo unificado). Fase A se reduce a 0 acciones (no había código realmente huérfano).
+
+### Oleada 1 activada (Tarea 2)
+- **4 tareas programadas** sembradas vía `backend/scripts/seed_oleada_1.py` (idempotente):
+  - `kpi_analyst.obtener_dashboard` · `0 8 * * *` (diario 08:00 UTC)
+  - `auditor.ejecutar_audit_operacional` · `0 22 * * *` (diario 22:00 UTC)
+  - `auditor.generar_audit_report` · `0 9 * * 1` (semanal lunes 09:00 UTC)
+  - `iso_officer.generar_revision_direccion` · `0 6 1 * *` (mensual día 1 06:00 UTC)
+- **Kill-switch global** `/api/agents/autonomy/{status,pause-all,resume-all}` con persistencia en `mcp_global_state.kill_switch`. El scheduler respeta el switch en cada tick.
+- **Auto-desactivación tras 3 fallos**: ya implementado en scheduler. Email a `MCP_FAILURE_NOTIFY_EMAIL=ramirez91@gmail.com` (nueva env var).
+- **Frontend** `AgentesPanel.jsx`: componente `KillSwitchControl` en header con dialog de confirmación (Master only). Badge `AUTO` en TimelineTab para acciones cuyo `key_id` empieza por `scheduler:`.
+
+### Tests
+- `test_oleada1_autonomia.py`: 6/6 PASS local
+- Testing agent E2E: **28/29 PASS + 1 skip**, 0 issues backend, 0 issues UI. Sin regresión Fase 4 ni chatbot.
+
+### Pendiente Oleada 2 / 3 (esperar 1 semana de observación)
+- Oleada 2: supervisor_cola, gestor_compras, triador_averias, gestor_siniestros (escritura limitada)
+- Oleada 3: call_center (con cola), finance_officer (CONGELADO solo lectura)
+
+---
+
+## 2026-02-XX (20) · Auditoría de Seguridad Exhaustiva — CERRADA
 
 ### Hallazgos y fixes
 - **🔴 3 CRÍTICAS cerradas**: data_routes (clientes/proveedores/repuestos), dashboard_routes y notificaciones_routes estaban CRUD-expuestos sin auth → ahora protegidos por **AuthGuard middleware** (`backend/middleware/auth_guard.py`) + `Depends(require_auth/admin)` defensivo en endpoints CRUD.

@@ -18,8 +18,13 @@ import pytest
 import requests
 import os
 import uuid
+from dotenv import load_dotenv
 
+# Load frontend .env for REACT_APP_BACKEND_URL
+load_dotenv("/app/frontend/.env")
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+if not BASE_URL:
+    raise RuntimeError("REACT_APP_BACKEND_URL not set - check /app/frontend/.env")
 
 # Test credentials
 MASTER_EMAIL = "master@revix.es"

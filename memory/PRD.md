@@ -11,7 +11,25 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-04-26 (16) · Compras y Aprovisionamiento (#11)
+## Latest — 2026-02-XX (17) · Fase 4 MCP cara al cliente — CERRADA
+
+### 3 nuevos agentes orientados al cliente
+- **`call_center`** (interno): scopes `customers:read · orders:read · comm:write · comm:escalate · meta:ping`. Tools: `buscar_orden_por_cliente`, `obtener_historial_comunicacion`, `enviar_mensaje_portal` (idempotente), `escalar_a_humano` (crea ticket + notif admins), `buscar_cliente`, `ping`. Rate limit 120/600.
+- **`presupuestador_publico`** (`visible_to_public=True`): scopes mínimos `catalog:read · quotes:write_public · meta:ping`. Tools: `consultar_catalogo_servicios`, `estimar_precio_reparacion` (rango min/max + disclaimer obligatorio), `crear_presupuesto_publico` (idempotente, escribe en `pre_registros`, NO crea OT). Rate limit 60/300.
+- **`seguimiento_publico`** (`visible_to_public=True`): scopes ultra-restringidos `public:track_by_token · meta:ping`. Tools: `buscar_por_token`, `obtener_timeline_cliente`, `obtener_fotos_diagnostico`. Rate limit 60/300.
+
+### Tests y validación
+- Suite `/app/backend/tests/test_fase4_agentes.py`: 14/14 PASS, 1 SKIP (catálogo Utopya en preview).
+- Fix tests previos: los tests de scopes apuntaban a `/api/agents` (que filtra `visible_to_public`); migrados a `/api/agents/panel/overview` que devuelve los 11 agentes.
+- Testing agent E2E completo: **42/42 PASS** sin issues críticos ni regresiones (Compras, Insurama, Logística, Finanzas, agentes legacy verificados).
+
+### Comportamiento de endpoints (importante)
+- `GET /api/agents` → SOLO 9 agentes internos (excluye `visible_to_public=True`).
+- `GET /api/agents/panel/overview` → TODOS los 11 agentes con stats y scopes.
+
+---
+
+## 2026-04-26 (16) · Compras y Aprovisionamiento (#11)
 
 ### Bloque 1 — Diagnóstico
 Identificados 3 problemas raíz: (a) `triador_averias.sugerir_repuestos` consultaba `db.inventario` (colección vacía) en lugar de `db.repuestos` → nunca encontraba ni creaba nada; (b) no existía colección/lista de compras (solo módulo de **facturas** mal nombrado); (c) 0 proveedores y 0 repuestos en BD.

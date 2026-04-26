@@ -1,0 +1,112 @@
+{
+  "summary": "PUNTO 2 (revisión) - ChatBot Web MCP Integration Testing Complete. All tests passed: 8/8 chatbot tests, 14/14 Fase 4 tests (1 skipped), 26/26 agents panel tests. ChatBot.jsx now uses presupuestador_publico MCP agent. Lead capture MOCKED in MCP_ENV=preview. Widget vanilla JS removed (404 on /api/public/widget/*).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_chatbot_web_mcp.py",
+    "/app/backend/tests/test_fase4_agentes.py",
+    "/app/backend/tests/test_agents_panel.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "POST /api/web/chatbot - Uses presupuestador_publico MCP agent via run_agent_turn - VERIFIED",
+    "POST /api/web/chatbot - Returns {respuesta, session_id, disclaimer} - VERIFIED",
+    "POST /api/web/chatbot - Maintains context between calls with same session_id - VERIFIED",
+    "POST /api/web/chatbot - Validation: empty mensaje → 422 - VERIFIED",
+    "POST /api/web/lead - consent=false → 400 - VERIFIED",
+    "POST /api/web/lead - Invalid email → 422 - VERIFIED",
+    "POST /api/web/lead - nombre <2 chars → 422 - VERIFIED",
+    "POST /api/web/lead - MCP_ENV=preview returns {ok:true, preview:true, mock:true, pre_registro_id:'preview-mock-*'} - VERIFIED (MOCKED)",
+    "Rate limiting in-memory by IP: chat 30/min, lead 10/min - VERIFIED (code review)",
+    "Frontend: FloatingChat mounted in PublicLayout at route '/' - VERIFIED",
+    "ChatBot UI: data-testid='floating-chat-toggle' - VERIFIED",
+    "ChatBot UI: data-testid='chatbot-panel', 'chatbot-input', 'chatbot-send', 'chatbot-messages' - VERIFIED",
+    "ChatBot UI: data-testid='chatbot-msg-bot' for bot messages - VERIFIED",
+    "ChatBot UI: data-testid='chatbot-disclaimer' appears after bot response with disclaimer field - VERIFIED",
+    "ChatBot UI: data-testid='chatbot-cta-lead' appears after 1 user turn - VERIFIED",
+    "ChatBot UI: Lead form inline (not popup) with data-testid='chatbot-lead-form', 'chatbot-lead-nombre', 'chatbot-lead-email', 'chatbot-lead-telefono', 'chatbot-lead-consent', 'chatbot-lead-submit', 'chatbot-lead-cancel' - VERIFIED",
+    "ChatBot UI: data-testid='chatbot-lead-error' shows validation errors - VERIFIED",
+    "ChatBot UI: After lead submit OK → form closes, bot shows success message with user name - VERIFIED",
+    "ChatBot UI: Blue branding #0055FF preserved - VERIFIED (rgb(0, 85, 255))",
+    "ChatBot UI: Header shows 'Asistente Revix' + 'IA activa' - VERIFIED",
+    "ChatBot UI: Font Plus Jakarta Sans/Inter - VERIFIED",
+    "ChatBot UI: Panel width 360px - VERIFIED",
+    "Cleanup: /widget/ directory does not exist - VERIFIED",
+    "Cleanup: widget_publico_routes.py does not exist - VERIFIED",
+    "Cleanup: No widget_publico import in server.py - VERIFIED",
+    "Cleanup: GET /api/public/widget/health returns 404 - VERIFIED",
+    "Regression: Fase 4 MCP tests 14/14 passed (1 skipped) - VERIFIED",
+    "Regression: Agents panel tests 26/26 passed - VERIFIED"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (8/8 chatbot + 14/14 Fase4 + 26/26 agents panel = 48 passed, 1 skipped)",
+    "frontend": "100% (all UI elements verified via Playwright)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!",
+    "chatbot_public": "No auth required for /api/web/chatbot and /api/web/lead"
+  },
+  "seed_data_creation": "No seed data created - chatbot uses preview mock mode for lead capture",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PUNTO 2 (revisión) complete. ChatBot.jsx now uses presupuestador_publico MCP agent instead of direct Gemini. Endpoints: POST /api/web/chatbot (returns respuesta, session_id, disclaimer), POST /api/web/lead (MOCKED in preview). Old widget vanilla JS completely removed - /api/public/widget/* returns 404. All data-testids present for automated testing. Lead capture is MOCKED in MCP_ENV=preview.",
+  "verified_features": [
+    {
+      "feature": "POST /api/web/chatbot",
+      "tests": ["Returns respuesta from MCP agent", "Returns session_id", "Returns disclaimer", "Maintains session context", "Validates empty mensaje (422)", "No auth required"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "POST /api/web/lead",
+      "tests": ["Requires consent=true (400 if false)", "Validates email (422)", "Validates nombre <2 chars (422)", "Preview returns ok:true", "Preview returns preview:true", "Preview returns mock:true", "Preview returns pre_registro_id starting with preview-mock-"],
+      "status": "PASSED (MOCKED in preview)"
+    },
+    {
+      "feature": "ChatBot UI - Panel",
+      "tests": ["Toggle button visible bottom-right", "Panel opens on click", "Header shows 'Asistente Revix' + 'IA activa'", "Greeting message appears", "Input field works", "Send button works", "Blue branding #0055FF"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "ChatBot UI - Conversation",
+      "tests": ["User message sent", "Bot response received from MCP agent", "Disclaimer appears under bot response (italic gray)", "CTA button appears after 1 user turn"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "ChatBot UI - Lead Form",
+      "tests": ["Form opens inline on CTA click", "All fields present (nombre, email, telefono, consent)", "Validation shows error for empty name", "Form submits successfully", "Success message appears with user name"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Widget Cleanup",
+      "tests": ["/widget/ directory removed", "widget_publico_routes.py removed", "No widget import in server.py", "/api/public/widget/health returns 404"],
+      "status": "PASSED"
+    },
+    {
+      "feature": "Regression - Fase 4 MCP",
+      "tests": ["3 agents registered", "All tools in registry", "Scopes correct", "Rate limits seeded"],
+      "status": "PASSED (14/14, 1 skipped)"
+    },
+    {
+      "feature": "Regression - Agents Panel",
+      "tests": ["Overview returns 11 agents", "Pause/activate works", "Timeline works", "Config works", "Metrics works"],
+      "status": "PASSED (26/26)"
+    }
+  ],
+  "mocked_apis": {
+    "POST /api/web/lead": "In MCP_ENV=preview, returns mock response without writing to MongoDB. This is expected behavior, NOT a bug."
+  },
+  "skipped_tests": [
+    {
+      "test": "test_estimar_usa_catalogo_utopya",
+      "reason": "No catálogo de referencia (es_catalogo_referencia=True) in revix_preview DB"
+    }
+  ]
+}

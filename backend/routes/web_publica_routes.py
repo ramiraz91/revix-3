@@ -3,17 +3,66 @@ Rutas públicas para la web de Revix.es
 Chatbot IA (información general), formulario de contacto y solicitudes de presupuesto
 """
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime, timezone
+import os
+import sys
+import time
 import uuid
 import logging
+from collections import defaultdict, deque
+from pathlib import Path
 
 from config import db, EMERGENT_LLM_KEY
+
+# MCP runtime + agent presupuestador_publico (Fase 4)
+_APP_ROOT = Path(__file__).resolve().parents[2]
+if str(_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APP_ROOT))
+
+from revix_mcp.runtime import ToolRateLimitError  # noqa: E402
+from modules.agents.agent_defs import get_agent  # noqa: E402
+from modules.agents.engine import run_agent_turn  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/web", tags=["web-publica"])
+
+DISCLAIMER = (
+    "Este presupuesto es orientativo y puede variar tras diagnóstico presencial. "
+    "No constituye compromiso de precio ni plazo."
+)
+AGENT_MESSAGES_COLL = "agent_messages"
+
+
+def _is_preview() -> bool:
+    return os.environ.get("MCP_ENV", "").lower() == "preview"
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# Rate limit en memoria por IP (chat 30/min, lead 10/min)
+_RATE_BUCKETS: dict[str, deque] = defaultdict(deque)
+
+
+def _check_rate_limit(key: str, limit_per_min: int) -> None:
+    now = time.time()
+    bucket = _RATE_BUCKETS[key]
+    while bucket and now - bucket[0] > 60.0:
+        bucket.popleft()
+    if len(bucket) >= limit_per_min:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiadas solicitudes. Espera un momento e intenta de nuevo.",
+        )
+    bucket.append(now)
+
 
 try:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -25,8 +74,19 @@ except ImportError:
 # ==================== MODELOS ====================
 
 class ChatMessage(BaseModel):
-    mensaje: str
-    session_id: str
+    mensaje: str = Field(..., min_length=1, max_length=1000)
+    session_id: str = Field(..., min_length=1, max_length=80)
+
+
+class LeadCapture(BaseModel):
+    nombre: str = Field(..., min_length=2, max_length=100)
+    email: EmailStr
+    telefono: Optional[str] = Field(None, max_length=30)
+    tipo_dispositivo: Optional[str] = Field(None, max_length=50)
+    modelo: Optional[str] = Field(None, max_length=80)
+    descripcion_averia: Optional[str] = Field(None, max_length=1000)
+    session_id: Optional[str] = Field(None, max_length=80)
+    consent: bool = Field(False, description="Consentimiento RGPD")
 
 
 class ContactoForm(BaseModel):
@@ -161,59 +221,146 @@ Respuesta: "Solo puedo ayudarte con información sobre nuestros servicios. ¿Tie
 """
 
 @router.post("/chatbot")
-async def chatbot(data: ChatMessage):
-    """Chatbot IA para la web pública - SOLO información sobre Revix"""
-    if not EMERGENT_LLM_KEY or not LlmChat:
-        raise HTTPException(status_code=500, detail="Chatbot no disponible")
+async def chatbot(data: ChatMessage, request: Request):
+    """Chatbox público de Revix.es conectado al agente MCP `presupuestador_publico`.
+
+    El agente tiene acceso a las tools: consultar_catalogo_servicios,
+    estimar_precio_reparacion, crear_presupuesto_publico. Devuelve siempre un
+    `disclaimer` orientativo.
+    """
+    _check_rate_limit(f"chat:{_client_ip(request)}", limit_per_min=30)
+
+    agent = get_agent("presupuestador_publico")
+    if not agent:
+        raise HTTPException(status_code=500, detail="Asistente no configurado")
+
+    # Historial de la sesión (cap 40 turnos)
+    cursor = db[AGENT_MESSAGES_COLL].find(
+        {"session_id": data.session_id},
+        {"_id": 0, "role": 1, "content": 1, "tool_calls": 1,
+         "tool_call_id": 1, "name": 1, "seq": 1},
+    ).sort("seq", 1).limit(40)
+    history = [m async for m in cursor]
+    history_for_llm = []
+    for m in history:
+        entry = {"role": m["role"], "content": m.get("content") or ""}
+        if m.get("tool_calls"):
+            entry["tool_calls"] = m["tool_calls"]
+        if m.get("tool_call_id"):
+            entry["tool_call_id"] = m["tool_call_id"]
+        if m.get("name"):
+            entry["name"] = m["name"]
+        history_for_llm.append(entry)
 
     try:
-        # Recuperar historial de la sesión (últimos 6 mensajes para contexto limitado)
-        historial = await db.chatbot_web.find(
-            {"session_id": data.session_id},
-            {"_id": 0}
-        ).sort("created_at", 1).to_list(12)
-
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"web-chatbot-{data.session_id}",
-            system_message=SYSTEM_PROMPT
-        ).with_model("gemini", "gemini-2.5-flash")
-
-        # Construir contexto de conversación previa (limitado)
-        if historial:
-            context_messages = historial[-6:]
-            context = "\n".join([
-                f"{'Usuario' if m['role'] == 'user' else 'Asistente'}: {m['content']}"
-                for m in context_messages
-            ])
-            prompt = f"Conversación anterior:\n{context}\n\nUsuario: {data.mensaje}"
-        else:
-            prompt = data.mensaje
-
-        response = await chat.send_message(UserMessage(text=prompt))
-
-        # Guardar en historial
-        now = datetime.now(timezone.utc).isoformat()
-        await db.chatbot_web.insert_many([
-            {
-                "session_id": data.session_id,
-                "role": "user",
-                "content": data.mensaje,
-                "created_at": now
-            },
-            {
-                "session_id": data.session_id,
-                "role": "assistant",
-                "content": response,
-                "created_at": now
-            }
-        ])
-
-        return {"respuesta": response, "session_id": data.session_id}
-
-    except Exception as e:
-        logger.error(f"Error chatbot web: {e}")
+        result = await run_agent_turn(db, agent, history_for_llm, data.mensaje)
+    except ToolRateLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail="Estamos recibiendo muchas consultas. Inténtalo en un momento.",
+        ) from e
+    except Exception:  # noqa: BLE001
+        logger.exception("chatbot web turn failed")
         raise HTTPException(status_code=500, detail="Error al procesar tu mensaje")
+
+    # Persistir mensajes nuevos en agent_messages (compatibilidad MCP)
+    base_seq = len(history)
+    full_new = result["messages"][len(history_for_llm):]
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    docs = []
+    for i, m in enumerate(full_new):
+        docs.append({
+            "session_id": data.session_id,
+            "agent_id": "presupuestador_publico",
+            "seq": base_seq + i,
+            "role": m.get("role"),
+            "content": m.get("content"),
+            "tool_calls": m.get("tool_calls"),
+            "tool_call_id": m.get("tool_call_id"),
+            "name": m.get("name"),
+            "created_at": now_iso,
+            "public": True,
+            "source": "web_chatbot",
+        })
+    if docs:
+        await db[AGENT_MESSAGES_COLL].insert_many(docs)
+
+    return {
+        "respuesta": result["reply"],
+        "session_id": data.session_id,
+        "disclaimer": DISCLAIMER,
+    }
+
+
+# ==================== LEAD CAPTURE (pre_registros) ====================
+
+@router.post("/lead")
+async def web_lead(data: LeadCapture, request: Request):
+    """Captura de lead desde el chatbox de la web → crea pre_registro.
+
+    En MCP_ENV=preview devuelve mock sin persistir.
+    En producción usa la tool MCP `crear_presupuesto_publico` (idempotente).
+    """
+    _check_rate_limit(f"lead:{_client_ip(request)}", limit_per_min=10)
+
+    if not data.consent:
+        raise HTTPException(
+            status_code=400,
+            detail="Se requiere consentimiento RGPD para procesar tus datos.",
+        )
+
+    idem_key = f"web-{data.email}-{data.session_id or 'no-session'}"
+
+    if _is_preview():
+        logger.info(f"[web/lead PREVIEW MOCK] {data.email}")
+        return {
+            "ok": True,
+            "preview": True,
+            "mock": True,
+            "pre_registro_id": f"preview-mock-{uuid.uuid4().hex[:8]}",
+            "disclaimer": DISCLAIMER,
+            "mensaje": "Recibido (modo preview, no se ha persistido).",
+        }
+
+    try:
+        import revix_mcp.tools  # noqa: F401  asegurar registro
+        from revix_mcp.tools._registry import get_tool
+        from revix_mcp.auth import AgentIdentity
+
+        identity = AgentIdentity(
+            key_id=f"web-chatbot-{_client_ip(request)}",
+            agent_name="web_chatbot",
+            rate_limit_per_min=60,
+            agent_id="presupuestador_publico",
+            scopes=["catalog:read", "quotes:write_public", "meta:ping"],
+        )
+        tool = get_tool("crear_presupuesto_publico")
+        if tool is None:
+            raise RuntimeError("Tool crear_presupuesto_publico no registrada")
+
+        result = await tool.handler(db, identity, {
+            "nombre_visitante": data.nombre,
+            "email": data.email,
+            "telefono": data.telefono,
+            "tipo_dispositivo": data.tipo_dispositivo or "no-especificado",
+            "modelo": data.modelo or "no-especificado",
+            "descripcion_averia": data.descripcion_averia or "Solicitud desde chatbox web",
+            "idempotency_key": idem_key,
+        })
+        return {
+            "ok": True,
+            "preview": False,
+            "pre_registro_id": result.get("pre_registro_id"),
+            "deduped": result.get("deduped", False),
+            "disclaimer": DISCLAIMER,
+            "mensaje": "Recibimos tu solicitud. Te contactaremos en horario laboral.",
+        }
+    except Exception:  # noqa: BLE001
+        logger.exception("web/lead failed")
+        raise HTTPException(
+            status_code=500,
+            detail="No pudimos registrar tu solicitud. Intenta de nuevo más tarde.",
+        )
 
 
 # ==================== FORMULARIO DE CONTACTO ====================

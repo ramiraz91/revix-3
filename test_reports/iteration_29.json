@@ -1,0 +1,102 @@
+{
+  "summary": "ValidarEnvioInline manual shipping mode feature - FULLY VERIFIED. All UI elements present and functional. Complete E2E test passed: login -> navigate to order -> open validation dialog -> switch to manual mode -> fill form -> submit -> verify result via API.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ValidarEnvioInline dialog",
+        "issues": ["Minor HTML nesting warning in console: <div> cannot be descendant of <p> (Badge inside paragraph) - cosmetic only, does not affect functionality"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_29.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ValidarEnvioInline.jsx: Mode selector correctly implemented with data-testid attributes",
+    "Manual mode form fields (agencia, codigo, observaciones) all have proper data-testid",
+    "handleSkip() correctly calls PATCH /api/ordenes/{id}/envio for agencia/codigo, then ordenesAPI.cambiarEstado",
+    "GLS mode guard 'sin autorización' now shows inline banner instead of early-return, allowing manual mode even without numero_autorizacion",
+    "All interactive elements have proper data-testid for testing"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% - API correctly updated order state, codigo_recogida_salida, and agencia_envio",
+    "frontend": "100% - All UI elements verified, complete flow tested"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "OT-DEMO-003 was used for testing and is now in 'enviado' state with manual shipping data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ValidarEnvioInline manual shipping mode fully implemented and tested. OT-DEMO-003 is now in 'enviado' state. To test again, change an order to 'reparado' state first.",
+  "verified_features": [
+    {
+      "feature": "Mode selector (GLS vs Manual)",
+      "data_testid": "validar-envio-modo-selector, validar-envio-modo-gls, validar-envio-modo-manual",
+      "status": "VERIFIED - Both buttons visible and clickable"
+    },
+    {
+      "feature": "Manual mode notice (green)",
+      "data_testid": "validar-envio-aviso-manual",
+      "status": "VERIFIED - Shows 'Modo envío manual' with explanation text"
+    },
+    {
+      "feature": "Manual form fields",
+      "data_testid": "validar-envio-manual-agencia, validar-envio-manual-codigo, validar-envio-manual-observaciones",
+      "status": "VERIFIED - All inputs present and fillable"
+    },
+    {
+      "feature": "Confirm manual button",
+      "data_testid": "validar-envio-confirmar-manual-btn",
+      "status": "VERIFIED - Green button 'Marcar como ENVIADA (manual)' works"
+    },
+    {
+      "feature": "Result display",
+      "data_testid": "validar-envio-result",
+      "status": "VERIFIED - Shows 'Orden marcada como ENVIADA (manual)' with Modo, Código, Agencia"
+    },
+    {
+      "feature": "API persistence",
+      "endpoint": "GET /api/ordenes?search=OT-DEMO-003",
+      "status": "VERIFIED - estado='enviado', codigo_recogida_salida='SEUR-TEST-12345', agencia_envio='SEUR Test'"
+    },
+    {
+      "feature": "GLS mode without authorization warning",
+      "data_testid": "validar-envio-sin-auth",
+      "status": "VERIFIED via code review - Shows inline banner instead of blocking, allows manual mode"
+    }
+  ],
+  "screenshots": [
+    ".screenshots/01_validation_popup.png - Initial validation popup with download buttons",
+    ".screenshots/02_validar_envio_dialog.png - ValidarEnvioInline with mode selector visible",
+    ".screenshots/03_manual_mode.png - Manual mode form with empty fields",
+    ".screenshots/04_form_filled.png - Form filled with SEUR Test data",
+    ".screenshots/05_result.png - Success result showing manual shipping confirmation"
+  ],
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  },
+  "test_flow_executed": [
+    "1. Login as master@revix.es",
+    "2. Navigate to /crm/ordenes",
+    "3. Click on OT-DEMO-003 (Reparado state)",
+    "4. Validation popup auto-opens",
+    "5. Click 'Continuar con Envío y Cierre'",
+    "6. ValidarEnvioInline dialog opens with mode selector",
+    "7. Click 'Saltar (envío manual)' button",
+    "8. Manual mode form appears with green notice",
+    "9. Fill: Agencia='SEUR Test', Código='SEUR-TEST-12345', Observaciones='Envío manual de prueba'",
+    "10. Click 'Marcar como ENVIADA (manual)'",
+    "11. Success result shows with all manual data",
+    "12. API verification confirms: estado='enviado', codigo_recogida_salida='SEUR-TEST-12345', agencia_envio='SEUR Test'"
+  ]
+}

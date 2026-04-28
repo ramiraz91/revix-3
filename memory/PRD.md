@@ -11,7 +11,29 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (22) · Refactor emails al cliente — Fix crítico
+## Latest — 2026-02-XX (23) · Fix descarga ZIP fotos corrupto
+
+### Bug
+Cuando una orden tenía 2+ fotos, descargar el ZIP desde "Detalle de orden → Fotos" producía error en Chrome: "La carpeta comprimida no es válida". El ZIP se descargaba truncado.
+
+### Causa raíz (3 problemas combinados)
+1. `StreamingResponse(BytesIO)` sin `Content-Length` → conexión chunked truncada por proxy/CDN.
+2. `Content-Disposition: filename={nombre}.zip` sin escapado para caracteres no-ASCII (espacios, ñ, /).
+3. Extensiones inferidas mal de URLs Cloudinary sin `.ext` visible (acababan en `.v1234` o `.foo`).
+
+### Fix aplicado
+- Nuevo módulo `backend/utils/zip_helper.py` con `safe_inner_filename`, `safe_content_disposition` (RFC 5987 con ASCII fallback + UTF-8 percent-encoded), `detect_extension` (usa Content-Type del HTTP response), `deduplicate_zip_entries`.
+- 2 endpoints `/api/ordenes/{id}/fotos-zip` y `/api/ordenes/{id}/fotos-zip/{tipo}` migrados de `StreamingResponse(BytesIO)` a `Response(content=bytes)` con `Content-Length` explícito + `Cache-Control: no-store`.
+- Nombres internos del ZIP saneados (sin caracteres reservados Windows) + deduplicados.
+- Extensión detectada vía `Content-Type` HTTP, fallback a la URL, último fallback `.jpg`.
+
+### Validación
+- 9 tests unit + 1 E2E real (4 fotos PNG/JPG/WebP descargadas, ZIP de 62245 bytes verificado con `zipfile.testzip()`).
+- 22/22 PASS combinado con tests de emails.
+
+---
+
+## 2026-02-XX (22) · Refactor emails al cliente — Fix crítico
 
 ### Bug crítico corregido
 Las notificaciones automáticas al cliente (cambio de estado, presupuesto, orden lista, factura) enlazaban a `/ordenes/{id}` (CRM interno con login) en vez de a la página pública `/consulta?codigo={token}`. Cliente recibía email → pulsaba enlace → caía en el login del CRM en lugar del seguimiento.

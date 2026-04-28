@@ -3030,6 +3030,225 @@ async def eliminar_foto_orden(orden_id: str, request: EliminarFotoRequest, user:
 
 
 
+# ==================== EXPORTAR EXCEL DE ÓRDENES ====================
+
+@router.get("/ordenes-export-excel")
+async def exportar_ordenes_excel(
+    estado: Optional[str] = None,
+    cliente_id: Optional[str] = None,
+    search: Optional[str] = None,
+    telefono: Optional[str] = None,
+    autorizacion: Optional[str] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    fecha_campo: Optional[str] = "created_at",
+    solo_garantias: Optional[bool] = None,
+    formato: Optional[str] = "completo",  # completo (resumen+detalle) | unica (solo detalle) | resumen
+    user: dict = Depends(require_admin),
+):
+    """Exporta a Excel las órdenes filtradas. Respeta los filtros activos del listado /ordenes.
+
+    formato:
+      - 'completo': hoja Resumen + hoja Detalle
+      - 'unica': sólo Detalle
+      - 'resumen': sólo Resumen
+    """
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import Response
+    from collections import Counter
+
+    # 1) Construir query igual que listar_ordenes_v2
+    query = {}
+    conditions = []
+    if estado:
+        conditions.append({"estado": estado})
+    if cliente_id:
+        conditions.append({"cliente_id": cliente_id})
+    if solo_garantias:
+        conditions.append({"es_garantia": True})
+    if autorizacion:
+        conditions.append({"numero_autorizacion": {"$regex": autorizacion, "$options": "i"}})
+    if telefono:
+        telefono_clean = ''.join(filter(str.isdigit, telefono))
+        clientes = await db.clientes.find({"telefono": {"$regex": telefono_clean, "$options": "i"}}, {"id": 1, "_id": 0}).to_list(100)
+        cliente_ids = [c['id'] for c in clientes]
+        if cliente_ids:
+            conditions.append({"cliente_id": {"$in": cliente_ids}})
+        else:
+            conditions.append({"cliente_id": {"$in": []}})
+    if search:
+        conditions.append({"$or": [
+            {"numero_orden": {"$regex": search, "$options": "i"}},
+            {"numero_autorizacion": {"$regex": search, "$options": "i"}},
+            {"dispositivo.modelo": {"$regex": search, "$options": "i"}},
+            {"dispositivo.imei": {"$regex": search, "$options": "i"}},
+            {"codigo_recogida_entrada": search},
+            {"codigo_recogida_salida": search},
+        ]})
+
+    campos_fecha_validos = {"created_at", "fecha_recibida_centro", "fecha_enviado", "fecha_fin_reparacion", "fecha_inicio_reparacion"}
+    campo_fecha_aplicado = fecha_campo if fecha_campo in campos_fecha_validos else "created_at"
+    if fecha_desde:
+        conditions.append({campo_fecha_aplicado: {"$gte": fecha_desde}})
+    if fecha_hasta:
+        conditions.append({campo_fecha_aplicado: {"$lte": fecha_hasta + "T23:59:59"}})
+    if conditions:
+        query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
+
+    ordenes = await db.ordenes.find(query, {"_id": 0}).sort(campo_fecha_aplicado, -1).to_list(10000)
+
+    # Hidratar nombres de cliente
+    cliente_ids_set = list({o.get("cliente_id") for o in ordenes if o.get("cliente_id")})
+    clientes_dict = {}
+    if cliente_ids_set:
+        clientes = await db.clientes.find({"id": {"$in": cliente_ids_set}}, {"_id": 0, "id": 1, "nombre": 1, "telefono": 1, "email": 1}).to_list(len(cliente_ids_set))
+        clientes_dict = {c["id"]: c for c in clientes}
+
+    # 2) Workbook
+    wb = Workbook()
+    wb.remove(wb.active)
+    header_fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    money_format = '#,##0.00 "€"'
+    border_thin = Border(
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0"),
+    )
+
+    def autofit(ws):
+        for col_idx, col_cells in enumerate(ws.columns, start=1):
+            max_len = 0
+            for cell in col_cells:
+                try:
+                    val = "" if cell.value is None else str(cell.value)
+                    if len(val) > max_len:
+                        max_len = len(val)
+                except Exception:
+                    pass
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 50)
+
+    incluye_resumen = formato in ("completo", "resumen")
+    incluye_detalle = formato in ("completo", "unica")
+
+    # 3) Hoja DETALLE
+    if incluye_detalle:
+        ws = wb.create_sheet("Detalle")
+        headers = [
+            "Nº Orden", "Estado", "Garantía", "Cliente", "Teléfono", "Email",
+            "Modelo", "IMEI", "Avería declarada",
+            "Fecha creación", "Fecha recepción", "Fecha inicio reparación",
+            "Fecha fin reparación", "Fecha envío",
+            "Cód. recogida entrada", "Cód. recogida salida",
+            "Nº autorización", "Aseguradora",
+            "Importe (€)", "Diagnóstico técnico",
+        ]
+        ws.append(headers)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border_thin
+
+        for o in ordenes:
+            cli = clientes_dict.get(o.get("cliente_id"), {})
+            disp = o.get("dispositivo", {}) or {}
+            ws.append([
+                o.get("numero_orden", ""),
+                o.get("estado", ""),
+                "Sí" if o.get("es_garantia") else "",
+                cli.get("nombre", ""),
+                cli.get("telefono", ""),
+                cli.get("email", ""),
+                disp.get("modelo", ""),
+                disp.get("imei", ""),
+                disp.get("daños", "") or o.get("averia_descripcion", ""),
+                (o.get("created_at") or "")[:10],
+                (o.get("fecha_recibida_centro") or "")[:10],
+                (o.get("fecha_inicio_reparacion") or "")[:10],
+                (o.get("fecha_fin_reparacion") or "")[:10],
+                (o.get("fecha_enviado") or "")[:10],
+                o.get("codigo_recogida_entrada", ""),
+                o.get("codigo_recogida_salida", ""),
+                o.get("numero_autorizacion", ""),
+                o.get("aseguradora", ""),
+                float(o.get("importe_total") or 0),
+                (o.get("diagnostico_tecnico") or "")[:500],
+            ])
+        for row in ws.iter_rows(min_row=2, max_col=len(headers)):
+            for cell in row:
+                cell.border = border_thin
+            row[18].number_format = money_format  # Importe
+        autofit(ws)
+        ws.freeze_panes = "A2"
+
+    # 4) Hoja RESUMEN
+    if incluye_resumen:
+        ws = wb.create_sheet("Resumen", 0 if incluye_detalle else None)
+        ws["A1"] = "Resumen de órdenes"
+        ws["A1"].font = Font(bold=True, size=14)
+        ws["A2"] = f"Periodo (campo: {campo_fecha_aplicado}): {fecha_desde or 'inicio'} → {fecha_hasta or 'hoy'}"
+        ws["A2"].font = Font(italic=True, color="64748B")
+
+        total = len(ordenes)
+        garantias = sum(1 for o in ordenes if o.get("es_garantia"))
+        importe_total = sum(float(o.get("importe_total") or 0) for o in ordenes)
+
+        kpi_rows = [
+            ("Total órdenes", total),
+            ("Órdenes de garantía", garantias),
+            ("Órdenes regulares", total - garantias),
+            ("Importe total", importe_total),
+        ]
+        for i, (label, val) in enumerate(kpi_rows, start=4):
+            ws.cell(row=i, column=1, value=label).font = Font(bold=True)
+            cell = ws.cell(row=i, column=2, value=val)
+            if label == "Importe total":
+                cell.number_format = money_format
+
+        # Desglose por estado
+        contador_estado = Counter(o.get("estado", "—") for o in ordenes)
+        ws.cell(row=10, column=1, value="Desglose por estado").font = Font(bold=True, size=12)
+        ws.cell(row=11, column=1, value="Estado").font = Font(bold=True)
+        ws.cell(row=11, column=2, value="Nº órdenes").font = Font(bold=True)
+        for i, (st, count) in enumerate(sorted(contador_estado.items(), key=lambda x: -x[1]), start=12):
+            ws.cell(row=i, column=1, value=st)
+            ws.cell(row=i, column=2, value=count)
+
+        # Desglose por modelo (top 10)
+        contador_modelo = Counter((o.get("dispositivo") or {}).get("modelo", "—") for o in ordenes)
+        start_row = 12 + len(contador_estado) + 2
+        ws.cell(row=start_row, column=1, value="Top 10 modelos reparados").font = Font(bold=True, size=12)
+        ws.cell(row=start_row + 1, column=1, value="Modelo").font = Font(bold=True)
+        ws.cell(row=start_row + 1, column=2, value="Nº órdenes").font = Font(bold=True)
+        for i, (mod, count) in enumerate(contador_modelo.most_common(10), start=start_row + 2):
+            ws.cell(row=i, column=1, value=mod)
+            ws.cell(row=i, column=2, value=count)
+
+        autofit(ws)
+
+    # 5) Bytes y respuesta
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    contenido = buffer.getvalue()
+    nombre = f"ordenes_{(fecha_desde or 'inicio')[:10]}_{(fecha_hasta or 'hoy')[:10]}.xlsx"
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{nombre}"',
+            "Content-Length": str(len(contenido)),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+
 # ==================== DESCARGA ZIP DE FOTOS ====================
 
 @router.get("/ordenes/{orden_id}/fotos-zip")

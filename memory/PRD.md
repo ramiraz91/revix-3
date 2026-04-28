@@ -11,7 +11,32 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (29) · 4 features admin/tecnico
+## Latest — 2026-02-XX (30) · Export Excel en /ordenes
+
+### Solicitud
+Mismo patrón que el export Excel de Contabilidad pero para el listado de Órdenes, respetando todos los filtros activos.
+
+### Backend
+- Nuevo endpoint **`GET /api/ordenes-export-excel`** (admin) — path sin colisión con `/ordenes/{orden_id}`.
+- Acepta los mismos query params que `listar_ordenes_v2`: `estado`, `cliente_id`, `search`, `telefono`, `autorizacion`, `fecha_desde`, `fecha_hasta`, `fecha_campo`, `solo_garantias`.
+- Param adicional `formato` (`completo|unica|resumen`).
+- Genera **2 hojas** (Resumen + Detalle):
+  - **Detalle**: Nº Orden, Estado, Garantía, Cliente, Tel, Email, Modelo, IMEI, Avería, 5 fechas (creación/recepción/inicio/fin/envío), códigos GLS, autorización, aseguradora, importe, diagnóstico técnico.
+  - **Resumen**: Total / Nº garantías / Nº regulares / Importe total + Desglose por estado + Top 10 modelos reparados.
+- Headers seguros (Content-Length, Cache-Control no-store).
+- Hidrata cliente_id → nombre/tel/email vía batch lookup en `db.clientes`.
+
+### Frontend
+- Nuevo botón **"Exportar Excel"** (icono Download) junto a "Nueva Orden" en `/ordenes`.
+- Dialog con preview de filtros activos (campo de fecha + periodo + total de órdenes encontradas) + selector de formato.
+
+### Validación
+- Curl: HTTP 200, 7184 bytes, 2 hojas correctas (`Resumen`, `Detalle`), 5 órdenes, 2 garantías ✓.
+- Lint frontend limpio.
+
+---
+
+## 2026-02-XX (29) · 4 features admin/tecnico
 
 ### 1. Campo `diagnostico_recepcion`
 - Modelo `OrdenTrabajoBase` añade campo opcional. Whitelist técnico ampliada.

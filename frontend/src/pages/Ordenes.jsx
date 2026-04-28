@@ -22,6 +22,7 @@ import {
   Truck,
   ChevronLeft,
   ChevronRight,
+  Download,
   Inbox
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,7 +60,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ordenesAPI, clientesAPI, insuramaAPI } from '@/lib/api';
+import api, { ordenesAPI, clientesAPI, insuramaAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/usePerformance';
 import CrearEtiquetaGLSButton from '@/components/orden/CrearEtiquetaGLSButton';
@@ -99,6 +100,11 @@ export default function Ordenes() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [fechaPreset, setFechaPreset] = useState('all'); // all | hoy | 7d | 30d | mes | anio | custom
+
+  // Export Excel
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportFormato, setExportFormato] = useState('completo'); // completo | unica | resumen
+  const [exportandoExcel, setExportandoExcel] = useState(false);
   
   // Paginación
   const [page, setPage] = useState(1);
@@ -317,6 +323,43 @@ export default function Ordenes() {
     // 'custom' → no toca fechas, el usuario escribe a mano
   };
 
+  const handleExportExcel = async () => {
+    setExportandoExcel(true);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (debouncedTelefono) params.append('telefono', debouncedTelefono);
+      if (debouncedAutorizacion) params.append('autorizacion', debouncedAutorizacion);
+      if (estadoFilter && estadoFilter !== 'all') params.append('estado', estadoFilter);
+      if (fechaCampo && fechaCampo !== 'created_at') params.append('fecha_campo', fechaCampo);
+      if (fechaDesde) params.append('fecha_desde', fechaDesde);
+      if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+      params.append('formato', exportFormato);
+
+      const res = await api.get(`/ordenes-export-excel?${params.toString()}`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ordenes_${fechaDesde || 'inicio'}_${fechaHasta || 'hoy'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel descargado');
+      setShowExportDialog(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al exportar Excel');
+    } finally {
+      setExportandoExcel(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     setDeleting(true);
     try {
@@ -405,12 +448,24 @@ export default function Ordenes() {
           <h1 className="text-3xl font-bold tracking-tight">Órdenes de Trabajo</h1>
           <p className="text-muted-foreground mt-1">Gestiona las reparaciones</p>
         </div>
-        <Link to="/ordenes/nueva">
-          <Button data-testid="new-order-btn" className="gap-2">
-            <Plus className="w-4 h-4" />
-            Nueva Orden
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setShowExportDialog(true)}
+            data-testid="btn-abrir-export-excel-ordenes"
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Exportar Excel
           </Button>
-        </Link>
+          <Link to="/ordenes/nueva">
+            <Button data-testid="new-order-btn" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nueva Orden
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -792,6 +847,69 @@ export default function Ordenes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog Exportar Excel */}
+      {showExportDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => !exportandoExcel && setShowExportDialog(false)}
+          data-testid="dialog-export-excel-ordenes"
+        >
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                <h2 className="text-lg font-semibold">Exportar Órdenes a Excel</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Se exportarán las órdenes que coincidan con los filtros activos. {totalItems} orden{totalItems !== 1 ? 'es' : ''} encontrada{totalItems !== 1 ? 's' : ''}.
+              </p>
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground block mb-1">
+                  Periodo
+                </label>
+                <p className="text-sm">
+                  {fechaCampo === 'created_at' ? 'Creación' :
+                   fechaCampo === 'fecha_recibida_centro' ? 'Recepción' :
+                   fechaCampo === 'fecha_inicio_reparacion' ? 'Inicio reparación' :
+                   fechaCampo === 'fecha_fin_reparacion' ? 'Fin reparación' :
+                   fechaCampo === 'fecha_enviado' ? 'Envío' : fechaCampo}
+                  {' · '}
+                  {fechaDesde || 'inicio'} → {fechaHasta || 'hoy'}
+                </p>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground block mb-1">
+                  Formato del archivo
+                </label>
+                <Select value={exportFormato} onValueChange={setExportFormato}>
+                  <SelectTrigger data-testid="export-formato-select-ordenes">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completo">Completo (Resumen + Detalle)</SelectItem>
+                    <SelectItem value="unica">Sólo Detalle (1 hoja)</SelectItem>
+                    <SelectItem value="resumen">Sólo Resumen / KPIs</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowExportDialog(false)} disabled={exportandoExcel}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleExportExcel} disabled={exportandoExcel} data-testid="btn-confirmar-export-excel-ordenes">
+                  {exportandoExcel ? 'Generando…' : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

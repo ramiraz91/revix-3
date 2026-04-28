@@ -11,7 +11,36 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (26) · Validar y enviar — modo "envío manual" (saltar etiqueta GLS)
+## Latest — 2026-02-XX (27) · Bug-fixes flujo técnico/admin (4 mejoras)
+
+### 1. RI optimista (TecnicoRICard.jsx)
+- Reescrito completamente. Updates locales **inmediatos** + persistencia en background con `ordenesAPI.actualizar`.
+- `useRef` para tracking de cambio de orden (no sobreescribe estado mientras el técnico está editando).
+- Observaciones con debounce de 800ms.
+- Indicador discreto "guardando…" junto al título.
+- Botones `type="button"` para evitar submits accidentales.
+- Bloque "RI completada" muestra 3 botones para **modificar el resultado** sin recargar.
+
+### 2. Borrar fotos cargadas
+- Backend: nuevo endpoint **`DELETE /api/ordenes/{id}/fotos`** que acepta `{url, tipo}` con tipo `admin|tecnico|antes|despues` y elimina la URL del array correspondiente. Auditado.
+- Frontend: botón X rojo en hover sobre cada foto en TecnicoFotosCard (tabs ANTES/DESPUÉS/General). Confirmación con `window.confirm`. Update local optimista.
+- API client: `ordenesAPI.eliminarFoto(id, url, tipo)`.
+
+### 3. Garantía con datos correctos (no heredados del parte original)
+- Backend `crear-garantia`: las `indicaciones_cliente` ahora **sobreescriben** `dispositivo.daños`, `averia_descripcion` e `indicaciones_garantia_cliente` en la orden hija. Así el técnico ve la nueva avería en `TecnicoDispositivoCard` y el PDF muestra correctamente "Avería reportada: …".
+
+### 4. Editar datos del dispositivo (admin)
+- `OrdenDispositivoCard` acepta prop `onEdit` y muestra un botón **Pencil** (testid `btn-editar-dispositivo`).
+- Nuevo modal en `OrdenDetalle.jsx` con campos: modelo, IMEI/Serie, color, daños/avería. Persiste vía `PATCH /api/ordenes/{id}` con body `{dispositivo: {...}}`. Solo visible para admin.
+- El cliente ya tenía edición; ahora dispositivo+cliente cubierto.
+
+### Tests
+- Testing agent (`iteration_30.json`): **backend 10/10 PASS**, frontend 100% UI verificado para los 4 cambios. 0 issues.
+- Test pytest creado en `/app/backend/tests/test_iteration_30.py`.
+
+---
+
+## 2026-02-XX (26) · Validar y enviar — modo "envío manual" (saltar etiqueta GLS)
 
 ### Solicitud
 A veces el envío se realiza fuera del sistema (paquetería local, Correos, recogida en mano). El admin necesita poder marcar la orden como ENVIADA sin pasar por el flujo GLS automático.

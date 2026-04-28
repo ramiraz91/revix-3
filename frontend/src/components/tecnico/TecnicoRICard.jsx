@@ -18,6 +18,7 @@ export function TecnicoRICard({ orden, onRefresh }) {
   const [estadoFisicoRegistrado, setEstadoFisicoRegistrado] = useState(orden?.recepcion_estado_fisico_registrado || false);
   const [accesoriosRegistrados, setAccesoriosRegistrados] = useState(orden?.recepcion_accesorios_registrados || false);
   const [observaciones, setObservaciones] = useState(orden?.recepcion_notas || orden?.ri_observaciones || '');
+  const [diagnosticoRecepcion, setDiagnosticoRecepcion] = useState(orden?.diagnostico_recepcion || '');
   const [savingField, setSavingField] = useState(null); // indicador discreto qué campo se está guardando
 
   // Sincronizar cuando llega una orden nueva (id distinto) — NO sobreescribir cambios pendientes
@@ -29,8 +30,9 @@ export function TecnicoRICard({ orden, onRefresh }) {
       setEstadoFisicoRegistrado(orden?.recepcion_estado_fisico_registrado || false);
       setAccesoriosRegistrados(orden?.recepcion_accesorios_registrados || false);
       setObservaciones(orden?.recepcion_notas || orden?.ri_observaciones || '');
+      setDiagnosticoRecepcion(orden?.diagnostico_recepcion || '');
     }
-  }, [orden?.id, orden?.recepcion_checklist_completo, orden?.recepcion_estado_fisico_registrado, orden?.recepcion_accesorios_registrados, orden?.recepcion_notas, orden?.ri_observaciones]);
+  }, [orden?.id, orden?.recepcion_checklist_completo, orden?.recepcion_estado_fisico_registrado, orden?.recepcion_accesorios_registrados, orden?.recepcion_notas, orden?.ri_observaciones, orden?.diagnostico_recepcion]);
 
   // Persiste un campo en background SIN bloquear la UI ni recargar la orden
   const persistirCampo = async (campo, valor) => {
@@ -62,6 +64,16 @@ export function TecnicoRICard({ orden, onRefresh }) {
     if (obsTimeout.current) clearTimeout(obsTimeout.current);
     obsTimeout.current = setTimeout(() => {
       persistirCampo('recepcion_notas', val);
+    }, 800);
+  };
+
+  // Debounce para guardar diagnóstico de recepción
+  const diagRecTimeout = useRef(null);
+  const handleDiagnosticoRecepcionChange = (val) => {
+    setDiagnosticoRecepcion(val);
+    if (diagRecTimeout.current) clearTimeout(diagRecTimeout.current);
+    diagRecTimeout.current = setTimeout(() => {
+      persistirCampo('diagnostico_recepcion', val);
     }, 800);
   };
 
@@ -219,6 +231,22 @@ export function TecnicoRICard({ orden, onRefresh }) {
               onChange={(e) => handleObservacionesChange(e.target.value)}
               className="min-h-[60px] text-sm"
               data-testid="ri-observaciones"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              Diagnóstico de recepción
+              <span className="text-[10px] text-muted-foreground/70 italic">
+                (inspección visual + breve diagnóstico inicial — visible para el admin)
+              </span>
+            </Label>
+            <Textarea
+              placeholder="Ej: La pantalla muestra líneas verticales, el touch responde parcialmente. Posible fallo del flex. Pendiente de abrir."
+              value={diagnosticoRecepcion}
+              onChange={(e) => handleDiagnosticoRecepcionChange(e.target.value)}
+              className="min-h-[80px] text-sm"
+              data-testid="ri-diagnostico-recepcion"
             />
           </div>
         </div>

@@ -84,6 +84,31 @@ export function OrdenDiagnosticoCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Diagnóstico de recepción (solo lectura — registrado por el técnico durante la inspección RI) */}
+        {orden?.diagnostico_recepcion ? (
+          <div className="p-4 bg-white rounded-lg border border-blue-200 space-y-2"
+               data-testid="orden-diagnostico-recepcion">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              Diagnóstico de Recepción
+              <Badge variant="outline" className="text-[10px] h-4 ml-1 border-blue-300 text-blue-700 bg-blue-50">
+                Inspección visual
+              </Badge>
+            </Label>
+            <p className="whitespace-pre-wrap text-slate-700 bg-blue-50/60 p-3 rounded border border-blue-100 text-sm">
+              {orden.diagnostico_recepcion}
+            </p>
+          </div>
+        ) : esAdmin ? (
+          <div className="p-3 bg-white rounded-lg border border-dashed border-blue-200 flex items-center gap-2"
+               data-testid="orden-diagnostico-recepcion-vacio">
+            <ShieldCheck className="w-4 h-4 text-blue-300" />
+            <span className="text-xs text-muted-foreground italic">
+              El técnico aún no ha registrado el diagnóstico de recepción (inspección visual inicial).
+            </span>
+          </div>
+        ) : null}
+
         {/* Sección de Diagnóstico Técnico */}
         <div className="p-4 bg-white rounded-lg border space-y-3">
           <div className="flex items-center justify-between">

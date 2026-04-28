@@ -1331,7 +1331,7 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         'diagnostico_tecnico', 'diagnostico_salida_realizado', 'funciones_verificadas',
         'limpieza_realizada', 'notas_cierre_tecnico', 'fecha_fin_reparacion',
         'recepcion_checklist_completo', 'recepcion_estado_fisico_registrado',
-        'recepcion_accesorios_registrados', 'recepcion_notas', 'bateria_reemplazada',
+        'recepcion_accesorios_registrados', 'recepcion_notas', 'diagnostico_recepcion', 'bateria_reemplazada',
         'bateria_almacenamiento_temporal', 'bateria_residuo_pendiente',
         'bateria_gestor_autorizado', 'bateria_fecha_entrega_gestor',
         'ri_completada',  # El técnico puede marcar RI como completada

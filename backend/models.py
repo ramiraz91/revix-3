@@ -377,6 +377,7 @@ class OrdenTrabajoBase(BaseModel):
     materiales: List[MaterialOrden] = []
     notas: Optional[str] = None
     diagnostico_tecnico: Optional[str] = None
+    diagnostico_recepcion: Optional[str] = None  # Inspección visual + breve diagnóstico inicial registrado por el técnico al recibir el dispositivo
     tecnico_asignado: Optional[str] = None
 
 class OrdenTrabajoCreate(OrdenTrabajoBase):

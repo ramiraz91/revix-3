@@ -11,7 +11,26 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (27) · Bug-fixes flujo técnico/admin (4 mejoras)
+## Latest — 2026-02-XX (28) · Fix etiqueta térmica — barcode ahora legible para pistola
+
+### Bug
+La pistola lectora no decodificaba el código de barras impreso desde el diálogo "Etiqueta de Dispositivo" (50x30 / 60x40 / 70x50 / 80x40 mm). Causa: barras demasiado finas (`barcodeWidth: 1.0–1.4`) + zona de silencio insuficiente (`margin: 2`) + `max-width: 100%` que comprimía la imagen al imprimir.
+
+### Fix en `/app/frontend/src/components/EtiquetaOrden.jsx`
+- **`barcodeWidth`** subido a 2–3 (módulo CODE128 ≥0.25mm para térmica industrial).
+- **Canvas a resolución 3x** (width/height/fontSize multiplicados ×3) para impresión sin aliasing.
+- **`margin: 12`** (quiet zone CODE128 ≥10).
+- **`textMargin: 4`** para que el valor numérico no se solape con barras.
+- **Nueva propiedad `barcodePrintWidth`** por tamaño de etiqueta (40/48/56/60mm) — la imagen impresa usa `width` fijo en mm en lugar de `max-width: 100%` (evita compresión destructiva).
+- **`image-rendering: crisp-edges; image-rendering: pixelated; print-color-adjust: exact;`** para impresión nítida y sin antialiasing borroso.
+
+### Validación
+- Lint ESLint limpio.
+- Validación funcional final pendiente del usuario (test físico con impresora térmica + pistola lectora).
+
+---
+
+## 2026-02-XX (27) · Bug-fixes flujo técnico/admin (4 mejoras)
 
 ### 1. RI optimista (TecnicoRICard.jsx)
 - Reescrito completamente. Updates locales **inmediatos** + persistencia en background con `ordenesAPI.actualizar`.

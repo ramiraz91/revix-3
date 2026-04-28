@@ -46,14 +46,17 @@ const BarcodeLabel = ({ value, width = 1.5, height = 30, fontSize = 10 }) => {
 };
 
 // Tamaños de etiquetas con configuración de contenido proporcional
+// IMPORTANTE: barcodeWidth >= 2 y margin >= 10 son obligatorios para
+// que pistolas lectoras térmicas decodifiquen sin fallos (norma CODE128).
 const LABEL_SIZES = {
-  '50x30': { 
-    width: '50mm', 
-    height: '30mm', 
+  '50x30': {
+    width: '50mm',
+    height: '30mm',
     name: '50x30mm (Pequeña)',
-    barcodeWidth: 1.0,
-    barcodeHeight: 20,
-    barcodeFontSize: 8,
+    barcodeWidth: 2,
+    barcodeHeight: 28,
+    barcodeFontSize: 9,
+    barcodePrintWidth: '40mm',
     headerSize: '7pt',
     orderSize: '8pt',
     labelSize: '5pt',
@@ -62,13 +65,14 @@ const LABEL_SIZES = {
     showImei: false,
     padding: '1.5mm'
   },
-  '60x40': { 
-    width: '60mm', 
-    height: '40mm', 
+  '60x40': {
+    width: '60mm',
+    height: '40mm',
     name: '60x40mm (Mediana)',
-    barcodeWidth: 1.2,
-    barcodeHeight: 28,
-    barcodeFontSize: 9,
+    barcodeWidth: 2.5,
+    barcodeHeight: 38,
+    barcodeFontSize: 10,
+    barcodePrintWidth: '48mm',
     headerSize: '9pt',
     orderSize: '10pt',
     labelSize: '6pt',
@@ -77,13 +81,14 @@ const LABEL_SIZES = {
     showImei: true,
     padding: '2mm'
   },
-  '70x50': { 
-    width: '70mm', 
-    height: '50mm', 
+  '70x50': {
+    width: '70mm',
+    height: '50mm',
     name: '70x50mm (Grande)',
-    barcodeWidth: 1.4,
-    barcodeHeight: 35,
-    barcodeFontSize: 10,
+    barcodeWidth: 3,
+    barcodeHeight: 46,
+    barcodeFontSize: 11,
+    barcodePrintWidth: '56mm',
     headerSize: '10pt',
     orderSize: '12pt',
     labelSize: '7pt',
@@ -92,13 +97,14 @@ const LABEL_SIZES = {
     showImei: true,
     padding: '2.5mm'
   },
-  '80x40': { 
-    width: '80mm', 
-    height: '40mm', 
+  '80x40': {
+    width: '80mm',
+    height: '40mm',
     name: '80x40mm (Alargada)',
-    barcodeWidth: 1.3,
-    barcodeHeight: 30,
-    barcodeFontSize: 9,
+    barcodeWidth: 2.5,
+    barcodeHeight: 38,
+    barcodeFontSize: 10,
+    barcodePrintWidth: '60mm',
     headerSize: '9pt',
     orderSize: '11pt',
     labelSize: '6pt',
@@ -117,7 +123,9 @@ export function EtiquetaOrden({ orden, onClose }) {
 
   const barcodeText = orden?.numero_autorizacion || orden?.numero_orden || '';
 
-  // Generar código de barras como imagen para impresión
+  // Generar código de barras como imagen para impresión.
+  // Renderizamos a alta resolución (factor x3) y aplicamos margin/quiet zone amplios
+  // para que pistolas lectoras térmicas decodifiquen sin error.
   useEffect(() => {
     if (barcodeText) {
       const canvas = document.createElement('canvas');
@@ -125,12 +133,12 @@ export function EtiquetaOrden({ orden, onClose }) {
       try {
         JsBarcode(canvas, barcodeText, {
           format: 'CODE128',
-          width: size.barcodeWidth,
-          height: size.barcodeHeight,
+          width: size.barcodeWidth * 3,        // alta resolución para impresión nítida
+          height: size.barcodeHeight * 3,
           displayValue: true,
-          fontSize: size.barcodeFontSize,
-          textMargin: 1,
-          margin: 2,
+          fontSize: size.barcodeFontSize * 3,
+          textMargin: 4,
+          margin: 12,                          // quiet zone CODE128 (≥10 mod)
           background: '#ffffff',
           lineColor: '#000000',
         });
@@ -203,8 +211,14 @@ export function EtiquetaOrden({ orden, onClose }) {
         text-align: center;
       }
       .barcode-section img {
-        max-width: 100%;
+        display: block;
+        width: ${size.barcodePrintWidth};
         height: auto;
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       .info-section {
         flex: 1;

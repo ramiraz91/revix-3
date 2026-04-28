@@ -416,7 +416,10 @@ def generate_modern_email_html(
     email_type: 'created', 'recibida', 'en_taller', 'reparado', 'enviado', 'fecha_estimada'
     """
     token = orden.get('token_seguimiento', '')
-    link = f"https://revix.es/consulta?codigo={token}"
+    # Usa el helper centralizado de email_service para mantener una sola
+    # fuente de verdad sobre el dominio/URL público.
+    from email_service import _build_client_link
+    link = _build_client_link(token)
     estado = orden.get('estado', 'pendiente_recibir')
     dispositivo = orden.get('dispositivo', {})
     
@@ -652,7 +655,8 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
 
     # Enviar SMS si está habilitado
     sms_enabled = email_cfg.get("sms_enabled", True)
-    link = f"https://revix.es/consulta?codigo={token}"
+    from email_service import _build_client_link
+    link = _build_client_link(token)
     
     if notification_type == "created":
         sms_message = f"Revix: Orden {numero_orden} registrada. Sigue tu reparación: {link}"
@@ -701,7 +705,8 @@ async def send_order_notification(orden: dict, cliente: dict, notification_type:
                 orden_numero=numero_orden,
                 auth_code=auth_code,
                 nuevo_estado=estado,
-                orden_id=orden_id
+                orden_id=orden_id,
+                token_seguimiento=token,
             )
             results["email"] = {"success": email_success, "type": "smtp_mejorado"}
 

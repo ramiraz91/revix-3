@@ -10,7 +10,7 @@ from email_service import (
     notificar_presupuesto_enviado, notificar_orden_lista,
     notificar_factura_emitida, notificar_bienvenida,
     test_conexion_resend, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL,
-    _safe_public_url,
+    _safe_public_url, _build_client_link, _build_admin_link, _assert_client_safe,
 )
 from email_service import (
     test_conexion_smtp,

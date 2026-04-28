@@ -1,11 +1,20 @@
 """
 email_service.py — Servicio de emails con Resend para Revix CRM
 Reemplaza la implementación SMTP anterior por la API de Resend.
+
+Arquitectura de URLs (importante):
+  · Emails para CLIENTES finales → siempre página pública /consulta?codigo={token}
+    Construir con `_build_client_link(token)`.
+  · Emails para STAFF interno    → /crm/... o /ordenes/... (requieren login)
+    Construir con `_build_admin_link(path)`.
+  · `client_safe_email_html()` valida en runtime que un email de cliente
+    NO contenga URLs internas (/ordenes/, /crm/, /dashboard/).
 """
 
 import os
 import asyncio
 import logging
+import re
 import resend
 from typing import Optional
 from pathlib import Path
@@ -53,6 +62,59 @@ def _safe_public_url(raw: Optional[str]) -> str:
 
 
 FRONTEND_URL = _safe_public_url(os.getenv("FRONTEND_URL"))
+
+
+# ── Helpers únicos para construir URLs ────────────────────────────────────────
+# REGLA: cualquier email enviado a un CLIENTE final debe usar _build_client_link.
+# REGLA: emails internos (admin/técnico) pueden usar _build_admin_link.
+
+def _build_client_link(token_seguimiento: Optional[str] = None) -> str:
+    """URL de la página pública de seguimiento (sin login).
+
+    Si hay token, prerellena el código de búsqueda. Si no, lleva al portal
+    público donde el cliente puede introducir su código manualmente.
+
+    Esta es la ÚNICA función que construye URLs para emails de cliente.
+    """
+    base = f"{FRONTEND_URL}/consulta"
+    if token_seguimiento:
+        return f"{base}?codigo={token_seguimiento}"
+    return base
+
+
+def _build_admin_link(path: str) -> str:
+    """URL para enlaces internos (CRM). Sólo para emails dirigidos a staff.
+
+    `path` debe empezar por '/' y normalmente apunta a /crm/... o /ordenes/...
+    """
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"{FRONTEND_URL}{path}"
+
+
+# Patrones que NUNCA deben aparecer en un href de email de cliente.
+_CLIENT_FORBIDDEN_PATHS = re.compile(
+    r"href\s*=\s*['\"][^'\"]*?(/ordenes/|/crm/|/dashboard/|/inventario|/proveedores|/clientes/[a-f0-9-]{8,})",
+    re.IGNORECASE,
+)
+
+
+def _assert_client_safe(html: str, where: str = "") -> None:
+    """Valida que un HTML destinado a CLIENTE no contenga URLs internas.
+
+    Lanza un warning crítico (y, en debug, AssertionError) si encuentra
+    enlaces hacia rutas internas que requieren login.
+    """
+    m = _CLIENT_FORBIDDEN_PATHS.search(html)
+    if m:
+        msg = (
+            f"🚨 [email-leak] Email de CLIENTE contiene URL interna del CRM: "
+            f"'{m.group(0)[:120]}' en {where}. Debe usar /consulta?codigo=…"
+        )
+        logger.error(msg)
+        if os.getenv("EMAIL_STRICT_CLIENT_LINKS", "1") == "1":
+            raise AssertionError(msg)
+
 
 # Configurar Resend
 if RESEND_API_KEY:
@@ -122,14 +184,24 @@ def send_email(
     contenido: str,
     link_url: Optional[str] = None,
     link_text: str = "Ver en Revix",
+    audience: str = "client",
 ) -> bool:
-    """Envia un email HTML usando Resend. Devuelve True si tuvo exito."""
+    """Envia un email HTML usando Resend. Devuelve True si tuvo exito.
+
+    `audience`:
+      - "client" (default): valida que el HTML no contenga URLs internas del CRM.
+      - "admin": permite URLs internas (/crm/, /ordenes/, etc).
+    """
     if not is_configured():
         logger.warning("📧 Resend no configurado — email a %s omitido", to)
         return False
 
     html = _build_html(titulo, contenido, link_url, link_text)
-    
+
+    # Salvaguarda anti-leak: emails a cliente no pueden tener URLs internas.
+    if audience == "client":
+        _assert_client_safe(html, where=f"send_email(subject={subject!r})")
+
     params = {
         "from": f"Revix <{SENDER_EMAIL}>",
         "to": [to],
@@ -155,13 +227,14 @@ async def send_email_async(
     contenido: str,
     link_url: Optional[str] = None,
     link_text: str = "Ver en Revix",
+    audience: str = "client",
 ) -> bool:
     """
     Version async — no bloquea FastAPI mientras envia.
     Usa asyncio.to_thread para mantener el event loop libre.
     """
     return await asyncio.to_thread(
-        send_email, to, subject, titulo, contenido, link_url, link_text
+        send_email, to, subject, titulo, contenido, link_url, link_text, audience,
     )
 
 
@@ -169,11 +242,15 @@ async def send_email_async(
 
 async def notificar_cambio_estado(
     to: str, orden_numero: str, auth_code: str,
-    nuevo_estado: str, orden_id: str
+    nuevo_estado: str, orden_id: str,
+    token_seguimiento: Optional[str] = None,
 ) -> bool:
-    """Notifica al cliente un cambio de estado en su orden."""
+    """Notifica al cliente un cambio de estado en su orden.
+
+    Enlaza a la página pública de seguimiento /consulta?codigo={token}.
+    """
     codigo = auth_code or orden_numero
-    link = f"{FRONTEND_URL}/ordenes/{orden_id}"
+    link = _build_client_link(token_seguimiento)
 
     ETIQUETAS_ESTADO = {
         "pendiente_recibir": "Pendiente de recibir",
@@ -221,14 +298,18 @@ async def notificar_cambio_estado(
         contenido=contenido,
         link_url=link,
         link_text="Ver Estado de mi Orden",
+        audience="client",
     )
 
 
 async def notificar_material_pendiente(
     to: str, pieza: str, orden_numero: str, orden_id: str
 ) -> bool:
-    """Notificacion interna — material pendiente de aprobacion."""
-    link = f"{FRONTEND_URL}/ordenes/{orden_id}"
+    """Notificacion INTERNA al staff — material pendiente de aprobacion.
+
+    Enlace al CRM (requiere login). audience='admin'.
+    """
+    link = _build_admin_link(f"/ordenes/{orden_id}")
     contenido = f"""
     <p>El tecnico ha solicitado material para la orden <strong>{orden_numero}</strong>:</p>
     <table style="margin:15px 0;border-collapse:collapse;width:100%;">
@@ -250,15 +331,20 @@ async def notificar_material_pendiente(
         contenido=contenido,
         link_url=link,
         link_text="Aprobar Material",
+        audience="admin",
     )
 
 
 async def notificar_presupuesto_enviado(
     to: str, orden_numero: str, total: float,
-    orden_id: str, dias_validez: int = 15
+    orden_id: str, dias_validez: int = 15,
+    token_seguimiento: Optional[str] = None,
 ) -> bool:
-    """Notifica al cliente que tiene un presupuesto pendiente de aprobar."""
-    link = f"{FRONTEND_URL}/ordenes/{orden_id}"
+    """Notifica al cliente que tiene un presupuesto pendiente de aprobar.
+
+    Enlaza a la página pública de seguimiento donde puede aprobar el presupuesto.
+    """
+    link = _build_client_link(token_seguimiento)
     contenido = f"""
     <p>Hemos preparado un presupuesto para la reparacion de su dispositivo:</p>
     <table style="margin:15px 0;border-collapse:collapse;width:100%;">
@@ -284,15 +370,20 @@ async def notificar_presupuesto_enviado(
         contenido=contenido,
         link_url=link,
         link_text="Ver y Aprobar Presupuesto",
+        audience="client",
     )
 
 
 async def notificar_orden_lista(
-    to: str, orden_numero: str, auth_code: str, orden_id: str
+    to: str, orden_numero: str, auth_code: str, orden_id: str,
+    token_seguimiento: Optional[str] = None,
 ) -> bool:
-    """Avisa al cliente que su dispositivo esta listo para recoger o enviar."""
+    """Avisa al cliente que su dispositivo esta listo para recoger o enviar.
+
+    Enlaza a la página pública de seguimiento /consulta?codigo={token}.
+    """
     codigo = auth_code or orden_numero
-    link = f"{FRONTEND_URL}/ordenes/{orden_id}"
+    link = _build_client_link(token_seguimiento)
     contenido = f"""
     <p>Buenas noticias! Su dispositivo ya esta reparado y listo.</p>
     <table style="margin:15px 0;border-collapse:collapse;width:100%;">
@@ -310,15 +401,21 @@ async def notificar_orden_lista(
         contenido=contenido,
         link_url=link,
         link_text="Ver mi Orden",
+        audience="client",
     )
 
 
 async def notificar_factura_emitida(
     to: str, factura_numero: str, total: float,
-    orden_numero: str, orden_id: str
+    orden_numero: str, orden_id: str,
+    token_seguimiento: Optional[str] = None,
 ) -> bool:
-    """Notifica al cliente que se ha emitido su factura."""
-    link = f"{FRONTEND_URL}/ordenes/{orden_id}"
+    """Notifica al cliente que se ha emitido su factura.
+
+    Enlaza a la página pública /consulta?codigo={token} desde donde podrá
+    descargar la factura.
+    """
+    link = _build_client_link(token_seguimiento)
     contenido = f"""
     <p>Le informamos que hemos emitido la factura correspondiente a su reparacion:</p>
     <table style="margin:15px 0;border-collapse:collapse;width:100%;">
@@ -344,6 +441,7 @@ async def notificar_factura_emitida(
         contenido=contenido,
         link_url=link,
         link_text="Ver Factura",
+        audience="client",
     )
 
 
@@ -368,8 +466,9 @@ async def notificar_bienvenida(
         subject="Bienvenido/a a Revix!",
         titulo=f"Hola {nombre}!",
         contenido=contenido,
-        link_url=FRONTEND_URL,
+        link_url=_build_client_link(),
         link_text="Visitar Revix",
+        audience="client",
     )
 
 

@@ -14,14 +14,20 @@ ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "master@revix.es")
 ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "RevixMaster2026!")
 
 
+_TOKEN_CACHE: dict = {}
+
+
 def _login():
+    if _TOKEN_CACHE.get("token"):
+        return _TOKEN_CACHE["token"]
     r = requests.post(
         f"{BASE}/api/auth/login",
         json={"email": ADMIN_EMAIL, "password": ADMIN_PASS},
         timeout=10,
     )
     assert r.status_code == 200, r.text
-    return r.json()["token"]
+    _TOKEN_CACHE["token"] = r.json()["token"]
+    return _TOKEN_CACHE["token"]
 
 
 def _h(t):

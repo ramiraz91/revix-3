@@ -1,0 +1,165 @@
+{
+  "summary": "Bug crítico de enlaces en emails de cliente VERIFICADO Y CORREGIDO. 55/55 tests pasados (13 test_email_links_consulta.py + 42 test_email_links_bug_fix.py). Las 4 funciones de notificación al cliente (notificar_cambio_estado, notificar_presupuesto_enviado, notificar_orden_lista, notificar_factura_emitida) generan HTML con href hacia /consulta?codigo={token}, NUNCA hacia /ordenes/{id}. _assert_client_safe lanza AssertionError si encuentra /ordenes/, /crm/, /dashboard/ en el href. notificar_material_pendiente usa /ordenes/{id} correctamente (audience='admin'). helpers.py:generate_modern_email_html usa /consulta?codigo={token}. _safe_public_url filtra URLs preview/localhost. EMAIL_STRICT_CLIENT_LINKS=1 activo por defecto. Regresión: endpoints CRM funcionan, chatbot OK, panel agentes carga 11 agentes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_email_links_consulta.py",
+    "/app/backend/tests/test_email_links_bug_fix.py",
+    "/app/test_reports/pytest/pytest_results_email_links_bugfix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_build_client_link(token) genera /consulta?codigo={token} - VERIFIED",
+    "_build_admin_link(path) genera URLs internas para staff - VERIFIED",
+    "_safe_public_url filtra preview.emergentagent.com, localhost, 127.0.0.1 → fallback https://revix.es - VERIFIED",
+    "_assert_client_safe rechaza /ordenes/, /crm/, /dashboard/, /inventario, /clientes/{uuid} en href - VERIFIED",
+    "send_email con audience='client' valida HTML antes de enviar - VERIFIED",
+    "send_email con audience='admin' permite URLs internas - VERIFIED",
+    "notificar_cambio_estado usa _build_client_link(token_seguimiento) - VERIFIED",
+    "notificar_presupuesto_enviado usa _build_client_link(token_seguimiento) - VERIFIED",
+    "notificar_orden_lista usa _build_client_link(token_seguimiento) - VERIFIED",
+    "notificar_factura_emitida usa _build_client_link(token_seguimiento) - VERIFIED",
+    "notificar_bienvenida usa _build_client_link() sin token - VERIFIED",
+    "notificar_material_pendiente usa _build_admin_link(/ordenes/{id}) con audience='admin' - VERIFIED (correcto para staff)",
+    "helpers.py:generate_modern_email_html importa _build_client_link de email_service - VERIFIED",
+    "helpers.py:660 SMS link usa _build_client_link - VERIFIED",
+    "helpers.py:703 notificar_cambio_estado caller pasa token_seguimiento=token - VERIFIED",
+    "services/email_service.py proxy reexporta _build_client_link, _build_admin_link, _assert_client_safe, _safe_public_url - VERIFIED",
+    "EMAIL_STRICT_CLIENT_LINKS=1 por defecto hace que emails de cliente con /ordenes/ fallen inmediatamente - VERIFIED",
+    "FRONTEND_URL=https://revix.es en .env - VERIFIED",
+    "RESEND_API_KEY configurada - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_email_links_bug_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (55/55 tests pasados: 13 original + 42 nuevos)"
+  },
+  "test_credentials": {
+    "master_user": "master@revix.es / RevixMaster2026!"
+  },
+  "seed_data_creation": "No se creó seed data - se usaron mocks de Resend para capturar HTML",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug crítico de enlaces en emails de cliente CORREGIDO. Las 4 funciones de notificación al cliente ahora generan enlaces a /consulta?codigo={token} en lugar de /ordenes/{id}. _assert_client_safe valida en runtime que emails de cliente NO contengan URLs internas. EMAIL_STRICT_CLIENT_LINKS=1 activo por defecto. Resend mock usado para tests de integración (no envía emails reales). Regresión: CRM endpoints, chatbot, panel agentes funcionan correctamente.",
+  "verified_features": [
+    {
+      "feature": "_build_client_link helper",
+      "tests": [
+        "Con token genera /consulta?codigo={token}",
+        "Sin token genera /consulta",
+        "Token None genera /consulta",
+        "Token vacío genera /consulta"
+      ],
+      "status": "PASSED (4/4)"
+    },
+    {
+      "feature": "_build_admin_link helper",
+      "tests": [
+        "Genera URL con /ordenes/{id}",
+        "Genera URL con /crm/...",
+        "Añade / si falta"
+      ],
+      "status": "PASSED (3/3)"
+    },
+    {
+      "feature": "_safe_public_url helper",
+      "tests": [
+        "Filtra preview.emergentagent.com → fallback",
+        "Filtra localhost → fallback",
+        "Filtra 127.0.0.1 → fallback",
+        "Acepta revix.es",
+        "Acepta app.revix.es",
+        "URL vacía → fallback",
+        "URL None → fallback",
+        "URL sin protocolo → fallback"
+      ],
+      "status": "PASSED (8/8)"
+    },
+    {
+      "feature": "_assert_client_safe validación",
+      "tests": [
+        "Acepta HTML con /consulta",
+        "Rechaza /ordenes/ en href",
+        "Rechaza /crm/ en href",
+        "Rechaza /dashboard/ en href",
+        "Rechaza /inventario en href",
+        "Rechaza /clientes/{uuid} en href"
+      ],
+      "status": "PASSED (6/6)"
+    },
+    {
+      "feature": "4 funciones notificación cliente",
+      "tests": [
+        "notificar_cambio_estado usa /consulta?codigo={token}",
+        "notificar_presupuesto_enviado usa /consulta?codigo={token}",
+        "notificar_orden_lista usa /consulta?codigo={token}",
+        "notificar_factura_emitida usa /consulta?codigo={token}",
+        "notificar_bienvenida usa /consulta"
+      ],
+      "status": "PASSED (5/5)"
+    },
+    {
+      "feature": "notificar_material_pendiente (admin)",
+      "tests": [
+        "Usa /ordenes/{id} (correcto para staff)"
+      ],
+      "status": "PASSED (1/1)"
+    },
+    {
+      "feature": "helpers.py:generate_modern_email_html",
+      "tests": [
+        "Usa /consulta?codigo={token}",
+        "Todos los tipos de email (created, recibida, en_taller, reparado, enviado, fecha_estimada) usan /consulta"
+      ],
+      "status": "PASSED (2/2)"
+    },
+    {
+      "feature": "send_email audience parameter",
+      "tests": [
+        "audience='client' valida HTML (rechaza URLs internas)",
+        "audience='admin' permite URLs internas"
+      ],
+      "status": "PASSED (2/2)"
+    },
+    {
+      "feature": "EMAIL_STRICT_CLIENT_LINKS env var",
+      "tests": [
+        "Valor por defecto es '1' (strict mode)",
+        "Strict mode lanza AssertionError en URLs internas"
+      ],
+      "status": "PASSED (2/2)"
+    },
+    {
+      "feature": "services/email_service.py proxy",
+      "tests": [
+        "Exporta _build_client_link",
+        "Exporta _build_admin_link",
+        "Exporta _assert_client_safe",
+        "Exporta _safe_public_url"
+      ],
+      "status": "PASSED (4/4)"
+    },
+    {
+      "feature": "Regresión CRM",
+      "tests": [
+        "GET /api/health → 200",
+        "GET /api/ordenes con auth → 200",
+        "GET /api/clientes con auth → 200",
+        "GET /api/agents/panel/overview → 11 agentes",
+        "POST /api/web/chatbot → 200"
+      ],
+      "status": "PASSED (5/5)"
+    }
+  ],
+  "mocked_apis": {
+    "resend.Emails.send": "Mockeado en tests de integración para capturar HTML sin enviar emails reales"
+  }
+}

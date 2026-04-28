@@ -11,7 +11,32 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (28) · Fix etiqueta térmica — barcode ahora legible para pistola
+## Latest — 2026-02-XX (29) · 4 features admin/tecnico
+
+### 1. Campo `diagnostico_recepcion`
+- Modelo `OrdenTrabajoBase` añade campo opcional. Whitelist técnico ampliada.
+- Frontend técnico (`TecnicoRICard.jsx`): nuevo Textarea con debounce 800ms bajo "Observaciones de recepción".
+- Frontend admin (`OrdenDiagnosticoCard.jsx`): bloque azul "Diagnóstico de Recepción" en modo lectura — sólo si hay valor; placeholder discreto si admin y aún no se registró.
+- PDF: NO incluye el campo (sólo `diagnostico_tecnico` se imprime en la ficha, como pidió el usuario).
+
+### 2. Badge "GARANTÍA" en todas las secciones
+- Listado `/ordenes`: badge naranja con icono `Shield` en la celda del dispositivo, tooltip con `numero_orden_padre`.
+- `OrdenDetalleHeader`: badge naranja en la fila de estado.
+
+### 3. Filtros de fecha en `/ordenes`
+- Backend `listar_ordenes_v2` y `listar_ordenes` aceptan `fecha_campo` (`created_at | fecha_recibida_centro | fecha_inicio_reparacion | fecha_fin_reparacion | fecha_enviado`) además de `fecha_desde / fecha_hasta`.
+- Frontend: bloque con selector de campo + presets (Todo / Hoy / 7d / 30d / Mes / Año / Custom) + inputs Desde/Hasta. Custom se activa automáticamente si el usuario edita los inputs a mano.
+
+### 4. Filtros de fecha + Export Excel en `/contabilidad`
+- Backend nuevo endpoint `GET /api/contabilidad/export-excel` (admin) con params `fecha_desde`, `fecha_hasta`, `formato` (completo/unica/resumen), `tipo` (todas/venta/compra). Genera `.xlsx` con `openpyxl`: hoja **Resumen** (KPIs y desglose por estado) + hoja **Detalle** (todas las facturas con base/IVA/IRPF/total/pagado/pendiente). Headers seguros (Content-Length, Cache-Control no-store).
+- Frontend `Contabilidad.jsx`: barra de presets idéntica a Órdenes + botón "Exportar Excel" que abre dialog configurable (formato + tipo) y descarga el archivo.
+
+### Tests
+- Testing agent (`iteration_31.json`): backend 19/19 PASS, frontend 100% UI verificado, 0 issues, retest_needed=false. Test pytest creado en `/app/backend/tests/test_iteration_31.py`.
+
+---
+
+## 2026-02-XX (28) · Fix etiqueta térmica — barcode ahora legible para pistola
 
 ### Bug
 La pistola lectora no decodificaba el código de barras impreso desde el diálogo "Etiqueta de Dispositivo" (50x30 / 60x40 / 70x50 / 80x40 mm). Causa: barras demasiado finas (`barcodeWidth: 1.0–1.4`) + zona de silencio insuficiente (`margin: 2`) + `max-width: 100%` que comprimía la imagen al imprimir.

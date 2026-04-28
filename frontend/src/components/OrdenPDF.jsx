@@ -375,32 +375,63 @@ const OrdenPDF = forwardRef(function OrdenPDF(
                   <strong>{orden?.limpieza_realizada ? '✓ Realizada' : '✗ Pendiente'}</strong>
                 </p>
               </div>
-              {orden?.qc_funciones && !isBlank && (
-                <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
-                  <span style={{ fontSize: '6px', color: '#666' }}>Funciones del sistema verificadas:</span>
-                  <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px' }}>
-                    {Object.entries(orden.qc_funciones || {})
-                      .filter(([_, checked]) => checked)
-                      .map(([func]) => {
-                        const labels = {
-                          pantalla_touch: 'Pantalla/Touch',
-                          wifi: 'WiFi',
-                          bluetooth: 'Bluetooth',
-                          camara_trasera: 'Cám. trasera',
-                          camara_frontal: 'Cám. frontal',
-                          microfono: 'Micrófono',
-                          altavoz_auricular: 'Altavoz',
-                          carga: 'Carga',
-                          botones_fisicos: 'Botones',
-                          sim_red: 'SIM/Red',
-                          biometria: 'Biometría'
-                        };
-                        return labels[func] || func;
-                      })
-                      .join(' · ') || 'N/A'}
-                  </p>
-                </div>
-              )}
+              {/* Bloque de funciones del sistema con soporte completo */}
+              {!isBlank && (() => {
+                const noAplica = orden?.qc_funciones_no_aplica === true;
+                const noEsSmartphone = orden?.qc_es_smartphone === false;
+                const fns = orden?.qc_funciones || {};
+                const labels = {
+                  pantalla_touch: 'Pantalla/Touch',
+                  wifi: 'WiFi',
+                  bluetooth: 'Bluetooth',
+                  camara_trasera: 'Cám. trasera',
+                  camara_frontal: 'Cám. frontal',
+                  microfono: 'Micrófono',
+                  altavoz_auricular: 'Altavoz',
+                  carga: 'Carga',
+                  botones_fisicos: 'Botones',
+                  sim_red: 'SIM/Red',
+                  biometria: 'Biometría',
+                };
+                if (noEsSmartphone) {
+                  return (
+                    <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
+                      <span style={{ fontSize: '6px', color: '#666' }}>Funciones del sistema:</span>
+                      <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px', fontStyle: 'italic', color: '#64748b' }}>
+                        No aplica — el dispositivo no es smartphone/tablet (consola, TV u otro aparato).
+                      </p>
+                    </div>
+                  );
+                }
+                if (noAplica) {
+                  return (
+                    <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
+                      <span style={{ fontSize: '6px', color: '#666' }}>Funciones del sistema:</span>
+                      <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px', fontStyle: 'italic', color: '#64748b' }}>
+                        Marcadas como <strong>no aplica</strong> por el técnico (dispositivo sin estas funciones).
+                      </p>
+                    </div>
+                  );
+                }
+                const marcadas = Object.entries(fns).filter(([, v]) => v).map(([k]) => labels[k] || k);
+                const noMarcadas = Object.entries(fns).filter(([, v]) => !v).map(([k]) => labels[k] || k);
+                if (Object.keys(fns).length === 0) return null;
+                return (
+                  <div style={{ marginTop: '2mm', paddingTop: '1.5mm', borderTop: '1px dashed #ccc' }}>
+                    <span style={{ fontSize: '6px', color: '#666' }}>Funciones del sistema verificadas:</span>
+                    {marcadas.length > 0 && (
+                      <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px', color: '#16a34a' }}>
+                        ✓ {marcadas.join(' · ')}
+                      </p>
+                    )}
+                    {noMarcadas.length > 0 && (
+                      <p style={{ margin: '0.5mm 0 0 0', fontSize: '7px', color: '#dc2626' }}>
+                        ✗ Sin verificar: {noMarcadas.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               {orden?.bateria_estado && !isBlank && (
                 <p style={{ margin: '1.5mm 0 0 0', fontSize: '7px' }}>
                   <span style={{ fontSize: '6px', color: '#666' }}>Batería:</span>{' '}
@@ -648,8 +679,64 @@ const OrdenPDF = forwardRef(function OrdenPDF(
 
         <div style={S.hrLight} />
 
+        {/* AVISO AVERÍA NO REPARADA / IRREPARABLE (si aplica) */}
+        {!isBlank && (orden?.qc_resultado_averia === 'no_reparada' || orden?.estado === 'irreparable') && (
+          <div style={{
+            marginBottom: '4mm',
+            padding: '3mm',
+            backgroundColor: '#fef2f2',
+            border: '2px solid #dc2626',
+            borderRadius: '2mm'
+          }}>
+            <p style={{
+              margin: '0 0 1.5mm',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              color: '#dc2626',
+              textTransform: 'uppercase'
+            }}>
+              ❌ AVERÍA NO REPARADA — Dispositivo IRREPARABLE
+            </p>
+            {orden?.qc_motivo_no_reparada && (
+              <p style={{ margin: '0 0 1mm', fontSize: '8px', fontWeight: '500' }}>
+                Motivo: {orden.qc_motivo_no_reparada}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: '7px', color: '#666' }}>
+              Tras el diagnóstico técnico no ha sido posible reparar la avería. El dispositivo
+              se devuelve al cliente sin intervención efectuada o se procede a la gestión del residuo
+              según indicaciones del cliente.
+            </p>
+          </div>
+        )}
+
+        {/* AVISO REPARACIÓN PARCIAL (si aplica) */}
+        {!isBlank && orden?.qc_resultado_averia === 'parcial' && (
+          <div style={{
+            marginBottom: '3mm',
+            padding: '2.5mm',
+            backgroundColor: '#fffbeb',
+            border: '1.5px solid #f59e0b',
+            borderRadius: '2mm'
+          }}>
+            <p style={{
+              margin: '0 0 1mm',
+              fontSize: '9px',
+              fontWeight: 'bold',
+              color: '#b45309',
+              textTransform: 'uppercase'
+            }}>
+              ⚠️ Reparación PARCIAL
+            </p>
+            <p style={{ margin: 0, fontSize: '7.5px', color: '#78350f' }}>
+              El dispositivo ha sido reparado parcialmente. Algunas funciones pueden no operar al
+              100%. Consulta las notas de cierre técnico arriba para más detalle.
+            </p>
+          </div>
+        )}
+
         {/* AVISO GARANTÍA NO PROCEDE (si aplica) */}
-        {orden?.es_garantia && orden?.garantia_resultado === 'no_procede' && !isBlank && (
+        {!isBlank && orden?.garantia_resultado === 'no_procede' && (
           <div style={{ 
             marginBottom: '4mm', 
             padding: '3mm', 

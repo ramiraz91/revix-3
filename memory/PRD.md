@@ -11,7 +11,27 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (23) · Fix descarga ZIP fotos corrupto
+## Latest — 2026-02-XX (24) · Checklist final del técnico — 3 mejoras UX
+
+### Cambios solicitados por el usuario
+1. **Sección 1 (Avería y diagnóstico)** — ahora es un RadioGroup con 3 opciones:
+   - ✅ Reparada correctamente
+   - ⚠️ Reparada parcialmente
+   - ❌ NO ha sido reparada → orden pasa a `irreparable` (no a `reparado`), exige motivo obligatorio
+
+2. **Toggle "Es smartphone/tablet"** — si se desmarca (consola, TV, otros), las secciones de batería y funciones del sistema se ocultan automáticamente. Las secciones ISO/WISE y limpieza siguen aplicándose a todos.
+
+3. **Sección 3 (Funciones del sistema)** — botones bulk: "Marcar todas", "Sólo requeridas", "Limpiar". Toggle "No aplica" que opaca el grid y exime la validación de funciones requeridas.
+
+### Backend
+- Whitelist `campos_tecnico_permitidos` en `routes/ordenes_routes.py:1330` ampliada con: `bateria_nivel/ciclos/estado`, `qc_funciones`, `qc_funciones_no_aplica`, `qc_es_smartphone`, `qc_resultado_averia`, `qc_motivo_no_reparada`, `garantia_*`. Sin esto los nuevos campos se filtraban silenciosamente al guardar.
+
+### Tests
+- Testing agent: **Backend 18/18 PASS**, frontend code review verificado, 0 issues. Sin regresión en flujos previos (garantía no procede, reparación normal).
+
+---
+
+## 2026-02-XX (23) · Fix descarga ZIP fotos corrupto
 
 ### Bug
 Cuando una orden tenía 2+ fotos, descargar el ZIP desde "Detalle de orden → Fotos" producía error en Chrome: "La carpeta comprimida no es válida". El ZIP se descargaba truncado.

@@ -1359,3 +1359,174 @@ async def guardar_config_recordatorios(config: dict, user: dict = Depends(requir
         upsert=True
     )
     return {"message": "Configuración guardada"}
+
+
+
+# ==================== EXPORTAR EXCEL ====================
+
+@router.get("/export-excel")
+async def exportar_contabilidad_excel(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    formato: Optional[str] = "completo",  # completo (resumen+detalle) | unica (sólo detalle) | resumen
+    tipo: Optional[str] = "todas",        # todas | venta | compra
+    user: dict = Depends(require_admin),
+):
+    """Exporta a Excel las facturas filtradas por rango de fechas.
+
+    formato:
+      - 'completo': hoja Resumen + hoja Detalle
+      - 'unica': sólo hoja Detalle
+      - 'resumen': sólo hoja Resumen
+    """
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import Response
+
+    # 1) Construir query
+    query = {"anulada": {"$ne": True}}
+    fecha_cond = {}
+    if fecha_desde:
+        fecha_cond["$gte"] = fecha_desde
+    if fecha_hasta:
+        fecha_cond["$lte"] = fecha_hasta + "T23:59:59"
+    if fecha_cond:
+        query["fecha_emision"] = fecha_cond
+    if tipo and tipo != "todas":
+        query["tipo"] = tipo
+
+    facturas = await db.facturas.find(query, {"_id": 0}).sort("fecha_emision", -1).to_list(10000)
+
+    # 2) Preparar workbook
+    wb = Workbook()
+    ws_default = wb.active
+    wb.remove(ws_default)
+
+    header_fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    money_format = '#,##0.00 "€"'
+    border_thin = Border(
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0"),
+    )
+
+    def autofit(ws):
+        for col_idx, col_cells in enumerate(ws.columns, start=1):
+            max_len = 0
+            for cell in col_cells:
+                try:
+                    val = "" if cell.value is None else str(cell.value)
+                    if len(val) > max_len:
+                        max_len = len(val)
+                except Exception:
+                    pass
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 50)
+
+    incluye_resumen = formato in ("completo", "resumen")
+    incluye_detalle = formato in ("completo", "unica")
+
+    # 3) Hoja DETALLE
+    if incluye_detalle:
+        ws = wb.create_sheet("Detalle")
+        headers = [
+            "Nº Factura", "Tipo", "Estado", "Fecha emisión", "Fecha vencimiento",
+            "Cliente / Proveedor", "Concepto", "Base imponible (€)", "IVA (€)",
+            "IRPF (€)", "Total (€)", "Pagado (€)", "Pendiente (€)", "Orden vinculada",
+        ]
+        ws.append(headers)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border_thin
+
+        for f in facturas:
+            base = float(f.get("base_imponible") or 0)
+            iva = float(f.get("total_iva") or 0)
+            irpf = float(f.get("total_irpf") or 0)
+            total = float(f.get("total") or 0)
+            pagado = float(f.get("pagado") or 0)
+            pendiente = max(total - pagado, 0)
+            ws.append([
+                f.get("numero_factura", ""),
+                f.get("tipo", ""),
+                f.get("estado", ""),
+                (f.get("fecha_emision") or "")[:10],
+                (f.get("fecha_vencimiento") or "")[:10],
+                f.get("cliente_nombre") or f.get("proveedor_nombre") or "",
+                f.get("concepto", ""),
+                base, iva, irpf, total, pagado, pendiente,
+                f.get("orden_id") or f.get("numero_orden") or "",
+            ])
+
+        for row in ws.iter_rows(min_row=2, max_col=len(headers)):
+            for cell in row:
+                cell.border = border_thin
+            for col in (8, 9, 10, 11, 12, 13):
+                row[col - 1].number_format = money_format
+
+        autofit(ws)
+        ws.freeze_panes = "A2"
+
+    # 4) Hoja RESUMEN
+    if incluye_resumen:
+        ws = wb.create_sheet("Resumen", 0 if incluye_detalle else None)
+        ws["A1"] = "Resumen contable"
+        ws["A1"].font = Font(bold=True, size=14)
+        ws["A2"] = f"Periodo: {fecha_desde or 'inicio'} → {fecha_hasta or 'hoy'}"
+        ws["A2"].font = Font(italic=True, color="64748B")
+
+        total_base = sum(float(f.get("base_imponible") or 0) for f in facturas)
+        total_iva = sum(float(f.get("total_iva") or 0) for f in facturas)
+        total_irpf = sum(float(f.get("total_irpf") or 0) for f in facturas)
+        total = sum(float(f.get("total") or 0) for f in facturas)
+        total_pagado = sum(float(f.get("pagado") or 0) for f in facturas)
+        total_pendiente = max(total - total_pagado, 0)
+
+        kpi_rows = [
+            ("Total facturas", len(facturas)),
+            ("Base imponible", total_base),
+            ("IVA repercutido", total_iva),
+            ("IRPF retenido", total_irpf),
+            ("Total facturado", total),
+            ("Total cobrado", total_pagado),
+            ("Pendiente de cobro", total_pendiente),
+        ]
+        for i, (label, val) in enumerate(kpi_rows, start=4):
+            ws.cell(row=i, column=1, value=label).font = Font(bold=True)
+            cell = ws.cell(row=i, column=2, value=val)
+            if i > 4:  # filas con € (todas menos "Total facturas")
+                cell.number_format = money_format
+
+        # Desglose por estado
+        from collections import Counter
+        contador_estado = Counter(f.get("estado", "—") for f in facturas)
+        ws.cell(row=12, column=1, value="Desglose por estado").font = Font(bold=True, size=12)
+        ws.cell(row=13, column=1, value="Estado").font = Font(bold=True)
+        ws.cell(row=13, column=2, value="Nº facturas").font = Font(bold=True)
+        for i, (estado, count) in enumerate(contador_estado.items(), start=14):
+            ws.cell(row=i, column=1, value=estado)
+            ws.cell(row=i, column=2, value=count)
+
+        autofit(ws)
+
+    # 5) Serializar a bytes y devolver como descarga
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    contenido = buffer.getvalue()
+    nombre = f"contabilidad_{(fecha_desde or 'inicio')[:10]}_{(fecha_hasta or 'hoy')[:10]}.xlsx"
+
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{nombre}"',
+            "Content-Length": str(len(contenido)),
+            "Cache-Control": "no-store",
+        },
+    )

@@ -93,6 +93,12 @@ export default function Ordenes() {
   const [telefonoBusqueda, setTelefonoBusqueda] = useState('');
   const [autorizacionBusqueda, setAutorizacionBusqueda] = useState('');
   const [estadoFilter, setEstadoFilter] = useState(searchParams.get('estado') || 'all');
+
+  // Filtros de fecha
+  const [fechaCampo, setFechaCampo] = useState('created_at'); // created_at | fecha_recibida_centro | fecha_enviado | fecha_fin_reparacion
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [fechaPreset, setFechaPreset] = useState('all'); // all | hoy | 7d | 30d | mes | anio | custom
   
   // Paginación
   const [page, setPage] = useState(1);
@@ -192,6 +198,9 @@ export default function Ordenes() {
       if (debouncedTelefono) params.telefono = debouncedTelefono;
       if (debouncedAutorizacion) params.autorizacion = debouncedAutorizacion;
       if (estadoFilter && estadoFilter !== 'all') params.estado = estadoFilter;
+      if (fechaCampo && fechaCampo !== 'created_at') params.fecha_campo = fechaCampo;
+      if (fechaDesde) params.fecha_desde = fechaDesde;
+      if (fechaHasta) params.fecha_hasta = fechaHasta;
       
       const [ordenesRes, clientesRes] = await Promise.all([
         ordenesAPI.listarPaginado(params),
@@ -220,11 +229,11 @@ export default function Ordenes() {
   // Efecto para búsqueda con debounce
   useEffect(() => {
     setPage(1); // Reset a página 1 cuando cambian los filtros
-  }, [debouncedSearch, debouncedTelefono, debouncedAutorizacion, estadoFilter]);
+  }, [debouncedSearch, debouncedTelefono, debouncedAutorizacion, estadoFilter, fechaCampo, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchOrdenes();
-  }, [page, debouncedSearch, debouncedTelefono, debouncedAutorizacion, estadoFilter]);
+  }, [page, debouncedSearch, debouncedTelefono, debouncedAutorizacion, estadoFilter, fechaCampo, fechaDesde, fechaHasta]);
 
   // Carga conteos del inbox Insurama (una sola llamada cada 60s)
   useEffect(() => {
@@ -268,8 +277,44 @@ export default function Ordenes() {
     setTelefonoBusqueda('');
     setAutorizacionBusqueda('');
     setEstadoFilter('all');
+    setFechaCampo('created_at');
+    setFechaDesde('');
+    setFechaHasta('');
+    setFechaPreset('all');
     setPage(1);
     setSearchParams({});
+  };
+
+  // Aplicar preset de fechas
+  const aplicarFechaPreset = (preset) => {
+    setFechaPreset(preset);
+    const now = new Date();
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    if (preset === 'all') {
+      setFechaDesde('');
+      setFechaHasta('');
+    } else if (preset === 'hoy') {
+      const d = toISO(now);
+      setFechaDesde(d);
+      setFechaHasta(d);
+    } else if (preset === '7d') {
+      const desde = new Date(now); desde.setDate(now.getDate() - 6);
+      setFechaDesde(toISO(desde));
+      setFechaHasta(toISO(now));
+    } else if (preset === '30d') {
+      const desde = new Date(now); desde.setDate(now.getDate() - 29);
+      setFechaDesde(toISO(desde));
+      setFechaHasta(toISO(now));
+    } else if (preset === 'mes') {
+      const desde = new Date(now.getFullYear(), now.getMonth(), 1);
+      setFechaDesde(toISO(desde));
+      setFechaHasta(toISO(now));
+    } else if (preset === 'anio') {
+      const desde = new Date(now.getFullYear(), 0, 1);
+      setFechaDesde(toISO(desde));
+      setFechaHasta(toISO(now));
+    }
+    // 'custom' → no toca fechas, el usuario escribe a mano
   };
 
   const handleDelete = async (id) => {
@@ -433,15 +478,81 @@ export default function Ordenes() {
                 ))}
               </SelectContent>
             </Select>
-            {(search || telefonoBusqueda || autorizacionBusqueda || estadoFilter !== 'all') && (
+            {(search || telefonoBusqueda || autorizacionBusqueda || estadoFilter !== 'all' || fechaDesde || fechaHasta) && (
               <Button variant="ghost" onClick={limpiarFiltros} size="sm">
                 <X className="w-4 h-4 mr-1" />
                 Limpiar filtros
               </Button>
             )}
             <div className="ml-auto text-sm text-muted-foreground">
-              {ordenes.length} orden{ordenes.length !== 1 ? 'es' : ''}
+              {totalItems} orden{totalItems !== 1 ? 'es' : ''}
             </div>
+            </div>
+
+            {/* Filtros de fecha */}
+            <div className="flex flex-wrap gap-2 items-end pt-2 border-t" data-testid="filtros-fecha-ordenes">
+              <div>
+                <label className="text-[11px] uppercase tracking-wider text-muted-foreground block mb-1">
+                  Filtrar fechas por
+                </label>
+                <Select value={fechaCampo} onValueChange={setFechaCampo}>
+                  <SelectTrigger className="w-44 h-9" data-testid="filtro-fecha-campo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Fecha de creación</SelectItem>
+                    <SelectItem value="fecha_recibida_centro">Fecha recepción</SelectItem>
+                    <SelectItem value="fecha_inicio_reparacion">Inicio reparación</SelectItem>
+                    <SelectItem value="fecha_fin_reparacion">Fin reparación</SelectItem>
+                    <SelectItem value="fecha_enviado">Fecha envío</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {[
+                  { id: 'all',  label: 'Todo' },
+                  { id: 'hoy',  label: 'Hoy' },
+                  { id: '7d',   label: '7 días' },
+                  { id: '30d',  label: '30 días' },
+                  { id: 'mes',  label: 'Mes actual' },
+                  { id: 'anio', label: 'Año' },
+                  { id: 'custom', label: 'Custom' },
+                ].map(p => (
+                  <Button
+                    key={p.id}
+                    type="button"
+                    size="sm"
+                    variant={fechaPreset === p.id ? 'default' : 'outline'}
+                    onClick={() => aplicarFechaPreset(p.id)}
+                    data-testid={`filtro-fecha-preset-${p.id}`}
+                    className="h-9 text-xs"
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center">
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-muted-foreground block mb-1">Desde</label>
+                  <Input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={(e) => { setFechaDesde(e.target.value); setFechaPreset('custom'); }}
+                    className="h-9 w-36"
+                    data-testid="filtro-fecha-desde"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-muted-foreground block mb-1">Hasta</label>
+                  <Input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={(e) => { setFechaHasta(e.target.value); setFechaPreset('custom'); }}
+                    className="h-9 w-36"
+                    data-testid="filtro-fecha-hasta"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -531,7 +642,19 @@ export default function Ordenes() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{orden.dispositivo?.modelo}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-medium">{orden.dispositivo?.modelo}</p>
+                              {orden.es_garantia && (
+                                <Badge
+                                  className="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] h-5 px-1.5 gap-0.5 hover:bg-orange-100"
+                                  title={orden.numero_orden_padre ? `Orden de garantía de ${orden.numero_orden_padre}` : 'Orden de garantía'}
+                                  data-testid={`badge-garantia-${orden.id}`}
+                                >
+                                  <Shield className="w-3 h-3" />
+                                  GARANTÍA
+                                </Badge>
+                              )}
+                            </div>
                             {orden.dispositivo?.imei && (
                               <p className="text-xs font-mono text-muted-foreground">
                                 {orden.dispositivo.imei}

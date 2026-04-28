@@ -887,6 +887,7 @@ async def listar_ordenes_v2(
     autorizacion: Optional[str] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
+    fecha_campo: Optional[str] = "created_at",
     solo_garantias: Optional[bool] = None,
     page: int = 1,
     page_size: int = 50,
@@ -931,10 +932,15 @@ async def listar_ordenes_v2(
                 {"codigo_recogida_salida": search},
             ]
         })
+
+    # Filtros de fecha — campo configurable (created_at | fecha_recibida_centro | fecha_enviado | fecha_fin_reparacion | fecha_inicio_reparacion)
+    campos_fecha_validos = {"created_at", "fecha_recibida_centro", "fecha_enviado", "fecha_fin_reparacion", "fecha_inicio_reparacion"}
+    campo_fecha_aplicado = fecha_campo if fecha_campo in campos_fecha_validos else "created_at"
+
     if fecha_desde:
-        conditions.append({"created_at": {"$gte": fecha_desde}})
+        conditions.append({campo_fecha_aplicado: {"$gte": fecha_desde}})
     if fecha_hasta:
-        conditions.append({"created_at": {"$lte": fecha_hasta}})
+        conditions.append({campo_fecha_aplicado: {"$lte": fecha_hasta}})
     
     if conditions:
         query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
@@ -947,7 +953,7 @@ async def listar_ordenes_v2(
     
     # Obtener datos con proyección optimizada
     ordenes = await db.ordenes.find(query, LISTADO_PROJECTION)\
-        .sort("created_at", -1)\
+        .sort(campo_fecha_aplicado, -1)\
         .skip(skip)\
         .limit(page_size)\
         .to_list(page_size)
@@ -1094,7 +1100,7 @@ async def buscar_orden_escaner(q: str, user: dict = Depends(require_auth)):
 
 
 @router.get("/ordenes", response_model=List[OrdenTrabajo])
-async def listar_ordenes(estado: Optional[str] = None, cliente_id: Optional[str] = None, search: Optional[str] = None, telefono: Optional[str] = None, autorizacion: Optional[str] = None, fecha_desde: Optional[str] = None, fecha_hasta: Optional[str] = None, solo_garantias: Optional[bool] = None):
+async def listar_ordenes(estado: Optional[str] = None, cliente_id: Optional[str] = None, search: Optional[str] = None, telefono: Optional[str] = None, autorizacion: Optional[str] = None, fecha_desde: Optional[str] = None, fecha_hasta: Optional[str] = None, fecha_campo: Optional[str] = "created_at", solo_garantias: Optional[bool] = None):
     query = {}
     conditions = []
     if estado:
@@ -1115,14 +1121,18 @@ async def listar_ordenes(estado: Optional[str] = None, cliente_id: Optional[str]
             return []
     if search:
         conditions.append({"$or": [{"numero_orden": {"$regex": search, "$options": "i"}}, {"numero_autorizacion": {"$regex": search, "$options": "i"}}, {"dispositivo.modelo": {"$regex": search, "$options": "i"}}, {"dispositivo.imei": {"$regex": search, "$options": "i"}}]})
+
+    # Filtros de fecha sobre el campo elegido (created_at | fecha_recibida_centro | fecha_enviado | fecha_fin_reparacion)
+    campos_fecha_validos = {"created_at", "fecha_recibida_centro", "fecha_enviado", "fecha_fin_reparacion", "fecha_inicio_reparacion"}
+    campo_fecha_aplicado = fecha_campo if fecha_campo in campos_fecha_validos else "created_at"
     if fecha_desde:
-        conditions.append({"created_at": {"$gte": fecha_desde}})
+        conditions.append({campo_fecha_aplicado: {"$gte": fecha_desde}})
     if fecha_hasta:
-        conditions.append({"created_at": {"$lte": fecha_hasta}})
+        conditions.append({campo_fecha_aplicado: {"$lte": fecha_hasta}})
     if conditions:
         query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
-    ordenes = await db.ordenes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    ordenes = await db.ordenes.find(query, {"_id": 0}).sort(campo_fecha_aplicado, -1).to_list(1000)
 
     ordenes_normalizadas = []
     for orden in ordenes:

@@ -61,6 +61,15 @@ export default function Contabilidad() {
     busqueda: ''
   });
 
+  // Filtros de fecha global (afectan a Resumen + export Excel)
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [fechaPreset, setFechaPreset] = useState('all');
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [exportFormato, setExportFormato] = useState('completo'); // completo | unica | resumen
+  const [exportTipo, setExportTipo] = useState('todas');           // todas | venta | compra
+  const [showExportDialog, setShowExportDialog] = useState(false);
+
   // Paginación albaranes
   const [albaranesPagina, setAlbaranesPagina] = useState(1);
   const [albaranesPorPagina, setAlbaranesPorPagina] = useState(20);
@@ -165,6 +174,51 @@ export default function Contabilidad() {
     return new Date(dateStr).toLocaleDateString('es-ES');
   };
 
+  // Aplicar preset de fechas (hoy, 7d, 30d, mes, anio, custom, all)
+  const aplicarFechaPreset = (preset) => {
+    setFechaPreset(preset);
+    const now = new Date();
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    if (preset === 'all') { setFechaDesde(''); setFechaHasta(''); return; }
+    if (preset === 'hoy') { const d = toISO(now); setFechaDesde(d); setFechaHasta(d); return; }
+    if (preset === '7d') { const x = new Date(now); x.setDate(now.getDate() - 6); setFechaDesde(toISO(x)); setFechaHasta(toISO(now)); return; }
+    if (preset === '30d') { const x = new Date(now); x.setDate(now.getDate() - 29); setFechaDesde(toISO(x)); setFechaHasta(toISO(now)); return; }
+    if (preset === 'mes') { setFechaDesde(toISO(new Date(now.getFullYear(), now.getMonth(), 1))); setFechaHasta(toISO(now)); return; }
+    if (preset === 'anio') { setFechaDesde(toISO(new Date(now.getFullYear(), 0, 1))); setFechaHasta(toISO(now)); return; }
+  };
+
+  const handleExportExcel = async () => {
+    setExportandoExcel(true);
+    try {
+      const params = new URLSearchParams();
+      if (fechaDesde) params.append('fecha_desde', fechaDesde);
+      if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+      params.append('formato', exportFormato);
+      params.append('tipo', exportTipo);
+      const res = await api.get(`/contabilidad/export-excel?${params.toString()}`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contabilidad_${fechaDesde || 'inicio'}_${fechaHasta || 'hoy'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel descargado');
+      setShowExportDialog(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al exportar Excel');
+    } finally {
+      setExportandoExcel(false);
+    }
+  };
+
   // Componente de paginación reutilizable
   const Paginacion = ({ pagina, setPagina, porPagina, setPorPagina, total }) => {
     const totalPaginas = Math.ceil(total / porPagina) || 1;
@@ -250,7 +304,7 @@ export default function Contabilidad() {
           <h1 className="text-2xl font-bold text-gray-900">Contabilidad</h1>
           <p className="text-gray-500">Gestión de facturas, albaranes y pagos</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={() => navigate('/contabilidad/factura/nueva?tipo=compra')}>
             <Plus className="h-4 w-4 mr-2" />
             Factura Compra
@@ -259,8 +313,66 @@ export default function Contabilidad() {
             <Plus className="h-4 w-4 mr-2" />
             Factura Venta
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => setShowExportDialog(true)}
+            data-testid="btn-abrir-export-excel"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Excel
+          </Button>
         </div>
       </div>
+
+      {/* Filtros de fecha globales */}
+      <Card>
+        <CardContent className="p-3 flex flex-wrap items-end gap-2" data-testid="filtros-fecha-contabilidad">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground mr-2">Periodo</span>
+          {[
+            { id: 'all',  label: 'Todo' },
+            { id: 'hoy',  label: 'Hoy' },
+            { id: '7d',   label: '7 días' },
+            { id: '30d',  label: '30 días' },
+            { id: 'mes',  label: 'Mes actual' },
+            { id: 'anio', label: 'Año' },
+            { id: 'custom', label: 'Custom' },
+          ].map(p => (
+            <Button
+              key={p.id}
+              type="button"
+              size="sm"
+              variant={fechaPreset === p.id ? 'default' : 'outline'}
+              onClick={() => aplicarFechaPreset(p.id)}
+              data-testid={`filtro-fecha-preset-cont-${p.id}`}
+              className="h-9 text-xs"
+            >
+              {p.label}
+            </Button>
+          ))}
+          <div className="flex gap-2 items-end ml-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Desde</label>
+              <Input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => { setFechaDesde(e.target.value); setFechaPreset('custom'); }}
+                className="h-9 w-36"
+                data-testid="filtro-fecha-desde-cont"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Hasta</label>
+              <Input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => { setFechaHasta(e.target.value); setFechaPreset('custom'); }}
+                className="h-9 w-36"
+                data-testid="filtro-fecha-hasta-cont"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -819,6 +931,80 @@ export default function Contabilidad() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog Exportar Excel */}
+      {showExportDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => !exportandoExcel && setShowExportDialog(false)}
+          data-testid="dialog-export-excel"
+        >
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Exportar Excel
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground block mb-1">
+                  Periodo
+                </label>
+                <p className="text-sm">
+                  {fechaDesde || 'inicio'} → {fechaHasta || 'hoy'}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground block mb-1">
+                  Formato del archivo
+                </label>
+                <Select value={exportFormato} onValueChange={setExportFormato}>
+                  <SelectTrigger data-testid="export-formato-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completo">Completo (Resumen + Detalle)</SelectItem>
+                    <SelectItem value="unica">Una sola hoja (Detalle)</SelectItem>
+                    <SelectItem value="resumen">Sólo resumen / KPIs</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground block mb-1">
+                  Tipo de factura
+                </label>
+                <Select value={exportTipo} onValueChange={setExportTipo}>
+                  <SelectTrigger data-testid="export-tipo-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas (venta + compra)</SelectItem>
+                    <SelectItem value="venta">Sólo facturas de venta</SelectItem>
+                    <SelectItem value="compra">Sólo facturas de compra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowExportDialog(false)} disabled={exportandoExcel}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleExportExcel} disabled={exportandoExcel} data-testid="btn-confirmar-export-excel">
+                  {exportandoExcel ? 'Generando…' : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

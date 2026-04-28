@@ -91,6 +91,16 @@ export function OrdenDetalleHeader({
                   ? 'Fuera de Garantia'
                   : currentStatus?.label}
               </Badge>
+              {orden.es_garantia && (
+                <Badge
+                  className="bg-orange-100 text-orange-800 border border-orange-300 gap-1 hover:bg-orange-100"
+                  title={orden.numero_orden_padre ? `Garantía de ${orden.numero_orden_padre}` : 'Orden de garantía'}
+                  data-testid="badge-garantia-header"
+                >
+                  <Shield className="w-3 h-3" />
+                  GARANTÍA
+                </Badge>
+              )}
               {orden.es_garantia && orden.garantia_resultado === 'no_procede' && (
                 <Badge variant="outline" className="gap-1 border-orange-400 text-orange-600 bg-orange-50">
                   <AlertTriangle className="w-3 h-3" />

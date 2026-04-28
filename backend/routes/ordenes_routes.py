@@ -2965,6 +2965,61 @@ async def subir_evidencia_tecnico(
     return {"message": f"Foto ({tipo_foto}) subida a Cloudinary", "url": result["url"], "tipo": tipo_foto, "public_id": result.get("public_id")}
 
 
+# ==================== ELIMINAR FOTO ====================
+
+class EliminarFotoRequest(BaseModel):
+    url: str
+    tipo: str  # 'admin' (evidencias) | 'tecnico' (evidencias_tecnico) | 'antes' (fotos_antes) | 'despues' (fotos_despues)
+
+
+@router.delete("/ordenes/{orden_id}/fotos")
+async def eliminar_foto_orden(orden_id: str, request: EliminarFotoRequest, user: dict = Depends(require_auth)):
+    """Eliminar una foto/evidencia concreta de una orden por URL.
+
+    El tipo determina de qué array MongoDB se elimina:
+      - admin    -> evidencias
+      - tecnico  -> evidencias_tecnico
+      - antes    -> fotos_antes
+      - despues  -> fotos_despues
+    """
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    tipo_to_field = {
+        "admin": "evidencias",
+        "tecnico": "evidencias_tecnico",
+        "antes": "fotos_antes",
+        "despues": "fotos_despues",
+    }
+    field = tipo_to_field.get(request.tipo)
+    if not field:
+        raise HTTPException(status_code=400, detail=f"Tipo de foto no válido: {request.tipo}")
+
+    fotos_actuales = orden.get(field, []) or []
+    if request.url not in fotos_actuales:
+        raise HTTPException(status_code=404, detail="Foto no encontrada en la orden")
+
+    nuevas = [u for u in fotos_actuales if u != request.url]
+    await db.ordenes.update_one(
+        {"id": orden_id},
+        {"$set": {field: nuevas, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    await registrar_auditoria(
+        entidad="orden",
+        entidad_id=orden_id,
+        accion="eliminar_evidencia",
+        usuario_id=user.get('user_id'),
+        usuario_email=user.get('email'),
+        rol=user.get('role'),
+        cambios={"foto_eliminada": request.url, "campo": field},
+    )
+
+    return {"message": "Foto eliminada", "tipo": request.tipo, "campo": field, "restantes": len(nuevas)}
+
+
+
 # ==================== DESCARGA ZIP DE FOTOS ====================
 
 @router.get("/ordenes/{orden_id}/fotos-zip")
@@ -3343,13 +3398,18 @@ async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = N
     
     now = datetime.now(timezone.utc)
     
+    # Clonar dispositivo del padre y actualizar daños con las nuevas indicaciones del cliente
+    dispositivo_garantia = dict(orden_padre['dispositivo']) if orden_padre.get('dispositivo') else {}
+    if indicaciones:
+        dispositivo_garantia['daños'] = indicaciones
+
     # 1. Crear la nueva orden de garantía con toda la info del dispositivo
     nueva_orden = OrdenTrabajo(
         cliente_id=orden_padre['cliente_id'],
-        dispositivo=orden_padre['dispositivo'],
+        dispositivo=dispositivo_garantia,
         agencia_envio=orden_padre.get('agencia_envio', ''),
         codigo_recogida_entrada=orden_padre.get('codigo_recogida_entrada', ''),
-        notas=f"GARANTÍA de orden {orden_padre['numero_orden']}. {orden_padre.get('notas', '')}".strip(),
+        notas=f"GARANTÍA de orden {orden_padre['numero_orden']}. {indicaciones or orden_padre.get('notas', '')}".strip(),
         orden_padre_id=orden_id,
         es_garantia=True,
         tipo_servicio="garantia_fabricante"
@@ -3383,6 +3443,11 @@ async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = N
     if indicaciones:
         doc['indicaciones_garantia_cliente'] = indicaciones
         doc['indicaciones_tecnico'] = f"GARANTÍA: {indicaciones}"
+        # Aseguramos que la avería reportada y el campo "averia_descripcion"
+        # reflejen las nuevas indicaciones del cliente (no la avería del parte original)
+        doc['averia_descripcion'] = indicaciones
+        if isinstance(doc.get('dispositivo'), dict):
+            doc['dispositivo']['daños'] = indicaciones
     
     await db.ordenes.insert_one(doc)
     doc.pop('_id', None)

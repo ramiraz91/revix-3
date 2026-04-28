@@ -130,6 +130,9 @@ export default function OrdenDetalle() {
   const [showDesbloquearModal, setShowDesbloquearModal] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [showEditCliente, setShowEditCliente] = useState(false);
+  const [showEditDispositivo, setShowEditDispositivo] = useState(false);
+  const [editDispositivoData, setEditDispositivoData] = useState(null);
+  const [guardandoDispositivo, setGuardandoDispositivo] = useState(false);
   const [showNuevoRepuesto, setShowNuevoRepuesto] = useState(false);
   const [showAddMaterialDialog, setShowAddMaterialDialog] = useState(false);
   const [showEditMaterialDialog, setShowEditMaterialDialog] = useState(false);
@@ -922,6 +925,31 @@ export default function OrdenDetalle() {
     }
   };
 
+  const handleEditDispositivo = () => {
+    setEditDispositivoData({
+      modelo: orden?.dispositivo?.modelo || '',
+      imei: orden?.dispositivo?.imei || '',
+      color: orden?.dispositivo?.color || '',
+      daños: orden?.dispositivo?.daños || '',
+    });
+    setShowEditDispositivo(true);
+  };
+
+  const handleGuardarDispositivo = async () => {
+    if (!editDispositivoData) return;
+    setGuardandoDispositivo(true);
+    try {
+      await ordenesAPI.actualizar(id, { dispositivo: editDispositivoData });
+      toast.success('Dispositivo actualizado correctamente');
+      setShowEditDispositivo(false);
+      fetchOrden();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Error al actualizar el dispositivo');
+    } finally {
+      setGuardandoDispositivo(false);
+    }
+  };
+
   const handleEditEnvio = () => {
     setEnvioData({
       numero_autorizacion: orden.numero_autorizacion || '',
@@ -1581,7 +1609,10 @@ export default function OrdenDetalle() {
                   </CardContent>
                 </Card>
               )}
-              <OrdenDispositivoCard dispositivo={orden.dispositivo} />
+              <OrdenDispositivoCard
+                dispositivo={orden.dispositivo}
+                onEdit={isAdmin() ? () => handleEditDispositivo() : undefined}
+              />
               
               {/* Botón IA: Probar diagnóstico (agente triador_averias) */}
               {(isAdmin() || isTecnico()) && (
@@ -2366,7 +2397,81 @@ export default function OrdenDetalle() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Nuevo Repuesto */}
+      {/* Dialog Editar Dispositivo (admin) */}
+      <Dialog open={showEditDispositivo} onOpenChange={setShowEditDispositivo}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Smartphone className="w-5 h-5" />
+              Editar Datos del Dispositivo
+            </DialogTitle>
+            <DialogDescription>
+              Estos datos se mostrarán al técnico, en la ficha de la orden y en el PDF.
+            </DialogDescription>
+          </DialogHeader>
+          {editDispositivoData && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-disp-modelo">Modelo</Label>
+                <Input
+                  id="edit-disp-modelo"
+                  value={editDispositivoData.modelo}
+                  onChange={(e) => setEditDispositivoData({ ...editDispositivoData, modelo: e.target.value })}
+                  placeholder="Ej. iPhone 15 Pro"
+                  data-testid="edit-disp-modelo"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-disp-imei">IMEI / Serie</Label>
+                  <Input
+                    id="edit-disp-imei"
+                    value={editDispositivoData.imei}
+                    onChange={(e) => setEditDispositivoData({ ...editDispositivoData, imei: e.target.value })}
+                    placeholder="123456789012345 // 234567890123456"
+                    className="font-mono"
+                    data-testid="edit-disp-imei"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Para 2 IMEIs separa con &quot; // &quot;.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="edit-disp-color">Color</Label>
+                  <Input
+                    id="edit-disp-color"
+                    value={editDispositivoData.color}
+                    onChange={(e) => setEditDispositivoData({ ...editDispositivoData, color: e.target.value })}
+                    placeholder="Ej. Negro Espacial"
+                    data-testid="edit-disp-color"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit-disp-danos">Daños / Avería declarada</Label>
+                <Textarea
+                  id="edit-disp-danos"
+                  rows={3}
+                  value={editDispositivoData.daños}
+                  onChange={(e) => setEditDispositivoData({ ...editDispositivoData, daños: e.target.value })}
+                  placeholder="Describe la avería o daños reportados por el cliente…"
+                  data-testid="edit-disp-danos"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowEditDispositivo(false)}>Cancelar</Button>
+                <Button
+                  onClick={handleGuardarDispositivo}
+                  disabled={guardandoDispositivo}
+                  data-testid="btn-guardar-dispositivo"
+                >
+                  {guardandoDispositivo ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={showNuevoRepuesto} onOpenChange={setShowNuevoRepuesto}>
         <DialogContent>
           <DialogHeader>

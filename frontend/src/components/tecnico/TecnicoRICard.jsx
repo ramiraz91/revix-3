@@ -1,56 +1,81 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Info, ClipboardCheck, Smartphone, Package } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Info, ClipboardCheck, Smartphone, Package, Loader2 } from 'lucide-react';
 import { ordenesAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 export function TecnicoRICard({ orden, onRefresh }) {
   const [registrando, setRegistrando] = useState(false);
   const [mostrarInfo, setMostrarInfo] = useState(false);
-  const [observaciones, setObservaciones] = useState('');
-  
-  // Estados del checklist de recepción
+
+  // Estado local con updates optimistas
   const [checklistCompleto, setChecklistCompleto] = useState(orden?.recepcion_checklist_completo || false);
   const [estadoFisicoRegistrado, setEstadoFisicoRegistrado] = useState(orden?.recepcion_estado_fisico_registrado || false);
   const [accesoriosRegistrados, setAccesoriosRegistrados] = useState(orden?.recepcion_accesorios_registrados || false);
+  const [observaciones, setObservaciones] = useState(orden?.recepcion_notas || orden?.ri_observaciones || '');
+  const [savingField, setSavingField] = useState(null); // indicador discreto qué campo se está guardando
 
-  // Sincronizar cuando cambia la orden
+  // Sincronizar cuando llega una orden nueva (id distinto) — NO sobreescribir cambios pendientes
+  const lastOrdenId = useRef(orden?.id);
   useEffect(() => {
-    setChecklistCompleto(orden?.recepcion_checklist_completo || false);
-    setEstadoFisicoRegistrado(orden?.recepcion_estado_fisico_registrado || false);
-    setAccesoriosRegistrados(orden?.recepcion_accesorios_registrados || false);
-  }, [orden?.recepcion_checklist_completo, orden?.recepcion_estado_fisico_registrado, orden?.recepcion_accesorios_registrados]);
+    if (orden?.id !== lastOrdenId.current) {
+      lastOrdenId.current = orden?.id;
+      setChecklistCompleto(orden?.recepcion_checklist_completo || false);
+      setEstadoFisicoRegistrado(orden?.recepcion_estado_fisico_registrado || false);
+      setAccesoriosRegistrados(orden?.recepcion_accesorios_registrados || false);
+      setObservaciones(orden?.recepcion_notas || orden?.ri_observaciones || '');
+    }
+  }, [orden?.id, orden?.recepcion_checklist_completo, orden?.recepcion_estado_fisico_registrado, orden?.recepcion_accesorios_registrados, orden?.recepcion_notas, orden?.ri_observaciones]);
 
-  // Guardar cambios de checklist automáticamente
-  const handleChecklistChange = async (campo, valor) => {
+  // Persiste un campo en background SIN bloquear la UI ni recargar la orden
+  const persistirCampo = async (campo, valor) => {
+    setSavingField(campo);
     try {
       await ordenesAPI.actualizar(orden.id, { [campo]: valor });
-      // Actualizar estado local
-      if (campo === 'recepcion_checklist_completo') setChecklistCompleto(valor);
-      if (campo === 'recepcion_estado_fisico_registrado') setEstadoFisicoRegistrado(valor);
-      if (campo === 'recepcion_accesorios_registrados') setAccesoriosRegistrados(valor);
     } catch (err) {
-      toast.error('Error al guardar');
+      toast.error('No se pudo guardar el cambio. Reintenta.');
+      // Revertir si falla
+      if (campo === 'recepcion_checklist_completo') setChecklistCompleto((prev) => !prev);
+      else if (campo === 'recepcion_estado_fisico_registrado') setEstadoFisicoRegistrado((prev) => !prev);
+      else if (campo === 'recepcion_accesorios_registrados') setAccesoriosRegistrados((prev) => !prev);
+    } finally {
+      setSavingField(null);
     }
+  };
+
+  // Toggle de checks: actualiza estado local INMEDIATAMENTE y persiste en background
+  const toggleCheck = (campo, setter, valorActual) => {
+    const nuevo = !valorActual;
+    setter(nuevo);
+    persistirCampo(campo, nuevo);
+  };
+
+  // Debounce para guardar observaciones al dejar de escribir
+  const obsTimeout = useRef(null);
+  const handleObservacionesChange = (val) => {
+    setObservaciones(val);
+    if (obsTimeout.current) clearTimeout(obsTimeout.current);
+    obsTimeout.current = setTimeout(() => {
+      persistirCampo('recepcion_notas', val);
+    }, 800);
   };
 
   const handleRI = async (resultado) => {
     setRegistrando(true);
     try {
-      // Use first 3 evidencias as fotos_recepcion; pad to 3 if fewer available
       const fotos = (orden?.evidencias || []).slice(0, 3);
       const fotosPadded = fotos.length >= 3
         ? fotos
         : [...fotos, ...Array(3 - fotos.length).fill('sin_foto')];
-      
+
       await ordenesAPI.registrarReceivingInspection(orden.id, {
         resultado_ri: resultado,
-        checklist_visual: { 
+        checklist_visual: {
           inspeccion_visual: true,
           checklist_completo: checklistCompleto,
           estado_fisico: estadoFisicoRegistrado,
@@ -59,24 +84,20 @@ export function TecnicoRICard({ orden, onRefresh }) {
         fotos_recepcion: fotosPadded,
         observaciones: observaciones,
       });
-      
-      // También guardar los campos del checklist
+
+      // Persistir checklist final + observaciones (una sola llamada)
       await ordenesAPI.actualizar(orden.id, {
         recepcion_checklist_completo: checklistCompleto,
         recepcion_estado_fisico_registrado: estadoFisicoRegistrado,
         recepcion_accesorios_registrados: accesoriosRegistrados,
         recepcion_notas: observaciones || null,
       });
-      
-      // Mensaje según resultado
-      if (resultado === 'ok') {
-        toast.success('RI OK — Reparación iniciada automáticamente');
-      } else if (resultado === 'sospechoso') {
-        toast.warning('RI Sospechoso — Orden en cuarentena para revisión');
-      } else {
-        toast.error('RI No Conforme — Orden en cuarentena');
-      }
-      onRefresh();
+
+      if (resultado === 'ok') toast.success('RI OK — Reparación iniciada automáticamente');
+      else if (resultado === 'sospechoso') toast.warning('RI Sospechoso — Orden en cuarentena para revisión');
+      else toast.error('RI No Conforme — Orden en cuarentena');
+
+      onRefresh?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar RI');
     } finally {
@@ -86,8 +107,6 @@ export function TecnicoRICard({ orden, onRefresh }) {
 
   const riCompletada = Boolean(orden?.ri_completada);
   const riResultado = orden?.ri_resultado;
-  
-  // Verificar si todos los checks están marcados
   const todosLosChequeosCompletos = checklistCompleto && estadoFisicoRegistrado && accesoriosRegistrados;
 
   return (
@@ -101,7 +120,13 @@ export function TecnicoRICard({ orden, onRefresh }) {
               {riResultado?.toUpperCase()}
             </Badge>
           )}
+          {savingField && (
+            <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" /> guardando…
+            </span>
+          )}
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="ml-auto h-6 w-6 p-0"
@@ -112,7 +137,6 @@ export function TecnicoRICard({ orden, onRefresh }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Panel informativo */}
         {mostrarInfo && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs space-y-2">
             <p className="font-semibold text-blue-800">¿Cuándo usar cada opción?</p>
@@ -133,58 +157,66 @@ export function TecnicoRICard({ orden, onRefresh }) {
           </div>
         )}
 
-        {/* Checklist de Recepción - SIEMPRE visible */}
+        {/* Checklist (siempre editable, incluso después de completar el RI) */}
         <div className="p-3 bg-slate-50 rounded-lg border space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <ClipboardCheck className="w-4 h-4 text-blue-600" />
             Checklist de Recepción
           </p>
           <div className="grid grid-cols-1 gap-3">
-            <div className="flex items-center gap-3 p-2 bg-white rounded border">
-              <Checkbox 
+            <label
+              htmlFor="checklist-completo"
+              className="flex items-center gap-3 p-2 bg-white rounded border cursor-pointer hover:bg-slate-50"
+            >
+              <Checkbox
                 id="checklist-completo"
                 checked={checklistCompleto}
-                onCheckedChange={(checked) => handleChecklistChange('recepcion_checklist_completo', Boolean(checked))}
+                onCheckedChange={() => toggleCheck('recepcion_checklist_completo', setChecklistCompleto, checklistCompleto)}
                 data-testid="ri-checklist-completo"
               />
-              <Label htmlFor="checklist-completo" className="flex items-center gap-2 cursor-pointer text-sm">
+              <span className="flex items-center gap-2 text-sm">
                 <ClipboardCheck className="w-4 h-4 text-slate-500" />
                 Checklist de recepción completo
-              </Label>
-            </div>
-            <div className="flex items-center gap-3 p-2 bg-white rounded border">
-              <Checkbox 
+              </span>
+            </label>
+            <label
+              htmlFor="estado-fisico"
+              className="flex items-center gap-3 p-2 bg-white rounded border cursor-pointer hover:bg-slate-50"
+            >
+              <Checkbox
                 id="estado-fisico"
                 checked={estadoFisicoRegistrado}
-                onCheckedChange={(checked) => handleChecklistChange('recepcion_estado_fisico_registrado', Boolean(checked))}
+                onCheckedChange={() => toggleCheck('recepcion_estado_fisico_registrado', setEstadoFisicoRegistrado, estadoFisicoRegistrado)}
                 data-testid="ri-estado-fisico"
               />
-              <Label htmlFor="estado-fisico" className="flex items-center gap-2 cursor-pointer text-sm">
+              <span className="flex items-center gap-2 text-sm">
                 <Smartphone className="w-4 h-4 text-slate-500" />
                 Estado físico registrado (fotos, golpes, rayones)
-              </Label>
-            </div>
-            <div className="flex items-center gap-3 p-2 bg-white rounded border">
-              <Checkbox 
+              </span>
+            </label>
+            <label
+              htmlFor="accesorios"
+              className="flex items-center gap-3 p-2 bg-white rounded border cursor-pointer hover:bg-slate-50"
+            >
+              <Checkbox
                 id="accesorios"
                 checked={accesoriosRegistrados}
-                onCheckedChange={(checked) => handleChecklistChange('recepcion_accesorios_registrados', Boolean(checked))}
+                onCheckedChange={() => toggleCheck('recepcion_accesorios_registrados', setAccesoriosRegistrados, accesoriosRegistrados)}
                 data-testid="ri-accesorios"
               />
-              <Label htmlFor="accesorios" className="flex items-center gap-2 cursor-pointer text-sm">
+              <span className="flex items-center gap-2 text-sm">
                 <Package className="w-4 h-4 text-slate-500" />
                 Accesorios registrados (cargador, funda, SIM, etc.)
-              </Label>
-            </div>
+              </span>
+            </label>
           </div>
-          
-          {/* Observaciones */}
+
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Observaciones de recepción (opcional)</Label>
             <Textarea
               placeholder="Ej: Dispositivo llega con pantalla rota, sin cargador..."
               value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
+              onChange={(e) => handleObservacionesChange(e.target.value)}
               className="min-h-[60px] text-sm"
               data-testid="ri-observaciones"
             />
@@ -198,21 +230,52 @@ export function TecnicoRICard({ orden, onRefresh }) {
               RI completada: <Badge variant={riResultado === 'ok' ? 'success' : riResultado === 'no_conforme' ? 'destructive' : 'warning'}>{riResultado?.toUpperCase()}</Badge>
             </p>
             {orden?.ri_observaciones && (
-              <p className="text-xs text-gray-600">Obs: {orden.ri_observaciones}</p>
+              <p className="text-xs text-gray-600">Obs guardadas: {orden.ri_observaciones}</p>
             )}
             {orden?.ri_usuario_nombre && (
               <p className="text-xs text-gray-500">Técnico: {orden.ri_usuario_nombre}</p>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleRI(riResultado)}
-              disabled={registrando}
-              data-testid="orden-ri-reregistrar-button"
-              className="mt-2"
-            >
-              Modificar RI
-            </Button>
+            <p className="text-xs text-gray-600">
+              Puedes cambiar los checks y observaciones arriba; al pulsar <strong>Modificar RI</strong> se reescribirá la inspección.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleRI('ok')}
+                disabled={registrando}
+                data-testid="orden-ri-modificar-ok"
+                className="gap-1 border-green-300 hover:bg-green-50"
+              >
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                Modificar a OK
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => handleRI('sospechoso')}
+                disabled={registrando}
+                data-testid="orden-ri-modificar-sospechoso"
+                className="gap-1"
+              >
+                <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                Modificar a Sospechoso
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleRI('no_conforme')}
+                disabled={registrando}
+                data-testid="orden-ri-modificar-no-conforme"
+                className="gap-1"
+              >
+                <XCircle className="w-4 h-4" />
+                Modificar a No Conforme
+              </Button>
+            </div>
           </div>
         ) : (
           <>
@@ -229,6 +292,7 @@ export function TecnicoRICard({ orden, onRefresh }) {
             </div>
             <div className="flex flex-wrap gap-2" data-testid="ri-botones-tecnico">
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
                 disabled={registrando}
@@ -240,6 +304,7 @@ export function TecnicoRICard({ orden, onRefresh }) {
                 RI OK
               </Button>
               <Button
+                type="button"
                 variant="secondary"
                 size="sm"
                 disabled={registrando}
@@ -251,6 +316,7 @@ export function TecnicoRICard({ orden, onRefresh }) {
                 RI Sospechoso
               </Button>
               <Button
+                type="button"
                 variant="destructive"
                 size="sm"
                 disabled={registrando}

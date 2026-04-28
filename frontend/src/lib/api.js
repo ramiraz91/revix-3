@@ -230,6 +230,8 @@ export const ordenesAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // Eliminar foto/evidencia de una orden
+  eliminarFoto: (id, url, tipo) => API.delete(`/ordenes/${id}/fotos`, { data: { url, tipo } }),
   // Mensajes/Comunicaciones
   obtenerMensajes: (id) => API.get(`/ordenes/${id}/mensajes`),
   añadirMensaje: (id, data) => API.post(`/ordenes/${id}/mensajes`, data),

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Smartphone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Smartphone, Pencil } from 'lucide-react';
 
 /**
  * Parsea un campo IMEI que puede contener uno o dos IMEIs separados por "//"
@@ -12,7 +13,7 @@ function parseIMEIs(imeiField) {
   return parts;
 }
 
-export function OrdenDispositivoCard({ dispositivo }) {
+export function OrdenDispositivoCard({ dispositivo, onEdit }) {
   const imeis = parseIMEIs(dispositivo?.imei);
   const hasMultipleIMEIs = imeis.length > 1;
 
@@ -22,6 +23,19 @@ export function OrdenDispositivoCard({ dispositivo }) {
         <CardTitle className="flex items-center gap-2">
           <Smartphone className="w-5 h-5" />
           Dispositivo
+          {onEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 px-2 gap-1 text-xs"
+              onClick={onEdit}
+              data-testid="btn-editar-dispositivo"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Editar
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>

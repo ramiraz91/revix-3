@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="10" failures="0" skipped="0" tests="10" time="0.516" timestamp="2026-04-28T13:05:47.788041+00:00" hostname="agent-env-3626d975-b288-4ebb-af94-b32a3a0208ab"><testcase classname="backend.tests.test_iteration_30.TestRIOptimisticUpdates" name="test_update_checklist_completo" time="0.173"><error message="failed on setup with &quot;AssertionError: Tecnico login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:41: in tecnico_token
+    assert response.status_code == 200, f"Tecnico login failed: {response.text}"
+E   AssertionError: Tecnico login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestRIOptimisticUpdates" name="test_update_estado_fisico" time="0.000"><error message="failed on setup with &quot;AssertionError: Tecnico login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:41: in tecnico_token
+    assert response.status_code == 200, f"Tecnico login failed: {response.text}"
+E   AssertionError: Tecnico login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestRIOptimisticUpdates" name="test_update_accesorios" time="0.000"><error message="failed on setup with &quot;AssertionError: Tecnico login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:41: in tecnico_token
+    assert response.status_code == 200, f"Tecnico login failed: {response.text}"
+E   AssertionError: Tecnico login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestRIOptimisticUpdates" name="test_update_observaciones" time="0.000"><error message="failed on setup with &quot;AssertionError: Tecnico login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:41: in tecnico_token
+    assert response.status_code == 200, f"Tecnico login failed: {response.text}"
+E   AssertionError: Tecnico login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestDeletePhotos" name="test_delete_photo_endpoint_exists" time="0.199"><error message="failed on setup with &quot;AssertionError: Master login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:30: in master_token
+    assert response.status_code == 200, f"Master login failed: {response.text}"
+E   AssertionError: Master login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestDeletePhotos" name="test_delete_photo_invalid_tipo" time="0.000"><error message="failed on setup with &quot;AssertionError: Master login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:30: in master_token
+    assert response.status_code == 200, f"Master login failed: {response.text}"
+E   AssertionError: Master login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestGarantiaCreation" name="test_crear_garantia_with_indicaciones" time="0.000"><error message="failed on setup with &quot;AssertionError: Master login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:30: in master_token
+    assert response.status_code == 200, f"Master login failed: {response.text}"
+E   AssertionError: Master login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestEditDispositivo" name="test_edit_dispositivo_as_admin" time="0.000"><error message="failed on setup with &quot;AssertionError: Master login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:30: in master_token
+    assert response.status_code == 200, f"Master login failed: {response.text}"
+E   AssertionError: Master login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestEditDispositivo" name="test_edit_dispositivo_tecnico_not_allowed" time="0.000"><error message="failed on setup with &quot;AssertionError: Tecnico login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:41: in tecnico_token
+    assert response.status_code == 200, f"Tecnico login failed: {response.text}"
+E   AssertionError: Tecnico login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase><testcase classname="backend.tests.test_iteration_30.TestRIModifiable" name="test_ri_buttons_exist_after_completion" time="0.000"><error message="failed on setup with &quot;AssertionError: Master login failed: {&quot;detail&quot;:&quot;Demasiados intentos de inicio de sesion. Espere 15 minutos.&quot;,&quot;retry_after&quot;:900}&#10;assert 429 == 200&#10; +  where 429 = &lt;Response [429]&gt;.status_code&quot;">backend/tests/test_iteration_30.py:30: in master_token
+    assert response.status_code == 200, f"Master login failed: {response.text}"
+E   AssertionError: Master login failed: {"detail":"Demasiados intentos de inicio de sesion. Espere 15 minutos.","retry_after":900}
+E   assert 429 == 200
+E    +  where 429 = &lt;Response [429]&gt;.status_code</error></testcase></testsuite></testsuites>

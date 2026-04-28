@@ -238,9 +238,33 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
     setShowImagePreview(true);
   };
 
+  // Eliminar foto con confirmación
+  const handleDeletePhoto = async (e, foto, tipo) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    if (!window.confirm('¿Eliminar esta foto? Esta acción no se puede deshacer.')) return;
+    try {
+      await ordenesAPI.eliminarFoto(orden.id, foto, tipo);
+      // Actualizar estado local
+      if (tipo === 'antes') setLocalFotosAntes((prev) => prev.filter((f) => f !== foto));
+      else if (tipo === 'despues') setLocalFotosDespues((prev) => prev.filter((f) => f !== foto));
+      else if (tipo === 'tecnico') setLocalEvidenciasTecnico((prev) => prev.filter((f) => f !== foto));
+      else if (tipo === 'admin') {
+        // refrescar desde el padre porque las evidencias admin no son estado local aquí
+        if (onRefresh) onRefresh();
+      }
+      toast.success('Foto eliminada');
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo eliminar la foto');
+    }
+  };
+
   const todasLasFotos = [
-    ...(orden.evidencias || []).map(f => ({ src: getUploadUrl(f), tipo: 'admin' })),
-    ...(localEvidenciasTecnico || []).map(f => ({ src: getUploadUrl(f), tipo: 'tecnico' }))
+    ...(orden.evidencias || []).map(f => ({ original: f, src: getUploadUrl(f), tipo: 'admin' })),
+    ...(localEvidenciasTecnico || []).map(f => ({ original: f, src: getUploadUrl(f), tipo: 'tecnico' }))
   ];
 
   return (
@@ -320,9 +344,9 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {localFotosAntes.map((foto, index) => (
-                      <div 
+                      <div
                         key={index}
-                        className="relative aspect-square rounded-lg border-2 border-amber-200 overflow-hidden cursor-pointer hover:opacity-90"
+                        className="relative aspect-square rounded-lg border-2 border-amber-200 overflow-hidden cursor-pointer hover:opacity-90 group"
                         onClick={() => openPreview(`${getUploadUrl(foto)}`)}
                       >
                         <img
@@ -331,6 +355,15 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                           className="w-full h-full object-cover"
                         />
                         <Badge className="absolute top-1 left-1 bg-amber-500 text-xs">ANTES</Badge>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeletePhoto(e, foto, 'antes')}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity shadow-md"
+                          data-testid={`btn-borrar-foto-antes-${index}`}
+                          title="Eliminar foto"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -383,9 +416,9 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {localFotosDespues.map((foto, index) => (
-                      <div 
+                      <div
                         key={index}
-                        className="relative aspect-square rounded-lg border-2 border-green-200 overflow-hidden cursor-pointer hover:opacity-90"
+                        className="relative aspect-square rounded-lg border-2 border-green-200 overflow-hidden cursor-pointer hover:opacity-90 group"
                         onClick={() => openPreview(`${getUploadUrl(foto)}`)}
                       >
                         <img
@@ -394,6 +427,15 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                           className="w-full h-full object-cover"
                         />
                         <Badge className="absolute top-1 left-1 bg-green-500 text-xs">DESPUÉS</Badge>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeletePhoto(e, foto, 'despues')}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity shadow-md"
+                          data-testid={`btn-borrar-foto-despues-${index}`}
+                          title="Eliminar foto"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -446,9 +488,9 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {todasLasFotos.map((foto, index) => (
-                      <div 
+                      <div
                         key={index}
-                        className="relative aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90"
+                        className="relative aspect-square rounded-lg border overflow-hidden cursor-pointer hover:opacity-90 group"
                         onClick={() => openPreview(foto.src)}
                       >
                         <img
@@ -456,12 +498,21 @@ export function TecnicoFotosCard({ orden, onRefresh, onFotosChange }) {
                           alt={`Foto ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
-                        <Badge 
+                        <Badge
                           className="absolute bottom-1 left-1 text-[10px]"
                           variant={foto.tipo === 'admin' ? 'default' : 'secondary'}
                         >
                           {foto.tipo === 'admin' ? 'Admin' : 'Técnico'}
                         </Badge>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeletePhoto(e, foto.original, foto.tipo)}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity shadow-md"
+                          data-testid={`btn-borrar-foto-general-${index}`}
+                          title="Eliminar foto"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>

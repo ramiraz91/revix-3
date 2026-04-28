@@ -11,7 +11,30 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (21) · Oleada 1 Autonomía Agentes + Kill-Switch Global
+## Latest — 2026-02-XX (22) · Refactor emails al cliente — Fix crítico
+
+### Bug crítico corregido
+Las notificaciones automáticas al cliente (cambio de estado, presupuesto, orden lista, factura) enlazaban a `/ordenes/{id}` (CRM interno con login) en vez de a la página pública `/consulta?codigo={token}`. Cliente recibía email → pulsaba enlace → caía en el login del CRM en lugar del seguimiento.
+
+### Refactor aplicado
+- **`email_service.py`**: helpers únicos `_build_client_link(token)` y `_build_admin_link(path)`. Una sola fuente de verdad para URLs.
+- **`_assert_client_safe(html)`**: valida en runtime que un email de cliente NO contiene `/ordenes/`, `/crm/`, `/dashboard/`. Con `EMAIL_STRICT_CLIENT_LINKS=1` (default) lanza `AssertionError` antes de enviar — barrera estructural anti-reincidencia.
+- **`send_email/send_email_async`**: nuevo parámetro `audience='client'|'admin'`. Cliente → valida, admin → permite URLs internas.
+- **4 funciones rotas corregidas** con parámetro `token_seguimiento`: `notificar_cambio_estado`, `notificar_presupuesto_enviado`, `notificar_orden_lista`, `notificar_factura_emitida`.
+- **`notificar_material_pendiente`** se mantiene con `/ordenes/{id}` (audience admin, es para staff técnico).
+- **`helpers.py:generate_modern_email_html`** y SMS usan `_build_client_link` centralizado en lugar de URL hardcoded.
+- **`services/email_service.py`** reexporta los nuevos helpers.
+
+### Tests
+- **`test_email_links_consulta.py`**: 13 tests (helpers + 5 integración con mock Resend + modern email)
+- **Testing agent E2E**: 55/55 PASS, 0 issues. Validó que cliente recibe `/consulta?codigo={token}` y staff sigue recibiendo `/ordenes/{id}` en `notificar_material_pendiente`.
+
+### Para producción
+Cuando despliegues, los clientes que reciban emails de aquí en adelante caerán correctamente en la página pública `/consulta?codigo=…` y no necesitarán hacer login.
+
+---
+
+## 2026-02-XX (21) · Oleada 1 Autonomía Agentes + Kill-Switch Global
 
 ### Limpieza GLS (Tarea 1)
 - Auditoría reveló que `modules/gls/` legacy aún está en uso activo (server.py:680, 974; ordenes_routes.py 7 imports; 4 UIs frontend). Borrarlo hoy rompería el sistema.

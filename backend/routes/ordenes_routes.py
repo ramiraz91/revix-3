@@ -1335,6 +1335,11 @@ async def actualizar_orden_parcial(orden_id: str, data: dict, user: dict = Depen
         'bateria_almacenamiento_temporal', 'bateria_residuo_pendiente',
         'bateria_gestor_autorizado', 'bateria_fecha_entrega_gestor',
         'ri_completada',  # El técnico puede marcar RI como completada
+        # Campos de QC al cerrar reparación (TecnicoCierreReparacion)
+        'bateria_nivel', 'bateria_ciclos', 'bateria_estado',
+        'qc_funciones', 'qc_funciones_no_aplica', 'qc_es_smartphone',
+        'qc_resultado_averia', 'qc_motivo_no_reparada',
+        'garantia_resultado', 'garantia_motivo_no_procede', 'garantia_tests_omitidos',
     ]
 
     # Campos de diagnóstico/QC que el técnico puede modificar libremente

@@ -45,9 +45,18 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
   const [guardando, setGuardando] = useState(false);
 
   // ── QC Checks ─────────────────────────────────────────────────────────────
-  const [avariaReparada,    setAvariaReparada]    = useState(false);
+  // Resultado de la avería: 'reparada' | 'parcial' | 'no_reparada'
+  const [resultadoAveria,   setResultadoAveria]   = useState('reparada');
+  const [motivoNoReparada,  setMotivoNoReparada]  = useState('');
   const [diagnosticoSalida, setDiagnosticoSalida] = useState(false);
   const [limpieza,          setLimpieza]           = useState(false);
+
+  // ── Tipo de dispositivo ───────────────────────────────────────────────────
+  // Si el dispositivo NO es smartphone (consola, TV, otros) la batería y
+  // las funciones de smartphone no aplican. El técnico puede marcarlo aquí.
+  const [esSmartphone, setEsSmartphone] = useState(true);
+
+  const averiaNoReparada = resultadoAveria === 'no_reparada';
 
   // ── Batería (WISE ASC) ────────────────────────────────────────────────────
   const [bateriaNivel,   setBateriaNivel]   = useState('');  // porcentaje
@@ -55,11 +64,19 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
   const [bateriaEstado,  setBateriaEstado]  = useState('');  // ok | degradada | reemplazada | no_aplica
 
   // ── Funciones del sistema (grid de checks) ────────────────────────────────
+  // Si funcionesNoAplica → omitir validación (consolas, TVs, otros).
+  const [funcionesNoAplica, setFuncionesNoAplica] = useState(false);
   const [funcionesCheck, setFuncionesCheck] = useState(
     Object.fromEntries(FUNCIONES_SISTEMA.map(f => [f.id, false]))
   );
   const toggleFuncion = (id) =>
     setFuncionesCheck(prev => ({ ...prev, [id]: !prev[id] }));
+  const marcarTodasFunciones = () =>
+    setFuncionesCheck(Object.fromEntries(FUNCIONES_SISTEMA.map(f => [f.id, true])));
+  const desmarcarTodasFunciones = () =>
+    setFuncionesCheck(Object.fromEntries(FUNCIONES_SISTEMA.map(f => [f.id, false])));
+  const marcarSoloRequeridas = () =>
+    setFuncionesCheck(Object.fromEntries(FUNCIONES_SISTEMA.map(f => [f.id, f.required])));
 
   // ── Notas ─────────────────────────────────────────────────────────────────
   const [notas, setNotas] = useState('');
@@ -78,7 +95,9 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
 
   // Funciones requeridas marcadas
   const funcRequeridas    = FUNCIONES_SISTEMA.filter(f => f.required);
-  const funcReqOK         = funcRequeridas.every(f => funcionesCheck[f.id]);
+  const funcReqOK         = funcionesNoAplica || !esSmartphone || funcRequeridas.every(f => funcionesCheck[f.id]);
+  // Batería se omite si no es smartphone (consola/TV) o si el tecnico marca no_aplica
+  const bateriaOK         = !esSmartphone || Boolean(bateriaEstado);
 
   const puedeAbrir = !orden.bloqueada
     && Boolean(orden.diagnostico_tecnico)
@@ -86,9 +105,12 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
 
   // Si es garantía y no procede, no requiere los checks normales
   const garantiaNoProcede = esGarantia && resultadoGarantia === 'no_procede';
-  const puedeConfirmar = garantiaNoProcede
-    ? Boolean(motivoNoGarantia?.trim())
-    : (avariaReparada && diagnosticoSalida && Boolean(bateriaEstado) && funcReqOK);
+  const puedeConfirmar = (() => {
+    if (garantiaNoProcede) return Boolean(motivoNoGarantia?.trim());
+    if (averiaNoReparada)  return Boolean(motivoNoReparada?.trim());
+    // Reparada o parcial: exigir QC normal
+    return diagnosticoSalida && bateriaOK && funcReqOK;
+  })();
 
   // ── Handler cierre ────────────────────────────────────────────────────────
   const handleCerrar = async () => {
@@ -101,6 +123,7 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
     const qcPayload = {
       notas_cierre_tecnico:         notas || null,
       fecha_fin_reparacion:         new Date().toISOString(),
+      qc_es_smartphone:             esSmartphone,
     };
 
     // Si es garantía que no procede, guardar motivo y saltar QC
@@ -108,40 +131,59 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
       qcPayload.garantia_resultado = 'no_procede';
       qcPayload.garantia_motivo_no_procede = motivoNoGarantia.trim();
       qcPayload.garantia_tests_omitidos = true;
+    } else if (averiaNoReparada) {
+      // Avería NO reparada → orden va a IRREPARABLE
+      qcPayload.diagnostico_salida_realizado = true;
+      qcPayload.funciones_verificadas = false;
+      qcPayload.qc_resultado_averia = 'no_reparada';
+      qcPayload.qc_motivo_no_reparada = motivoNoReparada.trim();
     } else {
-      // QC normal
+      // QC normal (reparada total o parcialmente)
       qcPayload.diagnostico_salida_realizado = true;
       qcPayload.funciones_verificadas = funcReqOK;
+      qcPayload.qc_resultado_averia = resultadoAveria;  // 'reparada' | 'parcial'
+      qcPayload.qc_funciones_no_aplica = funcionesNoAplica;
       qcPayload.limpieza_realizada = limpieza;
       qcPayload.bateria_nivel = bateriaNivel ? parseInt(bateriaNivel) : null;
       qcPayload.bateria_ciclos = bateriaCiclos ? parseInt(bateriaCiclos) : null;
-      qcPayload.bateria_estado = bateriaEstado;
+      qcPayload.bateria_estado = bateriaEstado || (esSmartphone ? null : 'no_aplica');
       qcPayload.qc_funciones = funcionesCheck;
-      
+
       // Si es garantía que SÍ procede
       if (esGarantia) {
         qcPayload.garantia_resultado = 'procede';
       }
     }
 
+    // Estado destino:
+    // - garantía no procede → reparado (cerrada, no procede)
+    // - avería no reparada → irreparable
+    // - resto → reparado
+    const estadoDestino = averiaNoReparada ? 'irreparable' : 'reparado';
+
     setGuardando(true);
     try {
-      // 1. Cambiar estado → reparado (con mensaje obligatorio)
-      const mensajeCambio = garantiaNoProcede
-        ? `GARANTÍA NO PROCEDE: ${motivoNoGarantia.trim()}`
-        : (notas?.trim() || 'Reparación completada - QC verificado');
-      
+      const mensajeCambio = (() => {
+        if (garantiaNoProcede) return `GARANTÍA NO PROCEDE: ${motivoNoGarantia.trim()}`;
+        if (averiaNoReparada)  return `AVERÍA NO REPARADA: ${motivoNoReparada.trim()}`;
+        if (resultadoAveria === 'parcial') return `Reparación PARCIAL: ${notas?.trim() || 'Algunas funciones siguen sin operar al 100%'}`;
+        return notas?.trim() || 'Reparación completada - QC verificado';
+      })();
+
       await ordenesAPI.cambiarEstado(orden.id, {
-        nuevo_estado: 'reparado',
+        nuevo_estado: estadoDestino,
         usuario: 'tecnico',
         mensaje: mensajeCambio,
       });
       // 2. Guardar datos de QC
       await ordenesAPI.actualizar(orden.id, qcPayload);
 
-      toast.success(garantiaNoProcede 
-        ? 'Orden cerrada — Garantía NO PROCEDE' 
-        : 'Reparación cerrada — la orden pasa a REPARADO / VALIDACIÓN');
+      const okMsg = (() => {
+        if (garantiaNoProcede) return 'Orden cerrada — Garantía NO PROCEDE';
+        if (averiaNoReparada)  return 'Orden marcada como IRREPARABLE — admin gestionará la devolución';
+        return 'Reparación cerrada — la orden pasa a REPARADO / VALIDACIÓN';
+      })();
+      toast.success(okMsg);
       setShowDialog(false);
       onRefresh();
     } catch (err) {
@@ -263,28 +305,97 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
             {/* ══ 1. AVERÍA Y DIAGNÓSTICO ══ (ocultar si garantía no procede) */}
             {!garantiaNoProcede && (
             <Section title="1. Avería y diagnóstico de salida" required>
-              <CheckItem
-                id="avaria-reparada"
-                checked={avariaReparada}
-                onChange={setAvariaReparada}
-                label="La avería original ha sido reparada correctamente"
-                desc={`Avería: ${orden?.averia_descripcion || orden?.dispositivo?.daños || '(sin descripción)'}`}
-                required
-                testId="check-avaria-reparada"
-              />
-              <CheckItem
-                id="diagnostico-salida"
-                checked={diagnosticoSalida}
-                onChange={setDiagnosticoSalida}
-                label="He realizado el diagnóstico de salida y verificado la reparación"
-                required
-                testId="check-diagnostico-salida"
-              />
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Resultado de la reparación <span className="text-red-500">*</span></Label>
+                <RadioGroup value={resultadoAveria} onValueChange={setResultadoAveria} className="space-y-1.5">
+                  <label className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                    resultadoAveria === 'reparada' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                    <RadioGroupItem value="reparada" id="averia-reparada" className="mt-0.5" data-testid="radio-averia-reparada" />
+                    <div className="text-sm">
+                      <span className="font-medium text-green-700">✅ Avería reparada correctamente</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">El dispositivo funciona como debería</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                    resultadoAveria === 'parcial' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                    <RadioGroupItem value="parcial" id="averia-parcial" className="mt-0.5" data-testid="radio-averia-parcial" />
+                    <div className="text-sm">
+                      <span className="font-medium text-amber-700">⚠️ Reparada parcialmente</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">Funciona pero con limitaciones (anota cuáles en notas)</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                    resultadoAveria === 'no_reparada' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                    <RadioGroupItem value="no_reparada" id="averia-no-reparada" className="mt-0.5" data-testid="radio-averia-no-reparada" />
+                    <div className="text-sm">
+                      <span className="font-medium text-red-700">❌ La avería NO ha sido reparada</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">Dispositivo irreparable o reparación no viable. La orden pasará a IRREPARABLE.</p>
+                    </div>
+                  </label>
+                </RadioGroup>
+
+                <p className="text-xs text-muted-foreground italic mt-2">
+                  Avería original: {orden?.averia_descripcion || orden?.dispositivo?.daños || '(sin descripción)'}
+                </p>
+
+                {averiaNoReparada && (
+                  <div className="space-y-1.5 pt-2 border-t border-red-200">
+                    <Label className="flex items-center gap-1 text-red-700 font-medium text-sm">
+                      <AlertTriangle className="w-4 h-4" />
+                      Motivo por el que no se ha podido reparar *
+                    </Label>
+                    <Textarea
+                      value={motivoNoReparada}
+                      onChange={(e) => setMotivoNoReparada(e.target.value)}
+                      placeholder="Ej: placa base con corrosión avanzada, no hay disponibilidad del repuesto compatible, daño irreversible en chip de gestión..."
+                      rows={3}
+                      className="bg-white"
+                      data-testid="textarea-motivo-no-reparada"
+                    />
+                    <p className="text-xs text-amber-700">
+                      ⚠️ El motivo aparecerá en el PDF y se notificará al cliente. Las secciones de QC se omitirán.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {!averiaNoReparada && (
+                <CheckItem
+                  id="diagnostico-salida"
+                  checked={diagnosticoSalida}
+                  onChange={setDiagnosticoSalida}
+                  label="He realizado el diagnóstico de salida y verificado la reparación"
+                  required
+                  testId="check-diagnostico-salida"
+                />
+              )}
+
+              {!averiaNoReparada && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-md bg-slate-50 border border-slate-200">
+                  <Checkbox
+                    id="es-smartphone"
+                    checked={esSmartphone}
+                    onCheckedChange={(c) => setEsSmartphone(Boolean(c))}
+                    data-testid="check-es-smartphone"
+                  />
+                  <Label htmlFor="es-smartphone" className="text-xs cursor-pointer flex-1">
+                    El dispositivo <strong>es un smartphone/tablet</strong> (verificar batería y funciones).
+                    <br />
+                    <span className="text-muted-foreground">Desmarca para consolas, TVs, portátiles u otros aparatos electrónicos.</span>
+                  </Label>
+                </div>
+              )}
             </Section>
             )}
 
-            {/* Secciones de QC - ocultar si garantía no procede */}
-            {!garantiaNoProcede && (
+            {/* Secciones de QC - ocultar si garantía no procede O si avería no reparada */}
+            {!garantiaNoProcede && !averiaNoReparada && (
+            <>
+            {/* Sección 2 (batería) y 3 (funciones) son específicas de smartphone */}
+            {esSmartphone && (
             <>
             {/* ══ 2. BATERÍA (WISE ASC) ══ */}
             <Section title="2. Verificación de batería (WISE ASC)" required>
@@ -343,10 +454,57 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
 
             {/* ══ 3. FUNCIONES DEL SISTEMA ══ */}
             <Section title="3. Verificación de funciones del sistema" required>
-              <p className="text-xs text-muted-foreground mb-2">
-                Marca las funciones verificadas. Las marcadas con <span className="text-red-500">*</span> son obligatorias (WISE ASC).
-              </p>
-              <div className="grid grid-cols-2 gap-2" data-testid="funciones-sistema-grid">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <p className="text-xs text-muted-foreground">
+                  Marca las funciones verificadas. Las marcadas con <span className="text-red-500">*</span> son obligatorias (WISE ASC).
+                </p>
+                <div className="flex gap-1.5">
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={marcarTodasFunciones}
+                    disabled={funcionesNoAplica}
+                    data-testid="btn-marcar-todas-funciones"
+                  >
+                    ✓ Marcar todas
+                  </Button>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={marcarSoloRequeridas}
+                    disabled={funcionesNoAplica}
+                    data-testid="btn-marcar-requeridas"
+                  >
+                    Sólo requeridas
+                  </Button>
+                  <Button
+                    type="button" variant="ghost" size="sm"
+                    className="h-7 text-xs px-2 text-slate-500"
+                    onClick={desmarcarTodasFunciones}
+                    disabled={funcionesNoAplica}
+                    data-testid="btn-desmarcar-todas-funciones"
+                  >
+                    Limpiar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2 mb-2 rounded-md bg-slate-50 border border-slate-200">
+                <Checkbox
+                  id="funciones-no-aplica"
+                  checked={funcionesNoAplica}
+                  onCheckedChange={(c) => setFuncionesNoAplica(Boolean(c))}
+                  data-testid="check-funciones-no-aplica"
+                />
+                <Label htmlFor="funciones-no-aplica" className="text-xs cursor-pointer flex-1">
+                  <strong>No aplica</strong> — el dispositivo no tiene estas funciones (consola, TV, periférico, …)
+                </Label>
+              </div>
+
+              <div
+                className={`grid grid-cols-2 gap-2 ${funcionesNoAplica ? 'opacity-40 pointer-events-none' : ''}`}
+                data-testid="funciones-sistema-grid"
+              >
                 {FUNCIONES_SISTEMA.map(f => {
                   const Icon = f.icon;
                   const checked = funcionesCheck[f.id];
@@ -372,15 +530,22 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
                   );
                 })}
               </div>
-              {!funcReqOK && (
+              {!funcReqOK && !funcionesNoAplica && (
                 <p className="text-xs text-orange-600 mt-1">
                   <AlertTriangle className="w-3 h-3 inline mr-1" />
                   Faltan funciones obligatorias por verificar
                 </p>
               )}
+              {funcionesNoAplica && (
+                <p className="text-xs text-slate-500 italic mt-1">
+                  Verificación de funciones marcada como <strong>no aplica</strong> para este tipo de dispositivo.
+                </p>
+              )}
             </Section>
+            </>
+            )}
 
-            {/* ══ 4. ISO/WISE: CPI + RI ══ */}
+            {/* ══ 4. ISO/WISE: CPI + RI ══ (aplica a todos los dispositivos) */}
             <Section title="4. Checklist ISO/WISE" required>
               <PreReqRow ok={riCompletada} label="Inspección de entrada (RI) registrada" required />
               <PreReqRow ok={cpiCompletado} label={
@@ -424,9 +589,12 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
           {!puedeConfirmar && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <AlertTriangle className="w-4 h-4 inline mr-1" />
-              {garantiaNoProcede 
+              {garantiaNoProcede
                 ? 'Indica el motivo por el que la garantía no procede.'
-                : 'Completa los campos obligatorios: avería reparada, diagnóstico de salida, estado de batería y funciones requeridas.'}
+                : averiaNoReparada
+                  ? 'Indica el motivo por el que no se ha podido reparar la avería.'
+                  : 'Completa los campos obligatorios: diagnóstico de salida' +
+                    (esSmartphone ? ', estado de batería y funciones requeridas' : '') + '.'}
             </div>
           )}
 
@@ -437,13 +605,17 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
             <Button
               onClick={handleCerrar}
               disabled={guardando || !puedeConfirmar}
-              className="bg-green-600 hover:bg-green-700 gap-2"
+              className={`gap-2 ${averiaNoReparada
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-green-600 hover:bg-green-700'}`}
               data-testid="btn-confirmar-cierre"
             >
               {guardando
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <CheckCircle2 className="w-4 h-4" />}
-              Cerrar Reparación — Marcar como REPARADO
+              {averiaNoReparada
+                ? 'Cerrar como IRREPARABLE'
+                : 'Cerrar Reparación — Marcar como REPARADO'}
             </Button>
           </div>
         </DialogContent>

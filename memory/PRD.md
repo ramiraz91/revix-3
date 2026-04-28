@@ -11,7 +11,23 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (25) · OrdenPDF.jsx — bloques visuales de cierre técnico
+## Latest — 2026-02-XX (26) · Validar y enviar — modo "envío manual" (saltar etiqueta GLS)
+
+### Solicitud
+A veces el envío se realiza fuera del sistema (paquetería local, Correos, recogida en mano). El admin necesita poder marcar la orden como ENVIADA sin pasar por el flujo GLS automático.
+
+### Cambios en `/app/frontend/src/components/orden/ValidarEnvioInline.jsx`
+- Selector de modo en cabecera del diálogo: **Generar etiqueta GLS** (azul, default) vs **Saltar (envío manual)** (verde).
+- Modo manual muestra formulario simplificado con 3 campos opcionales: agencia/transportista, código de seguimiento/albarán, observaciones.
+- Botón verde **"Marcar como ENVIADA (manual)"** que persiste agencia/código vía `PATCH /api/ordenes/{id}/envio` y luego cambia el estado vía `PATCH /api/ordenes/{id}/estado` con mensaje "Envío manual realizado fuera del sistema".
+- El guard "sin código de autorización" antes era early-return que bloqueaba todo; ahora es banner inline visible solo en modo GLS — el modo manual sigue disponible aunque la orden no tenga `numero_autorizacion`.
+
+### Tests
+- Testing agent (iteration_29.json): **7/7 features verificadas E2E** sobre OT-DEMO-003. API confirma `estado='enviado'`, `codigo_recogida_salida='SEUR-TEST-12345'`, `agencia_envio='SEUR Test'`. 0 issues funcionales.
+
+---
+
+## 2026-02-XX (25) · OrdenPDF.jsx — bloques visuales de cierre técnico
 
 ### Bug reportado
 El admin imprimía órdenes desde `/ordenes/{id}` y los nuevos estados del checklist técnico (Irreparable, Parcial, rechazo de garantía, "no aplica" en funciones) NO se reflejaban en el PDF — sólo aparecía el flujo "VERIFICADO - CONFORME".

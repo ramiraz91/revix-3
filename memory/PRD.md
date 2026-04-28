@@ -11,7 +11,26 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (24) · Checklist final del técnico — 3 mejoras UX
+## Latest — 2026-02-XX (25) · OrdenPDF.jsx — bloques visuales de cierre técnico
+
+### Bug reportado
+El admin imprimía órdenes desde `/ordenes/{id}` y los nuevos estados del checklist técnico (Irreparable, Parcial, rechazo de garantía, "no aplica" en funciones) NO se reflejaban en el PDF — sólo aparecía el flujo "VERIFICADO - CONFORME".
+
+### Fix aplicado en `/app/frontend/src/components/OrdenPDF.jsx`
+1. **Bloque rojo IRREPARABLE** (líneas 682-711): se muestra cuando `qc_resultado_averia === 'no_reparada'` o `estado === 'irreparable'`. Incluye motivo y explicación.
+2. **Bloque amarillo PARCIAL** (líneas 713-736): se muestra cuando `qc_resultado_averia === 'parcial'`.
+3. **Bloque rojo GARANTÍA NO PROCEDE** (líneas 738-764): ya existía, se mantiene robusto con motivo.
+4. **Bloque funciones del sistema** (líneas 378-434): 3 ramas condicionales —
+   - `qc_es_smartphone === false` → "No aplica — el dispositivo no es smartphone/tablet (consola, TV u otro aparato)".
+   - `qc_funciones_no_aplica === true` → "Marcadas como no aplica por el técnico".
+   - Caso normal → grid ✓ verificadas / ✗ sin verificar.
+
+### Tests
+- Testing agent (iteration_28.json): IRREPARABLE verificado vía screenshot UI; PARCIAL, GARANTÍA y bloques de funciones verificados vía code review. **0 issues, retest_needed=false.**
+
+---
+
+## 2026-02-XX (24) · Checklist final del técnico — 3 mejoras UX
 
 ### Cambios solicitados por el usuario
 1. **Sección 1 (Avería y diagnóstico)** — ahora es un RadioGroup con 3 opciones:

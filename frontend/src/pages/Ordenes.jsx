@@ -528,9 +528,15 @@ export default function Ordenes() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                {Object.entries(statusConfig).map(([key, { label }]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
+                {Object.entries(statusConfig).map(([key, { label }]) => {
+                  // El estado "validacion" agrupa también "enviado" — son operativamente el mismo paso
+                  if (key === 'validacion') {
+                    return <SelectItem key={key} value="validacion,enviado">Validación + Enviado</SelectItem>;
+                  }
+                  // "enviado" se omite porque ya está agrupado con "validacion"
+                  if (key === 'enviado') return null;
+                  return <SelectItem key={key} value={key}>{label}</SelectItem>;
+                })}
               </SelectContent>
             </Select>
             {(search || telefonoBusqueda || autorizacionBusqueda || estadoFilter !== 'all' || fechaDesde || fechaHasta) && (

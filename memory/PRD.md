@@ -11,7 +11,26 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (32) · OrdenPDF — bloques garantía duales + Resultado QC
+## Latest — 2026-02-XX (33) · Filtro estado "Validación" agrupa con "Enviado"
+
+### Solicitud
+El filtro de estado debía agrupar `validacion` + `enviado` bajo un único valor "Validación + Enviado" — operativamente son el mismo paso (orden lista para salir / ya salió).
+
+### Backend (`listar_ordenes` y `listar_ordenes_v2`)
+- El parámetro `estado` ahora soporta valores separados por coma (`"validacion,enviado"`) y aplica `{$in: [...]}`.
+- Verificado vía curl: `estado=validacion,enviado` → 2 órdenes (ambas en estado enviado, suma de las dos categorías).
+
+### Frontend (`Ordenes.jsx`)
+- El SelectItem "Validación" ahora envía `validacion,enviado` y muestra "Validación + Enviado".
+- El SelectItem "Enviado" se omite del dropdown (ya viene incluido en el agregado).
+
+### Validación
+- Lint frontend limpio.
+- Backend curl: 3 escenarios (`validacion`, `enviado`, `validacion,enviado`) ✓.
+
+---
+
+## 2026-02-XX (32) · OrdenPDF — bloques garantía duales + Resultado QC
 
 ### Cambios en `/app/frontend/src/components/OrdenPDF.jsx`
 1. **Bloque garantía con dos columnas**: cuando la orden es de garantía y existen tanto `indicaciones_garantia_cliente` como `indicaciones_admin_garantia`, el PDF muestra dos cajas lado a lado:

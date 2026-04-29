@@ -901,7 +901,12 @@ async def listar_ordenes_v2(
     conditions = []
     
     if estado:
-        conditions.append({"estado": estado})
+        # Soporte para múltiples estados separados por coma: "validacion,enviado"
+        estados_lista = [e.strip() for e in estado.split(',') if e.strip()]
+        if len(estados_lista) > 1:
+            conditions.append({"estado": {"$in": estados_lista}})
+        elif len(estados_lista) == 1:
+            conditions.append({"estado": estados_lista[0]})
     if cliente_id:
         conditions.append({"cliente_id": cliente_id})
     if solo_garantias:
@@ -1104,7 +1109,12 @@ async def listar_ordenes(estado: Optional[str] = None, cliente_id: Optional[str]
     query = {}
     conditions = []
     if estado:
-        conditions.append({"estado": estado})
+        # Soporte para múltiples estados separados por coma: "validacion,enviado"
+        estados_lista = [e.strip() for e in estado.split(',') if e.strip()]
+        if len(estados_lista) > 1:
+            conditions.append({"estado": {"$in": estados_lista}})
+        elif len(estados_lista) == 1:
+            conditions.append({"estado": estados_lista[0]})
     if cliente_id:
         conditions.append({"cliente_id": cliente_id})
     if solo_garantias:
@@ -3064,7 +3074,12 @@ async def exportar_ordenes_excel(
     query = {}
     conditions = []
     if estado:
-        conditions.append({"estado": estado})
+        # Soporte para múltiples estados separados por coma: "validacion,enviado"
+        estados_lista = [e.strip() for e in estado.split(',') if e.strip()]
+        if len(estados_lista) > 1:
+            conditions.append({"estado": {"$in": estados_lista}})
+        elif len(estados_lista) == 1:
+            conditions.append({"estado": estados_lista[0]})
     if cliente_id:
         conditions.append({"cliente_id": cliente_id})
     if solo_garantias:

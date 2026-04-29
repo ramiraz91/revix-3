@@ -389,8 +389,35 @@ function SincronizacionHistoricaCard() {
                         confirmacionValida && warningValido &&
                         maxOrdenes > 0 && maxOrdenes <= hardCap;
 
-  const ejecutarSync = async () => {
-    if (realRun && !window.confirm(
+  // Estado/handler para limpiar envíos mock_preview tras paso a producción
+  const [limpiando, setLimpiando] = useState(false);
+  const [resumenLimpieza, setResumenLimpieza] = useState(null);
+
+  const limpiarMocks = async (dry) => {
+    setLimpiando(true);
+    setResumenLimpieza(null);
+    try {
+      const { data } = await API.post(`/logistica/gls/limpiar-mocks?dry_run=${dry ? 'true' : 'false'}`);
+      setResumenLimpieza(data);
+      if (dry) {
+        toast.info(
+          `DRY-RUN: ${data.ordenes_afectadas?.gls || 0} GLS + ${data.ordenes_afectadas?.mrw || 0} MRW se borrarían`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(
+          `Limpiado: ${data.ordenes_gls_modificadas} GLS + ${data.ordenes_mrw_modificadas} MRW + ${data.gls_shipments_eliminados} shipments`,
+          { duration: 6000 }
+        );
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al limpiar mocks');
+    } finally {
+      setLimpiando(false);
+    }
+  };
+
+  const ejecutarSync = async () => {    if (realRun && !window.confirm(
       `⚠️ MODO PRODUCCIÓN REAL ⚠️\n\n` +
       `Vas a sincronizar hasta ${maxOrdenes} órdenes contra GLS REAL y\n` +
       `modificar MongoDB real.\n\n` +
@@ -494,6 +521,58 @@ function SincronizacionHistoricaCard() {
                 Las ejecuciones no dry-run tocarán GLS real y MongoDB real.
                 Se creará un backup por orden antes de cualquier escritura.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Limpieza one-shot de envíos preview/mock que quedaron en BD */}
+        {isProduction && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2"
+               data-testid="bloque-limpieza-mocks">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900">
+                  Limpieza de envíos preview (one-shot)
+                </p>
+                <p className="text-xs text-amber-800">
+                  Borra de la BD los envíos GLS/MRW marcados como <code>mock_preview</code> que se generaron mientras
+                  el sistema estuvo en modo preview. Idempotente: ejecutarlo varias veces no rompe nada.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={limpiando}
+                onClick={() => limpiarMocks(true)}
+                data-testid="btn-limpiar-mocks-dry"
+              >
+                {limpiando ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                Simular (dry-run)
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={limpiando}
+                onClick={() => {
+                  if (window.confirm('¿Borrar definitivamente los envíos mock_preview de la BD? (acción auditada)')) {
+                    limpiarMocks(false);
+                  }
+                }}
+                data-testid="btn-limpiar-mocks-real"
+              >
+                {limpiando ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                Limpiar definitivamente
+              </Button>
+              {resumenLimpieza && (
+                <span className="text-xs self-center text-slate-700 bg-white border rounded px-2 py-1">
+                  {resumenLimpieza.dry_run
+                    ? `Dry-run: ${resumenLimpieza.ordenes_afectadas?.gls || 0} GLS + ${resumenLimpieza.ordenes_afectadas?.mrw || 0} MRW se borrarían`
+                    : `OK: ${resumenLimpieza.ordenes_gls_modificadas} GLS + ${resumenLimpieza.ordenes_mrw_modificadas} MRW + ${resumenLimpieza.gls_shipments_eliminados} shipments`}
+                </span>
+              )}
             </div>
           </div>
         )}

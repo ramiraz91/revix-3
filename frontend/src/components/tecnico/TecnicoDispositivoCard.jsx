@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Smartphone, ScanBarcode, ShieldCheck, ShieldAlert, Loader2, AlertTriangle } from 'lucide-react';
+import { Smartphone, ScanBarcode, ShieldCheck, ShieldAlert, Loader2, AlertTriangle, Shield, UserCog } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -123,6 +123,41 @@ export function TecnicoDispositivoCard({ orden, imeiValidado, setImeiValidado, o
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Daños / Avería</p>
               <p className="mt-1 p-3 bg-slate-50 rounded-lg">{orden.dispositivo?.daños}</p>
             </div>
+
+            {/* Bloque informativo de garantía: avería del cliente + observaciones del admin */}
+            {orden?.es_garantia && (
+              <div className="col-span-2 mt-1 p-3 bg-amber-50 border-2 border-amber-300 rounded-lg space-y-2"
+                   data-testid="tecnico-bloque-garantia-info">
+                <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm">
+                  <Shield className="w-4 h-4" />
+                  Esta es una orden de GARANTÍA
+                  {orden?.numero_orden_padre && (
+                    <span className="text-xs font-normal text-amber-700">
+                      (de {orden.numero_orden_padre})
+                    </span>
+                  )}
+                </div>
+
+                {orden?.indicaciones_garantia_cliente && (
+                  <div className="p-2 bg-white rounded border border-amber-200">
+                    <p className="text-[11px] text-amber-700 font-medium uppercase tracking-wider flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Avería reportada por el cliente
+                    </p>
+                    <p className="text-sm whitespace-pre-wrap mt-1">{orden.indicaciones_garantia_cliente}</p>
+                  </div>
+                )}
+
+                {orden?.indicaciones_admin_garantia && (
+                  <div className="p-2 bg-blue-50 rounded border border-blue-300"
+                       data-testid="tecnico-info-indicaciones-admin">
+                    <p className="text-[11px] text-blue-700 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <UserCog className="w-3 h-3" /> Observaciones del admin (recepción)
+                    </p>
+                    <p className="text-sm whitespace-pre-wrap mt-1">{orden.indicaciones_admin_garantia}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {orden.dispositivo?.imei && !orden.bloqueada && (

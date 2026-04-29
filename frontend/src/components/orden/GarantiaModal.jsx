@@ -1,20 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Shield } from 'lucide-react';
+import { AlertTriangle, Shield, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export function GarantiaModal({ isOpen, onClose, orden, onSuccess }) {
   const [indicacionesCliente, setIndicacionesCliente] = useState('');
+  const [indicacionesAdmin, setIndicacionesAdmin] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Pre-rellenar las indicaciones del cliente con la avería original del padre
+  useEffect(() => {
+    if (isOpen && orden) {
+      const danosOriginales = orden?.dispositivo?.daños || orden?.averia_descripcion || '';
+      setIndicacionesCliente(danosOriginales);
+      setIndicacionesAdmin('');
+    }
+  }, [isOpen, orden]);
 
   const handleCrearGarantia = async () => {
     if (!indicacionesCliente.trim()) {
-      toast.error('Debes introducir las indicaciones del cliente');
+      toast.error('Debes introducir lo que reporta el cliente');
       return;
     }
 
@@ -28,7 +38,8 @@ export function GarantiaModal({ isOpen, onClose, orden, onSuccess }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          indicaciones_cliente: indicacionesCliente.trim()
+          indicaciones_cliente: indicacionesCliente.trim(),
+          indicaciones_admin: indicacionesAdmin.trim()
         })
       });
 
@@ -73,18 +84,39 @@ export function GarantiaModal({ isOpen, onClose, orden, onSuccess }) {
           <div className="space-y-2">
             <Label htmlFor="indicaciones" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Indicaciones del cliente *
+              Avería reportada por el cliente *
             </Label>
             <Textarea
               id="indicaciones"
-              placeholder="Describe qué problema reporta el cliente para esta garantía..."
+              placeholder="Lo que dice el cliente sobre el problema en garantía..."
               value={indicacionesCliente}
               onChange={(e) => setIndicacionesCliente(e.target.value)}
-              rows={4}
+              rows={3}
               className="resize-none"
+              data-testid="garantia-indicaciones-cliente"
             />
             <p className="text-xs text-muted-foreground">
-              Estas indicaciones se guardarán en la nueva orden de garantía
+              Pre-rellenado con la avería original. Edítalo si el cliente reporta algo distinto.
+            </p>
+          </div>
+
+          {/* Observaciones del admin */}
+          <div className="space-y-2">
+            <Label htmlFor="indicaciones-admin" className="flex items-center gap-2">
+              <UserCog className="w-4 h-4 text-blue-500" />
+              Tus observaciones (admin que recepciona)
+            </Label>
+            <Textarea
+              id="indicaciones-admin"
+              placeholder="Notas internas para el técnico: estado en el que llega, accesorios, lo que has visto al recepcionar..."
+              value={indicacionesAdmin}
+              onChange={(e) => setIndicacionesAdmin(e.target.value)}
+              rows={3}
+              className="resize-none"
+              data-testid="garantia-indicaciones-admin"
+            />
+            <p className="text-xs text-muted-foreground">
+              Opcional. Se mostrarán al técnico aparte de la avería del cliente.
             </p>
           </div>
 

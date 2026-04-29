@@ -3605,6 +3605,7 @@ async def guardar_diagnostico(orden_id: str, request: DiagnosticoRequest, user: 
 
 class CrearGarantiaRequest(BaseModel):
     indicaciones_cliente: str = ""
+    indicaciones_admin: str = ""  # Observaciones del admin que recepciona la garantía
 
 @router.post("/ordenes/{orden_id}/crear-garantia")
 async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = None, user: dict = Depends(require_admin)):
@@ -3614,6 +3615,7 @@ async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = N
     """
     # Parse request body si existe
     indicaciones = request.indicaciones_cliente if request else ""
+    indicaciones_admin = request.indicaciones_admin if request else ""
     
     orden_padre = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not orden_padre:
@@ -3671,12 +3673,19 @@ async def crear_garantia_simple(orden_id: str, request: CrearGarantiaRequest = N
     # Indicaciones del cliente para la garantía
     if indicaciones:
         doc['indicaciones_garantia_cliente'] = indicaciones
-        doc['indicaciones_tecnico'] = f"GARANTÍA: {indicaciones}"
+        # NO mezclar con indicaciones_tecnico — ese campo es para que el admin escriba al técnico libremente
         # Aseguramos que la avería reportada y el campo "averia_descripcion"
         # reflejen las nuevas indicaciones del cliente (no la avería del parte original)
         doc['averia_descripcion'] = indicaciones
         if isinstance(doc.get('dispositivo'), dict):
             doc['dispositivo']['daños'] = indicaciones
+
+    # Observaciones del admin que recepciona la garantía (se muestran al técnico aparte)
+    if indicaciones_admin:
+        doc['indicaciones_admin_garantia'] = indicaciones_admin
+        # También las inyectamos en el campo "indicaciones_tecnico" estándar para que aparezcan
+        # en el bloque "Indicaciones del Admin" que el técnico ya consume.
+        doc['indicaciones_tecnico'] = indicaciones_admin
     
     await db.ordenes.insert_one(doc)
     doc.pop('_id', None)

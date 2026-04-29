@@ -11,7 +11,26 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (30) · Export Excel en /ordenes
+## Latest — 2026-02-XX (31) · Garantía: 2 campos separados (cliente + admin)
+
+### Bug
+El comentario que el admin escribía al abrir una garantía no llegaba al técnico de forma identificable. Antes el modal solo aceptaba `indicaciones_cliente` y el backend mezclaba todo en `indicaciones_tecnico` con el prefijo `"GARANTÍA: ..."`.
+
+### Fix
+- **Backend** (`crear-garantia`): el request ahora acepta dos campos: `indicaciones_cliente` (lo que reporta el cliente) e `indicaciones_admin` (observaciones del admin que recepciona). Se persisten como `indicaciones_garantia_cliente` e `indicaciones_admin_garantia`. La avería declarada (`dispositivo.daños`, `averia_descripcion`) se actualiza con lo del cliente. El campo estándar `indicaciones_tecnico` ahora recibe lo del admin (sin prefijo).
+- **Frontend modal** (`GarantiaModal.jsx`): dos textareas: "Avería reportada por el cliente" (pre-rellenada con la avería original del padre, editable) y "Tus observaciones (admin que recepciona)" (opcional).
+- **Frontend técnico** (`TecnicoDispositivoCard.jsx`): nuevo bloque ámbar visible en la cabecera de cualquier orden de garantía, con dos sub-cajas:
+  - "Avería reportada por el cliente" (sobre fondo blanco)
+  - "Observaciones del admin (recepción)" (sobre fondo azul)
+  Misma información también disponible en `TecnicoCierreReparacion.jsx`.
+
+### Validación
+- Curl backend: orden hija creada con `indicaciones_garantia_cliente="El altavoz no suena…"`, `indicaciones_admin_garantia="…funda nueva. Verificar audio y micro al entregar."`, `dispositivo.daños` actualizado, `indicaciones_tecnico` = lo del admin (sin prefijo). ✓
+- Lint frontend limpio.
+
+---
+
+## 2026-02-XX (30) · Export Excel en /ordenes
 
 ### Solicitud
 Mismo patrón que el export Excel de Contabilidad pero para el listado de Órdenes, respetando todos los filtros activos.

@@ -252,8 +252,15 @@ export function TecnicoCierreReparacion({ orden, onRefresh }) {
                 
                 {orden?.indicaciones_garantia_cliente && (
                   <div className="p-2 bg-white rounded border border-amber-200">
-                    <p className="text-xs text-amber-600 font-medium">Indicaciones del cliente:</p>
-                    <p className="text-sm">{orden.indicaciones_garantia_cliente}</p>
+                    <p className="text-xs text-amber-600 font-medium">Avería reportada por el cliente:</p>
+                    <p className="text-sm whitespace-pre-wrap">{orden.indicaciones_garantia_cliente}</p>
+                  </div>
+                )}
+
+                {orden?.indicaciones_admin_garantia && (
+                  <div className="p-2 bg-blue-50 rounded border border-blue-300" data-testid="tecnico-indicaciones-admin-garantia">
+                    <p className="text-xs text-blue-700 font-semibold">Observaciones del admin (recepción):</p>
+                    <p className="text-sm whitespace-pre-wrap">{orden.indicaciones_admin_garantia}</p>
                   </div>
                 )}
                 

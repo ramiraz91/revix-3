@@ -11,7 +11,24 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (33) · Filtro estado "Validación" agrupa con "Enviado"
+## Latest — 2026-02-XX (34) · Fix CPI/NIST en órdenes B2B
+
+### Bug
+El registro de CPI/NIST fallaba con HTTP 400 *"En OT B2B el método CPI/NIST es obligatorio"* cuando el técnico marcaba **"Cliente ya restableció (verificado)"** o **"Cliente no autoriza"** en órdenes de cliente empresa (B2B). El frontend no muestra selector de método para esas opciones porque conceptualmente **no aplica** (no hay borrado a realizar), pero el backend lo exigía igualmente.
+
+### Fix en `/app/backend/routes/ordenes_routes.py` (`registrar_cpi_nist`)
+- La validación B2B ahora sólo exige método+resultado **cuando `requiere_borrado=true`**.
+- Las opciones que no requieren borrado (cliente ya restableció / cliente no autoriza) tienen `resultado='no_aplica'` por definición y ya no requieren método.
+- B2B + SAT realizó restablecimiento sin método → sigue rechazando con 400 (correcto).
+
+### Validación curl
+- B2B + cliente_ya_restablecio sin método → HTTP 200 ✓ (antes 400).
+- B2B + sat_realizo_restablecimiento sin método → HTTP 400 ✓ (correcto, requiere borrado).
+- B2C + cualquier opción → sigue funcionando como antes ✓.
+
+---
+
+## 2026-02-XX (33) · Filtro estado "Validación" agrupa con "Enviado"
 
 ### Solicitud
 El filtro de estado debía agrupar `validacion` + `enviado` bajo un único valor "Validación + Enviado" — operativamente son el mismo paso (orden lista para salir / ya salió).

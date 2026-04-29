@@ -1178,10 +1178,14 @@ async def registrar_cpi_nist(orden_id: str, payload: CPINistRequest, user: dict 
         raise HTTPException(status_code=400, detail="Resultado CPI inválido")
 
     if tipo_ot == 'b2b':
-        if not metodo:
-            raise HTTPException(status_code=400, detail="En OT B2B el método CPI/NIST es obligatorio")
-        if not resultado:
-            raise HTTPException(status_code=400, detail="En OT B2B el resultado CPI/NIST es obligatorio")
+        # En B2B, sólo exigimos método+resultado cuando el flujo SÍ requiere borrado.
+        # Las opciones "cliente_ya_restablecio" y "cliente_no_autoriza" no requieren borrado
+        # y el resultado es 'no_aplica' por definición — no tiene sentido exigir método.
+        if payload.requiere_borrado:
+            if not metodo:
+                raise HTTPException(status_code=400, detail="En OT B2B con borrado requerido el método CPI/NIST es obligatorio")
+            if not resultado:
+                raise HTTPException(status_code=400, detail="En OT B2B con borrado requerido el resultado CPI/NIST es obligatorio")
 
     if tipo_ot == 'b2c' and payload.requiere_borrado:
         if not payload.autorizacion_cliente:

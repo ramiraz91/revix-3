@@ -354,6 +354,36 @@ const OrdenPDF = forwardRef(function OrdenPDF(
             {/* QC - Control de Calidad de Diagnóstico de Salida */}
             <span style={S.label}>Control de calidad final (QC) - Diagnóstico de Salida</span>
             <div style={{ fontSize: '7.5px', marginBottom: '2.5mm', lineHeight: '1.5', padding: '2mm', backgroundColor: orden?.diagnostico_salida_realizado && orden?.funciones_verificadas ? '#f0fdf4' : '#fef2f2', border: '1px solid', borderColor: orden?.diagnostico_salida_realizado && orden?.funciones_verificadas ? '#22c55e' : '#ef4444', borderRadius: '2mm' }}>
+              {/* Resultado QC final marcado por el técnico (siempre visible si tiene valor) */}
+              {!isBlank && orden?.qc_resultado_averia && (() => {
+                const res = orden.qc_resultado_averia;
+                const meta =
+                  res === 'reparada'    ? { label: 'REPARADA',  bg: '#dcfce7', color: '#166534', border: '#16a34a', icon: '✅' } :
+                  res === 'parcial'     ? { label: 'PARCIALMENTE REPARADA', bg: '#fef3c7', color: '#92400e', border: '#f59e0b', icon: '⚠️' } :
+                  res === 'no_reparada' ? { label: 'NO REPARADA / IRREPARABLE', bg: '#fee2e2', color: '#991b1b', border: '#ef4444', icon: '❌' } :
+                  null;
+                if (!meta) return null;
+                return (
+                  <div style={{
+                    marginBottom: '2mm',
+                    padding: '1.5mm 2mm',
+                    backgroundColor: meta.bg,
+                    border: `1px solid ${meta.border}`,
+                    borderRadius: '1.5mm',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}>
+                    <span style={{ fontSize: '6.5px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      Resultado del QC del técnico
+                    </span>
+                    <strong style={{ fontSize: '8.5px', color: meta.color, letterSpacing: '0.3px' }}>
+                      {meta.icon} {meta.label}
+                    </strong>
+                  </div>
+                );
+              })()}
+
               <p style={{ margin: 0, fontWeight: '600', fontSize: '8px' }}>
                 ✓ Estado del Dispositivo: <strong style={{ color: (orden?.diagnostico_salida_realizado && orden?.funciones_verificadas && orden?.limpieza_realizada) ? '#16a34a' : '#dc2626' }}>
                   {isBlank
@@ -763,21 +793,39 @@ const OrdenPDF = forwardRef(function OrdenPDF(
           </div>
         )}
 
-        {/* INDICACIONES GARANTÍA (si es orden de garantía) */}
-        {orden?.es_garantia && orden?.indicaciones_garantia_cliente && !isBlank && (
-          <div style={{ 
-            marginBottom: '3mm', 
-            padding: '2mm', 
-            backgroundColor: '#fef3c7', 
-            border: '1px solid #f59e0b',
-            borderRadius: '2mm'
-          }}>
-            <p style={{ margin: 0, fontSize: '7px', fontWeight: '600', color: '#92400e' }}>
-              Indicaciones del cliente (Garantía):
-            </p>
-            <p style={{ margin: '1mm 0 0', fontSize: '8px' }}>
-              {orden.indicaciones_garantia_cliente}
-            </p>
+        {/* INDICACIONES GARANTÍA (si es orden de garantía) — dos bloques separados */}
+        {orden?.es_garantia && (orden?.indicaciones_garantia_cliente || orden?.indicaciones_admin_garantia) && !isBlank && (
+          <div style={{ marginBottom: '3mm', display: 'grid', gridTemplateColumns: orden?.indicaciones_admin_garantia ? '1fr 1fr' : '1fr', gap: '2mm' }}>
+            {orden?.indicaciones_garantia_cliente && (
+              <div style={{
+                padding: '2mm',
+                backgroundColor: '#fef3c7',
+                border: '1px solid #f59e0b',
+                borderRadius: '2mm'
+              }}>
+                <p style={{ margin: 0, fontSize: '7px', fontWeight: '600', color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                  Avería reportada por el cliente (Garantía)
+                </p>
+                <p style={{ margin: '1mm 0 0', fontSize: '8px' }}>
+                  {orden.indicaciones_garantia_cliente}
+                </p>
+              </div>
+            )}
+            {orden?.indicaciones_admin_garantia && (
+              <div style={{
+                padding: '2mm',
+                backgroundColor: '#dbeafe',
+                border: '1px solid #3b82f6',
+                borderRadius: '2mm'
+              }}>
+                <p style={{ margin: 0, fontSize: '7px', fontWeight: '600', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                  Observaciones del admin (recepción)
+                </p>
+                <p style={{ margin: '1mm 0 0', fontSize: '8px' }}>
+                  {orden.indicaciones_admin_garantia}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

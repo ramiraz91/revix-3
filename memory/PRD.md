@@ -11,7 +11,25 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (31) · Garantía: 2 campos separados (cliente + admin)
+## Latest — 2026-02-XX (32) · OrdenPDF — bloques garantía duales + Resultado QC
+
+### Cambios en `/app/frontend/src/components/OrdenPDF.jsx`
+1. **Bloque garantía con dos columnas**: cuando la orden es de garantía y existen tanto `indicaciones_garantia_cliente` como `indicaciones_admin_garantia`, el PDF muestra dos cajas lado a lado:
+   - Ámbar (`#fef3c7`) — "Avería reportada por el cliente (Garantía)".
+   - Azul (`#dbeafe`) — "Observaciones del admin (recepción)".
+   Si solo hay una de las dos, ocupa el ancho completo. Refuerza la transparencia entrega/recepción.
+2. **Resultado QC del técnico siempre visible**: nuevo sub-bloque al inicio del card "Control de calidad final (QC)" que muestra `qc_resultado_averia` con badge de color:
+   - REPARADA → verde (`#dcfce7`).
+   - PARCIALMENTE REPARADA → ámbar (`#fef3c7`).
+   - NO REPARADA / IRREPARABLE → rojo (`#fee2e2`).
+   Aparece junto al resto del bloque QC ya existente (estado dispositivo, funciones del sistema, batería, técnico responsable).
+
+### Validación
+- Lint frontend limpio.
+
+---
+
+## 2026-02-XX (31) · Garantía: 2 campos separados (cliente + admin)
 
 ### Bug
 El comentario que el admin escribía al abrir una garantía no llegaba al técnico de forma identificable. Antes el modal solo aceptaba `indicaciones_cliente` y el backend mezclaba todo en `indicaciones_tecnico` con el prefijo `"GARANTÍA: ..."`.

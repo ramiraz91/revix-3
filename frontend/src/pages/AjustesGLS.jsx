@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Truck, Save, ShieldCheck, RefreshCw, CheckCircle2, XCircle,
-  AlertTriangle, Loader2, Info,
+  AlertTriangle, Loader2, Info, Link2, Search,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -324,6 +324,9 @@ export default function AjustesGLS() {
             </CardContent>
           </Card>
 
+          {/* Vinculación manual por codexp/codbarras */}
+          <VincularEnvioManualCard />
+
           {/* Sincronización histórica */}
           <SincronizacionHistoricaCard />
         </TabsContent>
@@ -339,6 +342,198 @@ export default function AjustesGLS() {
 // ──────────────────────────────────────────────────────────────────────────────
 // Sincronización de órdenes históricas con GLS
 // ──────────────────────────────────────────────────────────────────────────────
+
+function VincularEnvioManualCard() {
+  const [codigo, setCodigo] = useState('');
+  const [ordenId, setOrdenId] = useState('');
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [diag, setDiag] = useState(null);
+  const [linkResult, setLinkResult] = useState(null);
+
+  const handleDiagnose = async () => {
+    const c = codigo.trim();
+    if (!c) {
+      toast.error('Pon un codexp o codbarras');
+      return;
+    }
+    setDiagnosing(true);
+    setDiag(null);
+    setLinkResult(null);
+    try {
+      const r = await API.get('/api/logistica/gls/diagnostico-refc', { params: { referencia: c } });
+      setDiag(r.data);
+      if (r.data?.campos_extraidos?.success) {
+        toast.success('GLS encontró la expedición');
+      } else {
+        toast.warning('GLS no encuentra esa expedición');
+      }
+    } catch (e) {
+      toast.error('Error consultando GLS');
+    } finally {
+      setDiagnosing(false);
+    }
+  };
+
+  const handleLink = async () => {
+    const c = codigo.trim();
+    if (!c) return;
+    setLinking(true);
+    setLinkResult(null);
+    try {
+      const payload = { codigo: c, dry_run: false };
+      if (ordenId.trim()) payload.orden_id = ordenId.trim();
+      const r = await API.post('/api/logistica/gls/vincular-por-codigo', payload);
+      setLinkResult(r.data);
+      if (r.data?.ok) {
+        toast.success(`Envío ${r.data.action} en orden ${r.data.orden_match?.numero_orden}`);
+      } else {
+        toast.warning(r.data?.mensaje || 'No se pudo vincular automáticamente');
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || 'Error vinculando';
+      toast.error(msg);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const ce = diag?.campos_extraidos || {};
+
+  return (
+    <Card data-testid="card-vincular-envio-manual">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-indigo-600" />
+          Vincular envío manualmente (codexp / codbarras)
+        </CardTitle>
+        <CardDescription>
+          Si el envío se creó desde la <strong>extranet GLS</strong> (no desde el CRM), GLS no permite buscarlo por
+          referencia. Pega aquí el <code className="font-mono text-xs bg-slate-100 px-1">codexp</code> que aparece en
+          la URL de la extranet (ej: <code className="font-mono text-xs bg-slate-100 px-1">1288560505</code>) y
+          consultaremos GLS, extraeremos la referencia de "Observaciones" y lo enlazaremos a la orden correcta.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="md:col-span-2">
+            <Label className="text-xs">codexp o codbarras *</Label>
+            <Input
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              placeholder="1288560505"
+              className="mt-1 font-mono"
+              data-testid="input-vincular-codigo"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleDiagnose}
+              disabled={diagnosing || !codigo.trim()}
+              data-testid="btn-vincular-diagnose"
+            >
+              {diagnosing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+              Consultar GLS
+            </Button>
+          </div>
+        </div>
+
+        {diag && (
+          <div className="rounded-lg border bg-slate-50 p-3 space-y-2 text-sm" data-testid="diag-result">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div>
+                <p className="text-xs text-muted-foreground">success</p>
+                <p className="font-mono">{String(ce.success)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">codexp</p>
+                <p className="font-mono">{ce.codexp || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">codbarras</p>
+                <p className="font-mono">{ce.codbarras_real || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">CP destino</p>
+                <p className="font-mono">{ce.cp_destino || '—'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs text-muted-foreground">Referencia (de &lt;Observacion&gt;)</p>
+                <p className="font-mono font-bold text-indigo-700">{ce.refc_devuelta || '—'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs text-muted-foreground">Estado actual</p>
+                <p className="font-mono">{ce.estado_actual || '—'}</p>
+              </div>
+            </div>
+            {diag.url_tracking_construida && (
+              <div>
+                <p className="text-xs text-muted-foreground">URL tracking</p>
+                <a
+                  href={diag.url_tracking_construida}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-blue-700 underline break-all"
+                  data-testid="diag-tracking-url"
+                >
+                  {diag.url_tracking_construida}
+                </a>
+              </div>
+            )}
+            {diag.match_bd_por_numero_autorizacion ? (
+              <Badge className="bg-green-100 text-green-800 border-green-300">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Match BD: {diag.match_bd_por_numero_autorizacion.numero_orden}
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                Sin match automático en BD — pega `orden_id` abajo para vincular manualmente
+              </Badge>
+            )}
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="md:col-span-2">
+            <Label className="text-xs">orden_id (opcional, vincular manualmente si no hay match)</Label>
+            <Input
+              value={ordenId}
+              onChange={(e) => setOrdenId(e.target.value)}
+              placeholder="d548c633-1dc4-... (UUID de la orden)"
+              className="mt-1 font-mono text-xs"
+              data-testid="input-vincular-orden-id"
+            />
+          </div>
+          <Button
+            onClick={handleLink}
+            disabled={linking || !codigo.trim() || !diag?.campos_extraidos?.success}
+            data-testid="btn-vincular-link"
+          >
+            {linking ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
+            Vincular envío
+          </Button>
+        </div>
+
+        {linkResult && (
+          <div
+            className={`rounded-lg border p-3 text-sm ${
+              linkResult.ok ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+            }`}
+            data-testid="link-result"
+          >
+            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(linkResult, null, 2)}</pre>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 
 function SincronizacionHistoricaCard() {
   const [candidatas, setCandidatas] = useState(null);

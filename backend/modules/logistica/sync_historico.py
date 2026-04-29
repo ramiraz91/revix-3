@@ -727,14 +727,9 @@ async def diagnostico_get_exp_cli(
         raise HTTPException(status_code=500, detail="GLS_UID_CLIENTE no configurado")
 
     # Llamada al cliente real (usa la lógica de modules/logistica/gls.py)
-    from modules.logistica.gls import GLSClient, GLSError
+    from modules.logistica.gls import GLSError
 
-    cli = GLSClient(
-        url=url,
-        uid_cliente=uid,
-        remitente=None,  # no hace falta para tracking
-        mcp_env=os.environ.get("MCP_ENV", "production"),
-    )
+    cli = await _build_client()
 
     error_msg = None
     raw_xml = ""
@@ -925,12 +920,7 @@ async def vincular_envio_por_codigo(
     if not codigo:
         raise HTTPException(400, "Falta `codigo` (codbarras o codexp)")
 
-    cli = GLSClient(
-        url=os.environ.get("GLS_URL", ""),
-        uid_cliente=os.environ.get("GLS_UID_CLIENTE", ""),
-        remitente=None,
-        mcp_env=os.environ.get("MCP_ENV", "production"),
-    )
+    cli = await _build_client()
     tracking = await cli.obtener_tracking(codigo)
     if not tracking or not tracking.success:
         raise HTTPException(404, f"GLS no encuentra ninguna expedición con código '{codigo}'")

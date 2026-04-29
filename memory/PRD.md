@@ -11,6 +11,43 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-29 (38) · GLS: vinculación manual por codexp + diagnóstico API SOAP
+
+### Solicitud del usuario
+"La referencia GLS aparece como 'referencia 26BE002120' en el campo Observaciones, NO en RefC. Corregir sync para buscar también en Observaciones, validar URL de tracking y vincular órdenes históricas creadas desde la extranet."
+
+### Hallazgos técnicos clave (validados con la API real de GLS Spain)
+1. **`GetExpCli` NO acepta RefC en `<codigo>`**: solo acepta `codbarras` o `codexp`. La RefC nunca se devuelve en `<refC>`; GLS la persiste en el tag `<Observacion>` con prefijo `"referencia "`.
+2. **`GetEnvios` (listado por fechas) está roto en GLS**: `NullReferenceException` en su servidor (`b2b.asmx.cs:line 846`) sin importar el formato de docIn. **Conclusión**: órdenes históricas creadas desde la extranet GLS son **imposibles de matchear automáticamente** — siempre necesitan el `codexp`.
+3. **URL canónica de tracking confirmada**: `https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}`.
+
+### Cambios aplicados
+
+#### Backend (`/app/backend/modules/logistica/gls.py`)
+- `_parse_get_exp_cli_response`: ya extraía `refc_devuelta` desde `<Observacion>` con regex `r'referencia\s+([A-Z0-9-]+)'`. Confirmado funcionando con datos reales (`26BE002120`).
+- `cp_destino` se extrae correctamente de `<cp_dst>`.
+
+#### Backend (`/app/backend/modules/logistica/sync_historico.py`)
+- `vincular-por-codigo` y `diagnostico-refc`: ahora usan `_build_client()` (que carga remitente desde `panel_config`), evitando el bug `Remitente GLS sin configurar` que rompía el endpoint.
+
+#### Frontend (`/app/frontend/src/pages/AjustesGLS.jsx`)
+- Nueva card **"Vincular envío manualmente (codexp / codbarras)"**: el admin pega un codexp de la extranet GLS, consulta GLS, ve los campos extraídos (refc, codbarras, cp, estado, eventos, URL tracking) y vincula el envío a la orden (auto-match por `numero_autorizacion` o manual con `orden_id`).
+
+### Validación (curl)
+```bash
+POST /api/logistica/gls/vincular-por-codigo
+{"codigo":"1288560505","orden_id":"d548c633-...","dry_run":true}
+→ ok=true, codbarras=11426690010300, codexp=1288560505, cp_destino=28760,
+  observacion="referencia 26BE002120", tracking_url=https://mygls.gls-spain.es/e/1288560505/28760
+```
+✅ End-to-end validado contra GLS producción real.
+
+### Pendiente USER VERIFICATION
+- Probar la nueva card en `/crm/ajustes/gls` con codexp real `1288560505` desde el frontend.
+- Vincular las 3 órdenes históricas con `numero_autorizacion=26be123456` (DEMO-002, OT-20260428, OT-20260429) y `AUTFEA042` aportando manualmente sus codexp.
+
+---
+
 ## Latest — 2026-02-XX (37) · GLS producción: filtrado mocks + tracking real + endpoint limpieza
 
 ### Solicitud del usuario

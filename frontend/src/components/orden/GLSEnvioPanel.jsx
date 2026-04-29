@@ -63,9 +63,9 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
 
   useEffect(() => { fetchDetail(); /* eslint-disable-next-line */ }, [orden?.id]);
 
-  // Preferir envío con tracking activo (estado poblado y distinto de "creado");
-  // si no hay ninguno, el último creado.
-  const envios = detail?.envios || [];
+  // Filtrar envíos mock_preview — solo mostramos envíos REALES de producción.
+  // Los mocks de preview se ignoran completamente para no confundir al admin/cliente.
+  const envios = (detail?.envios || []).filter((e) => !e.mock_preview);
   const envioActual =
     envios.filter((e) => e.estado && e.estado.toLowerCase() !== 'creado').slice(-1)[0]
     || envios[envios.length - 1];
@@ -170,11 +170,6 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
                      title="Estado crudo GLS (vista tramitador)">
                 {envioActual.estado_interno || envioActual.estado || '—'}
               </Badge>
-              {envioActual.mock_preview && (
-                <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800">
-                  preview
-                </Badge>
-              )}
             </div>
             <Button variant="ghost" size="sm" disabled={refreshing}
                     onClick={() => handleActualizar(envioActual.codbarras)}
@@ -193,24 +188,6 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
             <Info label="Referencia" value={envioActual.referencia} mono />
             <Info label="Última actualización" value={formatDateTime(envioActual.ultima_actualizacion)} />
           </div>
-
-          {envioActual.mock_preview && (
-            <div className="rounded-md border-2 border-amber-400 bg-amber-50 p-3 flex items-start gap-3"
-                 data-testid="gls-alerta-mock-preview">
-              <AlertTriangle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-900 flex-1">
-                <p className="font-semibold">Envío de prueba (preview)</p>
-                <p>
-                  Este envío fue creado cuando el sistema estaba en modo simulación.
-                  Su <span className="font-mono">codbarras</span> es ficticio y GLS no lo reconocerá.
-                  La etiqueta y el tracking público no funcionarán.
-                </p>
-                <p className="mt-1">
-                  Pulsa <strong>Crear otra etiqueta</strong> abajo para generar un envío real.
-                </p>
-              </div>
-            </div>
-          )}
 
           {envioActual.incidencia && (
             <div className="rounded-md border-2 border-red-300 bg-red-50 p-3 flex items-start gap-3"
@@ -262,43 +239,27 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
           )}
 
           <div className="flex flex-wrap gap-2 pt-2">
-            {envioActual.mock_preview ? (
-              <>
-                <Button size="sm" variant="outline" className="gap-2 opacity-60" disabled
-                        title="No disponible: envío creado en modo preview">
-                  <FileText className="w-4 h-4" /> Ver etiqueta PDF
-                </Button>
-                <Button size="sm" variant="outline" className="gap-2 opacity-60" disabled
-                        title="No disponible: envío creado en modo preview">
-                  <ExternalLink className="w-4 h-4" /> Tracking público GLS
-                </Button>
-              </>
-            ) : (
-              <>
-                <a href={`/api/logistica/gls/etiqueta/${envioActual.codbarras}`}
-                   target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" variant="outline" className="gap-2"
-                          data-testid="gls-btn-ver-etiqueta-pdf">
-                    <FileText className="w-4 h-4" /> Ver etiqueta PDF
-                  </Button>
-                </a>
-                <a href={envioActual.tracking_url} target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" variant="outline" className="gap-2">
-                    <ExternalLink className="w-4 h-4" /> Tracking público GLS
-                  </Button>
-                </a>
-              </>
-            )}
+            <a href={`/api/logistica/gls/etiqueta/${envioActual.codbarras}`}
+               target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline" className="gap-2"
+                      data-testid="gls-btn-ver-etiqueta-pdf">
+                <FileText className="w-4 h-4" /> Ver etiqueta PDF
+              </Button>
+            </a>
+            <a href={envioActual.tracking_url} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline" className="gap-2">
+                <ExternalLink className="w-4 h-4" /> Tracking público GLS
+              </Button>
+            </a>
             <Button size="sm" variant="outline" className="gap-2 text-red-700 border-red-300 hover:bg-red-50"
                     onClick={() => setIncidenciaDialog({ codbarras: envioActual.codbarras })}
-                    data-testid="gls-btn-abrir-incidencia"
-                    disabled={envioActual.mock_preview}>
+                    data-testid="gls-btn-abrir-incidencia">
               <AlertTriangle className="w-4 h-4" /> Abrir incidencia
             </Button>
             <CrearEtiquetaGLSButton
               orden={orden}
               onCreated={() => { fetchDetail(); if (onUpdate) onUpdate(); }}
-              label={envioActual.mock_preview ? 'Crear etiqueta REAL' : 'Crear otra etiqueta'}
+              label="Crear otra etiqueta"
             />
           </div>
         </CardContent>

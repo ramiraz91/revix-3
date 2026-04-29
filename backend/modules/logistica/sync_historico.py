@@ -624,3 +624,74 @@ async def restaurar_sync_run(
         "restauradas": restauradas, "errores": errores,
         "total_backups": len(backups), "ejecutado_en": now,
     }
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint: Limpiar envíos mock_preview (one-shot tras paso a producción)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/gls/limpiar-mocks")
+async def limpiar_envios_mock_preview(
+    dry_run: bool = False,
+    user: dict = Depends(require_admin),
+):
+    """
+    Elimina TODOS los envíos GLS y MRW marcados como mock_preview=true.
+
+    Diseñado para ejecutarse UNA VEZ tras pasar de MCP_ENV=preview a production
+    para limpiar los datos de prueba creados durante el desarrollo.
+
+    Idempotente: ejecutarlo varias veces no rompe nada (después de la primera ya no hay mocks).
+
+    Params:
+      - dry_run: si true, sólo cuenta cuántos se borrarían sin tocar BD.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Contar antes
+    n_ord_gls = await db.ordenes.count_documents({"gls_envios.mock_preview": True})
+    n_ord_mrw = await db.ordenes.count_documents({"mrw_envios.mock_preview": True})
+
+    if dry_run:
+        return {
+            "ok": True, "dry_run": True,
+            "ordenes_afectadas": {"gls": n_ord_gls, "mrw": n_ord_mrw},
+            "mensaje": "DRY-RUN. No se ha borrado nada. Ejecuta con dry_run=false para limpiar.",
+        }
+
+    # Borrar mocks usando $pull
+    result_gls = await db.ordenes.update_many(
+        {"gls_envios.mock_preview": True},
+        {"$pull": {"gls_envios": {"mock_preview": True}}, "$set": {"updated_at": now}},
+    )
+    result_mrw = await db.ordenes.update_many(
+        {"mrw_envios.mock_preview": True},
+        {"$pull": {"mrw_envios": {"mock_preview": True}}, "$set": {"updated_at": now}},
+    )
+
+    # También limpiar gls_shipments standalone
+    result_shipments = await db.gls_shipments.delete_many({"mock_preview": True})
+
+    await db.audit_logs.insert_one({
+        "source": "admin_panel", "agent_id": None,
+        "tool": "limpiar_envios_mock_preview",
+        "params": {"dry_run": False},
+        "result_summary": {
+            "ordenes_gls_modificadas": result_gls.modified_count,
+            "ordenes_mrw_modificadas": result_mrw.modified_count,
+            "gls_shipments_eliminados": result_shipments.deleted_count,
+        },
+        "error": None, "duration_ms": 0,
+        "timestamp": now, "timestamp_dt": datetime.now(timezone.utc),
+        "actor": user.get("email", ""),
+    })
+
+    return {
+        "ok": True, "dry_run": False,
+        "ordenes_gls_modificadas": result_gls.modified_count,
+        "ordenes_mrw_modificadas": result_mrw.modified_count,
+        "gls_shipments_eliminados": result_shipments.deleted_count,
+        "ejecutado_en": now,
+        "actor": user.get("email", ""),
+    }

@@ -11,7 +11,53 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (36) · GLS PRODUCCIÓN: fix URL tracking + fix CP + activación
+## Latest — 2026-02-XX (37) · GLS producción: filtrado mocks + tracking real + endpoint limpieza
+
+### Solicitud del usuario
+"Que solo se muestren los de producción, que se sincronice siempre, que el enlace sea el correcto de seguimiento y no una imagen de muestra".
+
+### Cambios aplicados
+
+#### A) Frontend — los envíos `mock_preview` desaparecen completamente
+- `GLSEnvioPanel.jsx`: filtra `envios.filter(e => !e.mock_preview)` ANTES de calcular el envío activo. Ya no aparece el badge "preview" ni los botones deshabilitados.
+
+#### B) Backend — los envíos mock no se sirven en producción
+- `panel_config.py` (panel logística admin `/crm/logistica`): ignora envíos GLS y MRW con `mock_preview=true` cuando `MCP_ENV=production`.
+- `routes.py` (`/api/logistica/gls/orden/{id}` que consume el panel): filtra `mock_preview` antes de devolver.
+- `server.py` (seguimiento público `/seguimiento/{token}`): filtra envíos mock para que el cliente nunca vea un tracking ficticio. Además `tracking_url_publico` ahora devuelve la URL persistida (que ya pasó por nuestra validación `_is_valid_gls_tracking_url` y prioriza `mygls.gls-spain.es/e/{codexp}/{cp}`), no la URL inventada `gls-group.eu/track/...`.
+
+#### C) Backend — endpoint one-shot de limpieza
+- Nuevo endpoint `POST /api/logistica/gls/limpiar-mocks?dry_run=bool` (admin).
+- Hace `$pull` de envíos `mock_preview=true` en colecciones `ordenes` (`gls_envios`, `mrw_envios`) y borra `gls_shipments` standalone.
+- Idempotente. Auditado en `audit_logs`.
+- **Validado en pod preview**: limpió 2 órdenes GLS + 1 MRW. Restantes: 0.
+
+#### D) Sync histórico — clarificación
+- Se mantiene el scheduler GLS cada 4h (sync de envíos existentes en BD).
+- El sync histórico (descubrir envíos GLS reales sin gls_envios en BD) sigue siendo **manual** desde `/crm/ajustes/gls`. Es una operación pesada con salvaguardas (CONFIRMO + max_ordenes hard cap) que no debe automatizarse sin más control.
+- El usuario lo ejecuta cuando lo necesita; con la lógica nueva de tracking_url, las URLs guardadas serán correctas.
+
+### Validación
+- Lint Python + JS limpio.
+- Tests unitarios de `_is_valid_gls_tracking_url` y `extract_tracking_url_from_events` ✓ (6/6 escenarios).
+- Endpoint limpieza: dry-run y real funcionando, BD coherente.
+
+### IMPORTANTE PARA PRODUCCIÓN (revix.es)
+1. **Re-deploy changes** desde Emergent (cambios de código).
+2. Una vez desplegado, **ejecutar UNA vez** desde la consola del navegador o curl:
+   ```bash
+   # Login admin → token →
+   curl -X POST "https://revix.es/api/logistica/gls/limpiar-mocks?dry_run=true" \
+        -H "Authorization: Bearer YOUR_TOKEN"
+   # Si el conteo te parece bien:
+   curl -X POST "https://revix.es/api/logistica/gls/limpiar-mocks?dry_run=false" \
+        -H "Authorization: Bearer YOUR_TOKEN"
+   ```
+3. **Ejecutar el sync histórico** desde `/crm/ajustes/gls` con ventana 180-365 días para que los envíos reales se vinculen con tracking_url correcto.
+
+---
+
+## 2026-02-XX (36) · GLS PRODUCCIÓN: fix URL tracking + fix CP + activación
 
 ### Cambios aplicados
 

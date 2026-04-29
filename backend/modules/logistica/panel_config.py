@@ -328,6 +328,10 @@ async def panel_listar_envios(
         for envio in (o.get("gls_envios") or []):
             if not envio.get("codbarras"):
                 continue
+            # En producción ocultamos completamente los envíos preview/mock
+            # para no confundir al admin ni al cliente
+            if envio.get("mock_preview") and not _is_preview():
+                continue
             if not _envio_filter_matches(envio, transportista or "", estado, solo_incidencias):
                 continue
             if fecha_desde and (envio.get("creado_en", "") < fecha_desde):
@@ -364,6 +368,9 @@ async def panel_listar_envios(
             continue
         for envio in (o.get("mrw_envios") or []):
             if not envio.get("num_envio"):
+                continue
+            # En producción ocultamos envíos preview/mock
+            if envio.get("mock_preview") and not _is_preview():
                 continue
             if fecha_desde and (envio.get("creado_en", "") < fecha_desde):
                 continue

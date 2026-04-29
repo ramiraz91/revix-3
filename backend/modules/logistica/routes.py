@@ -416,9 +416,11 @@ async def orden_gls_detalle(order_id: str, user: dict = Depends(require_auth)):
     orden = await _get_orden(order_id)
     destinatario = await _destinatario_desde_orden(orden)
 
+    # Filtrar envíos mock_preview en producción — sólo se muestran envíos reales.
     envios = [
         _envio_doc_to_resumen(d)
         for d in (orden.get("gls_envios") or [])
+        if _is_preview() or not d.get("mock_preview")
     ]
 
     autorizacion = (orden.get("numero_autorizacion") or "").strip()

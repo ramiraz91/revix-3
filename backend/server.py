@@ -699,7 +699,10 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
         from modules.logistica.state_mapper import (
             estado_color as _ec, friendly_estado as _fe, is_incidencia as _ii,
         )
+        # Filtrar mocks en producción — el cliente NUNCA debe ver envíos preview.
         envios_v2 = orden.get("gls_envios") or []
+        if os.environ.get("MCP_ENV", "production") == "production":
+            envios_v2 = [e for e in envios_v2 if not e.get("mock_preview")]
         if envios_v2:
             # Preferir el envío con tracking (estado_actual poblado), si no el último.
             envios_con_tracking = [e for e in envios_v2 if e.get("estado_actual")]
@@ -714,16 +717,18 @@ async def verificar_seguimiento(request: SeguimientoRequest, request_http: Reque
                 }
                 for e in (envio.get("eventos") or [])
             ]
+            # URL de tracking público que SÍ funciona — usamos la del envío persistida
+            # (que ya pasó por nuestra validación _is_valid_gls_tracking_url y prioriza
+            # mygls.gls-spain.es/e/{codexp}/{cp}). Si no existe, fallback canónico.
+            tracking_pub = envio.get("tracking_url") or "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
             logistics_v2 = {
                 "codbarras": envio.get("codbarras", ""),
                 "estado_cliente": _fe(estado, codigo),
                 "estado_color": _ec(estado, codigo),
                 "fecha_entrega": envio.get("fecha_entrega", ""),
                 "ultima_actualizacion": envio.get("ultima_actualizacion", ""),
-                "tracking_url": envio.get("tracking_url", ""),
-                "tracking_url_publico": (
-                    f"https://gls-group.eu/track/{envio.get('codbarras','')}"
-                ),
+                "tracking_url": tracking_pub,
+                "tracking_url_publico": tracking_pub,
                 "tiene_incidencia": _ii(estado) or _ii(envio.get("incidencia", "")),
                 "eventos": eventos_pub,
                 "mock_preview": bool(envio.get("mock_preview", False)),

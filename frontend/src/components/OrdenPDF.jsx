@@ -961,6 +961,8 @@ const OrdenPDF = forwardRef(function OrdenPDF(
                     <img
                       src={foto.url}
                       alt={`Foto ${globalIdx}`}
+                      loading="eager"
+                      decoding="sync"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   </div>

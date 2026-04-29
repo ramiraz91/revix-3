@@ -369,17 +369,76 @@ export default function OrdenDetalle() {
     }
   };
 
+  // Espera a que todas las <img> dentro de un nodo terminen de descargar
+  // (o agoten el timeout). Critico para que las fotos del anexo aparezcan en el PDF
+  // — si no, el navegador imprime antes de que Cloudinary entregue las imágenes.
+  const waitForImages = (node, timeoutMs = 10000) => {
+    if (!node) return Promise.resolve();
+    const imgs = Array.from(node.querySelectorAll('img'));
+    if (imgs.length === 0) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+
+      const timer = setTimeout(done, timeoutMs);
+
+      const promises = imgs.map(
+        (img) =>
+          new Promise((res) => {
+            // Ya cargada o cacheada
+            if (img.complete && img.naturalWidth > 0) return res();
+            // Falló previamente
+            if (img.complete && img.naturalWidth === 0) return res();
+            const onLoad = () => {
+              img.removeEventListener('load', onLoad);
+              img.removeEventListener('error', onErr);
+              res();
+            };
+            const onErr = () => {
+              img.removeEventListener('load', onLoad);
+              img.removeEventListener('error', onErr);
+              res(); // resolvemos igual para no bloquear
+            };
+            img.addEventListener('load', onLoad);
+            img.addEventListener('error', onErr);
+          })
+      );
+
+      Promise.all(promises).then(() => {
+        clearTimeout(timer);
+        done();
+      });
+    });
+  };
+
   const handlePrint = async () => {
     if (!canPrintWithPrices) {
       toast.error('Solo admin/master pueden generar la ficha completa con precios');
       return;
     }
     await registrarImpresion('full');
+    const id_toast = toast.loading('Cargando imágenes para el PDF…');
+    try {
+      await waitForImages(pdfRefFull.current);
+    } finally {
+      toast.dismiss(id_toast);
+    }
     doPrintFull();
   };
 
   const handlePrintNoPrices = async () => {
     await registrarImpresion('no_prices');
+    const id_toast = toast.loading('Cargando imágenes para el PDF…');
+    try {
+      await waitForImages(pdfRefNoPrices.current);
+    } finally {
+      toast.dismiss(id_toast);
+    }
     doPrintNoPrices();
   };
 

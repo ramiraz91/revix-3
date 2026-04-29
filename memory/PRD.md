@@ -11,7 +11,26 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (34) · Fix CPI/NIST en órdenes B2B
+## Latest — 2026-02-XX (35) · Fix imágenes faltantes en PDF de orden
+
+### Bug
+Al imprimir/exportar el PDF de una orden con `useReactToPrint`, las fotos del anexo aparecían **a veces sí, a veces no**. Síntoma típico de race condition: el navegador llamaba a `window.print()` antes de que las imágenes Cloudinary terminaran de descargarse.
+
+### Fix en `/app/frontend/src/pages/OrdenDetalle.jsx`
+- Nueva función helper **`waitForImages(node, timeoutMs=10000)`**: recorre todas las `<img>` del nodo del PDF y espera con `addEventListener('load'|'error')` a que cada una resuelva. Timeout de 10s por seguridad. Si una imagen falla, sigue adelante (no bloquea la impresión).
+- `handlePrint` y `handlePrintNoPrices` invocan `waitForImages(pdfRef.current)` ANTES de llamar a `doPrint()`.
+- Toast `"Cargando imágenes para el PDF…"` durante la espera para feedback visual.
+
+### Fix en `/app/frontend/src/components/OrdenPDF.jsx`
+- `<img loading="eager" decoding="sync">` en las fotos del anexo — fuerza descarga inmediata sin lazy-loading del navegador.
+
+### Validación
+- Lint frontend limpio.
+- Validación final pendiente del usuario (test físico imprimiendo orden con fotos varias veces seguidas).
+
+---
+
+## 2026-02-XX (34) · Fix CPI/NIST en órdenes B2B
 
 ### Bug
 El registro de CPI/NIST fallaba con HTTP 400 *"En OT B2B el método CPI/NIST es obligatorio"* cuando el técnico marcaba **"Cliente ya restableció (verificado)"** o **"Cliente no autoriza"** en órdenes de cliente empresa (B2B). El frontend no muestra selector de método para esas opciones porque conceptualmente **no aplica** (no hay borrado a realizar), pero el backend lo exigía igualmente.

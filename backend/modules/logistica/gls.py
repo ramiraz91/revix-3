@@ -516,19 +516,34 @@ xmlns:soap12="{SOAP12_NS}">
             or ""
         )
 
-        # ── refC devuelta (para diagnosticar si match con numero_autorizacion) ──
-        refc_devuelta = (
+        # ── refC: prioridad <refC> directo; si vacío, extraer de <Observacion> ──
+        refc_directa = (
             exp_el.get("refc")
             or exp_el.get("RefC")
             or _txt(exp_el, "refc")
             or _txt(exp_el, "RefC")
             or ""
         )
+        observacion = (
+            _txt(exp_el, "Observacion")
+            or _txt(exp_el, "observacion")
+            or _txt(exp_el, "Observaciones")
+            or ""
+        )
+        # GLS Spain admin web suele guardar la referencia como
+        # "referencia <NUM_AUTORIZACION>" dentro de Observacion en lugar de RefC.
+        refc_devuelta = refc_directa
+        if not refc_devuelta and observacion:
+            import re as _re
+            m = _re.search(r"referencia\s*[:\-]?\s*(\S+)", observacion, flags=_re.IGNORECASE)
+            if m:
+                refc_devuelta = m.group(1).strip().rstrip(".,;")
 
-        # ── CP destinatario desde respuesta (para construir URL si no la tenemos) ──
+        # ── CP destinatario desde respuesta (nombre real del tag: cp_dst) ──
         cp_destino = (
-            exp_el.get("cpdst")
-            or exp_el.get("cp_destino")
+            exp_el.get("cp_dst")
+            or exp_el.get("cpdst")
+            or _txt(exp_el, "cp_dst")
             or _txt(exp_el, "cpdst")
             or _txt(exp_el, "cp_destino")
             or ""
@@ -561,6 +576,7 @@ xmlns:soap12="{SOAP12_NS}">
         result.codexp = codexp  # type: ignore[attr-defined]
         result.refc_devuelta = refc_devuelta  # type: ignore[attr-defined]
         result.cp_destino = cp_destino  # type: ignore[attr-defined]
+        result.observacion = observacion  # type: ignore[attr-defined]
         return result
 
     # ──────────────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+import re
 
 from config import db
 from auth import require_admin
@@ -886,3 +887,189 @@ async def regenerar_tracking_urls(
         "actor": user.get("email", ""),
     }
 
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint: Vincular envío GLS por codexp/codbarras (cuando GLS web admin
+# guarda referencia en Observacion en lugar de RefC)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class VincularPorCodigoRequest(BaseModel):
+    codigo: str  # codbarras (10-14 dígitos) o codexp (10 dígitos)
+    orden_id: Optional[str] = None  # opcional: si se da, vincula directamente sin matchear refC
+    dry_run: bool = False
+
+
+@router.post("/gls/vincular-por-codigo")
+async def vincular_envio_por_codigo(
+    payload: VincularPorCodigoRequest,
+    user: dict = Depends(require_admin),
+):
+    """
+    Llama GetExpCli con codbarras/codexp, parsea el XML, extrae:
+      - refc_devuelta (de <refC> o de "referencia X" en <Observacion>)
+      - codbarras real, codexp, cp_destino
+
+    Y vincula el envío a:
+      - la orden con id == payload.orden_id si se proporciona, O
+      - la orden cuyo numero_autorizacion == refc_devuelta.
+
+    Construye la URL de tracking pública mygls.gls-spain.es/e/{codexp}/{cp_destino}
+    y persiste el envío en orden.gls_envios.
+    """
+    import os
+    from modules.logistica.gls import GLSClient
+
+    codigo = (payload.codigo or "").strip()
+    if not codigo:
+        raise HTTPException(400, "Falta `codigo` (codbarras o codexp)")
+
+    cli = GLSClient(
+        url=os.environ.get("GLS_URL", ""),
+        uid_cliente=os.environ.get("GLS_UID_CLIENTE", ""),
+        remitente=None,
+        mcp_env=os.environ.get("MCP_ENV", "production"),
+    )
+    tracking = await cli.obtener_tracking(codigo)
+    if not tracking or not tracking.success:
+        raise HTTPException(404, f"GLS no encuentra ninguna expedición con código '{codigo}'")
+
+    refc = getattr(tracking, "refc_devuelta", "") or ""
+    codexp = getattr(tracking, "codexp", "") or ""
+    cp_destino = getattr(tracking, "cp_destino", "") or ""
+    observacion = getattr(tracking, "observacion", "") or ""
+    codbarras_real = tracking.codbarras  # ya viene del parser (de <codbar>)
+
+    # 1) Localizar orden destino
+    orden = None
+    if payload.orden_id:
+        orden = await db.ordenes.find_one({"id": payload.orden_id}, {"_id": 0})
+    elif refc:
+        # buscar exact y case-insensitive
+        orden = await db.ordenes.find_one({"numero_autorizacion": refc}, {"_id": 0})
+        if not orden:
+            orden = await db.ordenes.find_one(
+                {"numero_autorizacion": {"$regex": f"^{re.escape(refc)}$", "$options": "i"}},
+                {"_id": 0},
+            )
+    if not orden:
+        return {
+            "ok": False,
+            "motivo": "no_match",
+            "refc_extraida": refc,
+            "observacion": observacion,
+            "codbarras_real": codbarras_real,
+            "codexp": codexp,
+            "cp_destino": cp_destino,
+            "mensaje": (
+                "GLS encontró la expedición pero no hay ninguna orden con "
+                f"numero_autorizacion='{refc}'. Pásame `orden_id` para vincular manualmente."
+            ),
+        }
+
+    # 2) Construir URL de tracking real
+    if codexp and cp_destino and len(cp_destino) == 5:
+        tracking_url = f"https://mygls.gls-spain.es/e/{codexp}/{cp_destino}"
+        tracking_source = "canonical"
+    else:
+        tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras_real}"
+        tracking_source = "fallback"
+
+    # 3) Construir doc de envío
+    now = datetime.now(timezone.utc).isoformat()
+    nuevo_envio = {
+        "codbarras": codbarras_real,
+        "codexp": codexp,
+        "cp_destino": cp_destino,
+        "uid_exp": "",  # opcional, no se rellena aquí
+        "estado": tracking.estado_actual or "",
+        "estado_actual": tracking.estado_actual or "",
+        "estado_codigo": tracking.estado_codigo or "",
+        "fecha_creacion": now,
+        "ultima_actualizacion": now,
+        "tracking_url": tracking_url,
+        "tracking_source": tracking_source,
+        "observacion": observacion,
+        "incidencia": tracking.incidencia or "",
+        "eventos": [
+            {
+                "fecha": e.fecha,
+                "estado": e.estado,
+                "plaza": e.plaza,
+                "codigo": e.codigo,
+            }
+            for e in (tracking.eventos or [])
+        ],
+        "vinculado_manualmente_por": user.get("email", ""),
+        "mock_preview": False,
+    }
+
+    if payload.dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "orden_match": {
+                "id": orden["id"],
+                "numero_orden": orden.get("numero_orden"),
+                "numero_autorizacion": orden.get("numero_autorizacion"),
+            },
+            "envio_a_persistir": nuevo_envio,
+        }
+
+    # 4) Persistir (evitando duplicados por codbarras_real)
+    existentes = orden.get("gls_envios") or []
+    if any(e.get("codbarras") == codbarras_real for e in existentes):
+        # Ya existe: actualizamos el que coincide
+        await db.ordenes.update_one(
+            {"id": orden["id"], "gls_envios.codbarras": codbarras_real},
+            {"$set": {
+                "gls_envios.$.codexp": codexp,
+                "gls_envios.$.cp_destino": cp_destino,
+                "gls_envios.$.tracking_url": tracking_url,
+                "gls_envios.$.tracking_source": tracking_source,
+                "gls_envios.$.estado_actual": tracking.estado_actual or "",
+                "gls_envios.$.observacion": observacion,
+                "gls_envios.$.eventos": nuevo_envio["eventos"],
+                "gls_envios.$.ultima_actualizacion": now,
+                "updated_at": now,
+            }},
+        )
+        action = "actualizado"
+    else:
+        await db.ordenes.update_one(
+            {"id": orden["id"]},
+            {"$push": {"gls_envios": nuevo_envio}, "$set": {"updated_at": now}},
+        )
+        action = "creado"
+
+    await db.audit_logs.insert_one({
+        "source": "admin_panel", "agent_id": None,
+        "tool": "vincular_envio_por_codigo",
+        "params": payload.model_dump(),
+        "result_summary": {
+            "orden_id": orden["id"],
+            "codbarras": codbarras_real,
+            "action": action,
+            "refc_extraida": refc,
+        },
+        "error": None, "duration_ms": 0,
+        "timestamp": now, "timestamp_dt": datetime.now(timezone.utc),
+        "actor": user.get("email", ""),
+    })
+
+    return {
+        "ok": True, "dry_run": False, "action": action,
+        "orden_match": {
+            "id": orden["id"],
+            "numero_orden": orden.get("numero_orden"),
+            "numero_autorizacion": orden.get("numero_autorizacion"),
+        },
+        "envio": {
+            "codbarras": codbarras_real,
+            "codexp": codexp,
+            "cp_destino": cp_destino,
+            "tracking_url": tracking_url,
+            "estado": tracking.estado_actual,
+        },
+    }

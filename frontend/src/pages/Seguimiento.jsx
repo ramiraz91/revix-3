@@ -471,7 +471,7 @@ export default function Seguimiento() {
                   )}
 
                   <a
-                    href={`https://gls-group.eu/track/${orden.logistics_v2.codbarras}`}
+                    href={orden.logistics_v2.tracking_url_publico || orden.logistics_v2.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
                     target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline"
                     data-testid="seguimiento-link-tracking-gls"

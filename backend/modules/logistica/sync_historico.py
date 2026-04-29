@@ -787,3 +787,102 @@ async def diagnostico_get_exp_cli(
         "match_bd_por_codbarras_real": orden_match_codbarras,
         "raw_xml_response": raw_xml[:6000] if raw_xml else None,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint migración one-shot: reescribir tracking_url antiguas en BD
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/gls/regenerar-tracking-urls")
+async def regenerar_tracking_urls(
+    dry_run: bool = False,
+    user: dict = Depends(require_admin),
+):
+    """
+    Recorre todos los envíos GLS de la BD y regenera el campo tracking_url
+    si está mal (apunta a apptracking.asp, gls-group.eu o JPEG/PDF) o vacío.
+
+    Usa los datos ya guardados (codexp + cp_destino + codbarras) — NO llama a GLS.
+    Es instantáneo e idempotente.
+    """
+    from modules.gls.shipment_service import _is_valid_gls_tracking_url
+
+    URLS_OBSOLETAS = ("apptracking.asp", "gls-group.eu/track", "wp-es-pro-media")
+    actualizadas = 0
+    revisadas = 0
+    sin_codexp = 0
+    sin_cp = 0
+
+    cursor = db.ordenes.find(
+        {"gls_envios.0": {"$exists": True}},
+        {"_id": 0, "id": 1, "numero_orden": 1, "gls_envios": 1, "cp_envio": 1, "cliente_id": 1},
+    )
+
+    async for orden in cursor:
+        nuevos_envios = []
+        cambio = False
+        cp_local = orden.get("cp_envio") or ""
+        # Si la orden no tiene cp_envio, intentamos del cliente
+        if not cp_local and orden.get("cliente_id"):
+            cli = await db.clientes.find_one({"id": orden["cliente_id"]}, {"_id": 0, "cp": 1, "codigo_postal": 1, "direccion": 1}) or {}
+            cp_local = cli.get("cp") or cli.get("codigo_postal") or ""
+            if not cp_local and cli.get("direccion"):
+                import re as _re
+                m = _re.search(r"\b(\d{5})\b", cli.get("direccion", ""))
+                if m:
+                    cp_local = m.group(1)
+
+        for envio in (orden.get("gls_envios") or []):
+            revisadas += 1
+            current = envio.get("tracking_url") or ""
+            es_obsoleta = any(s in current for s in URLS_OBSOLETAS)
+            es_invalida = current and not _is_valid_gls_tracking_url(current)
+            necesita = not current or es_obsoleta or es_invalida
+
+            if not necesita:
+                nuevos_envios.append(envio)
+                continue
+
+            codexp = envio.get("codexp") or ""
+            # cp_destino guardado en el envío tiene prioridad sobre cp local
+            cp = envio.get("cp_destino") or envio.get("codplaza_dst") or cp_local
+            codbarras = envio.get("codbarras") or ""
+
+            if codexp and cp and len(str(cp)) == 5:
+                nueva = f"https://mygls.gls-spain.es/e/{codexp}/{cp}"
+            elif codbarras:
+                nueva = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras}"
+                if not codexp:
+                    sin_codexp += 1
+                if not cp:
+                    sin_cp += 1
+            else:
+                nueva = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
+
+            if nueva != current:
+                envio_actualizado = dict(envio)
+                envio_actualizado["tracking_url"] = nueva
+                envio_actualizado["tracking_url_anterior"] = current
+                nuevos_envios.append(envio_actualizado)
+                cambio = True
+                actualizadas += 1
+            else:
+                nuevos_envios.append(envio)
+
+        if cambio and not dry_run:
+            await db.ordenes.update_one(
+                {"id": orden["id"]},
+                {"$set": {"gls_envios": nuevos_envios, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "envios_revisados": revisadas,
+        "envios_actualizados": actualizadas,
+        "sin_codexp": sin_codexp,
+        "sin_cp": sin_cp,
+        "ejecutado_en": datetime.now(timezone.utc).isoformat(),
+        "actor": user.get("email", ""),
+    }
+

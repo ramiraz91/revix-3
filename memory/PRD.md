@@ -11,7 +11,41 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
-## Latest — 2026-02-XX (35) · Fix imágenes faltantes en PDF de orden
+## Latest — 2026-02-XX (36) · GLS PRODUCCIÓN: fix URL tracking + fix CP + activación
+
+### Cambios aplicados
+
+#### 1. Fix URL de tracking (`/app/backend/modules/gls/shipment_service.py`)
+- Nueva función `_is_valid_gls_tracking_url()` que valida que una URL `URLPARTNER` sea aceptable como tracking_url:
+  - Debe ser http/https.
+  - Debe contener dominio `gls-spain.es` o `asmred.com`.
+  - **NO** debe terminar en imagen/PDF (`.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.webp`, `.pdf`, etc.).
+- `extract_tracking_url_from_events` ahora recibe también `codexp` y aplica jerarquía:
+  1. URLPARTNER válida (filtrada).
+  2. **`https://mygls.gls-spain.es/e/{codexp}/{cp_destinatario}`** cuando ambos existen.
+  3. Fallback canónico `https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/`.
+- Llamada en `update_shipment_tracking()` pasa también `codexp`.
+
+#### 2. Fix CP destinatario en blanco (`sync_historico.py`)
+- Busca el código postal en cascada: `orden.cp_envio` → `orden.codigo_postal_envio` → `orden.destinatario_cp` → `cliente.cp` → `cliente.codigo_postal` → regex de 5 dígitos en `cliente.direccion`.
+- Resuelve el problema de tracking links sin CP al sincronizar órdenes históricas.
+
+#### 3. Activación producción real (`/app/backend/.env`)
+- **`MCP_ENV=preview` → `MCP_ENV=production`** (en el pod preview).
+- Verificado vía sync histórico real: 4 órdenes consultadas a GLS, response real (2.9s para 4 lookups SOAP), todas not_found correctamente porque eran datos test.
+
+### IMPORTANTE PARA DESPLIEGUE
+El cambio `MCP_ENV=production` en `/app/backend/.env` afecta solo a este pod preview. **En la producción de revix.es es necesario:**
+1. **Re-deploy changes** desde el panel de Emergent (cambios de código).
+2. **Cambiar `MCP_ENV` en Secrets/Resources** del deployment a `production`.
+
+### Validación
+- Lint Python limpio.
+- Llamada SOAP real a GLS verificada en logs (`POST /api/logistica/gls/sincronizar-ordenes - 2895ms`).
+
+---
+
+## 2026-02-XX (35) · Fix imágenes faltantes en PDF de orden
 
 ### Bug
 Al imprimir/exportar el PDF de una orden con `useReactToPrint`, las fotos del anexo aparecían **a veces sí, a veces no**. Síntoma típico de race condition: el navegador llamaba a `window.print()` antes de que las imágenes Cloudinary terminaran de descargarse.

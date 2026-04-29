@@ -146,13 +146,25 @@ async def _sync_one_orden(
             "reason": "sin_numero_autorizacion",
         }
 
-    # CP del destinatario: de la orden o del cliente
-    cp_destinatario = orden.get("cp_envio") or ""
+    # CP del destinatario: de la orden o del cliente (varios campos posibles)
+    cp_destinatario = (
+        orden.get("cp_envio")
+        or orden.get("codigo_postal_envio")
+        or orden.get("destinatario_cp")
+        or ""
+    )
     if not cp_destinatario and orden.get("cliente_id"):
         cli = await db.clientes.find_one(
-            {"id": orden["cliente_id"]}, {"_id": 0, "cp": 1},
+            {"id": orden["cliente_id"]},
+            {"_id": 0, "cp": 1, "codigo_postal": 1, "direccion": 1},
         ) or {}
-        cp_destinatario = cli.get("cp", "")
+        cp_destinatario = (cli.get("cp") or cli.get("codigo_postal") or "").strip()
+        # Fallback final: extraer 5 dígitos del campo "direccion" si nada más existe
+        if not cp_destinatario and cli.get("direccion"):
+            import re
+            m = re.search(r"\b(\d{5})\b", cli.get("direccion", ""))
+            if m:
+                cp_destinatario = m.group(1)
 
     # 1. Consultar GLS por refC=numero_autorizacion
     try:

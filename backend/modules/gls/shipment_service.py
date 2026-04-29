@@ -27,6 +27,27 @@ logger = logging.getLogger("gls.shipment")
 # URL de seguimiento pública oficial de GLS España (canónica, sin parámetros)
 GLS_TRACKING_CANONICAL_URL = "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"
 
+# Extensiones que descartamos para no aceptar imágenes/PDFs como tracking_url
+_INVALID_URLPARTNER_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".pdf", ".bmp", ".heic")
+
+
+def _is_valid_gls_tracking_url(url: str) -> bool:
+    """Una URLPARTNER es válida si:
+    - es http/https
+    - apunta a un dominio de gls (gls-spain.es / mygls.gls-spain.es / asmred)
+    - NO termina en imagen/pdf
+    """
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    if not (u.startswith("http://") or u.startswith("https://")):
+        return False
+    if any(u.endswith(ext) for ext in _INVALID_URLPARTNER_EXTS):
+        return False
+    if "gls-spain.es" not in u and "asmred.com" not in u:
+        return False
+    return True
+
 
 def build_gls_tracking_url(shipment: dict) -> str:
     """
@@ -58,39 +79,47 @@ def build_gls_tracking_url(shipment: dict) -> str:
 ShipmentType = Literal["envio", "recogida", "devolucion"]
 
 
-def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", dest_cp: str = "") -> dict:
+def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", dest_cp: str = "", codexp: str = "") -> dict:
     """
     Extrae la URL de tracking de los eventos de GLS.
-    
+
     PRIORIDAD:
-    1. Buscar evento con tipo='URLPARTNER' que contenga URL válida
-    2. Si no existe, usar fallback con URL canónica oficial (sin parámetros)
-       + datos para consulta manual (codbarras, dest_cp)
-    
+    1. Buscar evento con tipo='URLPARTNER' que contenga URL VÁLIDA
+       (debe ser dominio gls-spain.es y NO ser una imagen/pdf — algunos
+        envíos contienen imágenes de marketing en URLPARTNER que rompen el flujo)
+    2. Si tenemos `codexp` + `dest_cp` → URL real de tracking público:
+       https://mygls.gls-spain.es/e/{codexp}/{dest_cp}
+    3. Fallback: URL canónica genérica (el cliente buscará manualmente con codbarras+CP).
+
     Returns: {
-        "tracking_url": str,       # URL para el cliente
-        "tracking_source": str,    # "urlpartner" | "fallback"
+        "tracking_url": str,
+        "tracking_source": "urlpartner" | "canonical" | "fallback",
         "urlpartner_found": bool,
-        "consulta_manual": dict    # Solo en fallback: datos para buscar manualmente
+        "consulta_manual": dict | None
     }
     """
-    # Buscar URLPARTNER en tracking_list
+    # 1) URLPARTNER válida en eventos
     for event in (tracking_list or []):
         tipo = (event.get("tipo") or "").upper()
-        evento_text = event.get("evento") or ""
-        
-        if tipo == "URLPARTNER" and evento_text:
-            # Verificar si el evento contiene una URL válida
-            if evento_text.startswith("http://") or evento_text.startswith("https://"):
-                return {
-                    "tracking_url": evento_text.strip(),
-                    "tracking_source": "urlpartner",
-                    "urlpartner_found": True,
-                    "consulta_manual": None
-                }
-    
-    # Fallback: URL canónica oficial de GLS España (sin parámetros)
-    # Los datos se muestran por separado para consulta manual
+        evento_text = (event.get("evento") or "").strip()
+        if tipo == "URLPARTNER" and _is_valid_gls_tracking_url(evento_text):
+            return {
+                "tracking_url": evento_text,
+                "tracking_source": "urlpartner",
+                "urlpartner_found": True,
+                "consulta_manual": None,
+            }
+
+    # 2) URL real construida con codexp + cp_destinatario
+    if codexp and dest_cp:
+        return {
+            "tracking_url": f"https://mygls.gls-spain.es/e/{codexp}/{dest_cp}",
+            "tracking_source": "canonical",
+            "urlpartner_found": False,
+            "consulta_manual": None,
+        }
+
+    # 3) Fallback: URL canónica oficial de GLS España (sin parámetros)
     return {
         "tracking_url": GLS_TRACKING_CANONICAL_URL,
         "tracking_source": "fallback",
@@ -98,8 +127,8 @@ def extract_tracking_url_from_events(tracking_list: list, codbarras: str = "", d
         "consulta_manual": {
             "gls_codbarras": codbarras,
             "dest_cp": dest_cp,
-            "instrucciones": "Introduce el código de barras y código postal en la web de GLS"
-        }
+            "instrucciones": "Introduce el código de barras y código postal en la web de GLS",
+        },
     }
 
 
@@ -702,7 +731,8 @@ async def get_tracking(db, shipment_id: str, notify_on_change: bool = False) -> 
         tracking_info = extract_tracking_url_from_events(
             exp.get("tracking_list", []),
             codbarras=exp.get("codbar") or shipment.get("gls_codbarras", ""),
-            dest_cp=dest_cp
+            dest_cp=dest_cp,
+            codexp=exp.get("codexp") or shipment.get("gls_codexp", ""),
         )
 
         # Update shipment with tracking data

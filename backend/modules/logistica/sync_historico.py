@@ -695,3 +695,59 @@ async def limpiar_envios_mock_preview(
         "ejecutado_en": now,
         "actor": user.get("email", ""),
     }
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint diagnóstico: probar GetExpCli contra GLS con una RefC concreta
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/gls/diagnostico-refc")
+async def diagnostico_get_exp_cli(
+    referencia: str,
+    user: dict = Depends(require_admin),
+):
+    """
+    Diagnóstico: llama GetExpCli a GLS con la referencia indicada y devuelve
+    el resultado parseado.
+
+    Útil cuando el sync histórico marca todas tus autorizaciones como
+    "no_encontradas" — esto nos dirá si GLS encuentra realmente algo con
+    esa RefC y, si no, qué UID/usuario hay detrás.
+
+    Ejemplos de referencia: tu numero_autorizacion (e.g. "RA-29836174"),
+    un codbarras (e.g. "5723573219"), un codexp.
+    """
+    import os
+    from modules.gls.soap_client import get_exp_cli
+
+    referencia = (referencia or "").strip()
+    if not referencia:
+        raise HTTPException(status_code=400, detail="Falta el parámetro 'referencia'")
+
+    uid = os.environ.get("GLS_UID_CLIENTE", "")
+    if not uid:
+        raise HTTPException(status_code=500, detail="GLS_UID_CLIENTE no configurado")
+
+    result = await get_exp_cli(uid_cliente=uid, codigo=referencia)
+
+    # Buscar en BD si existe alguna orden con esa RefC para mostrarlo en el diagnóstico
+    orden_local = await db.ordenes.find_one(
+        {"numero_autorizacion": referencia},
+        {"_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1, "estado": 1, "gls_envios": 1},
+    )
+
+    return {
+        "referencia_consultada": referencia,
+        "uid_usado": f"{uid[:8]}...{uid[-4:]}" if uid else None,
+        "endpoint_gls": os.environ.get("GLS_URL", ""),
+        "respuesta_gls": result,
+        "orden_local_match": orden_local,
+        "interpretacion": (
+            "GLS encontró expediciones con esta referencia"
+            if (result.get("success") and result.get("expediciones"))
+            else (
+                f"GLS no encontró expediciones con esta referencia. Detalle: {result.get('error') or 'sin error explícito'}"
+            )
+        ),
+    }

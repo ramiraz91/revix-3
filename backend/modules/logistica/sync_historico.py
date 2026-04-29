@@ -175,8 +175,11 @@ async def _sync_one_orden(
         else:
             assert client is not None
             tracking = await client.obtener_tracking(numero_autorizacion)
-            # En producción real, codexp se extrae del XML; fallback vacío
+            # En producción real, codexp se extrae del XML por _parse_get_exp_cli_response
             codexp = getattr(tracking, "codexp", "") if tracking else ""
+            # Si la orden no tiene CP local, usamos el cpdst que devuelve GLS
+            if not cp_destinatario:
+                cp_destinatario = getattr(tracking, "cp_destino", "") if tracking else ""
     except GLSError as exc:
         return {
             "order_id": oid, "numero_orden": orden.get("numero_orden"),
@@ -710,45 +713,77 @@ async def diagnostico_get_exp_cli(
 ):
     """
     Diagnóstico: llama GetExpCli a GLS con la referencia indicada y devuelve
-    el resultado parseado.
-
-    Útil cuando el sync histórico marca todas tus autorizaciones como
-    "no_encontradas" — esto nos dirá si GLS encuentra realmente algo con
-    esa RefC y, si no, qué UID/usuario hay detrás.
-
-    Ejemplos de referencia: tu numero_autorizacion (e.g. "RA-29836174"),
-    un codbarras (e.g. "5723573219"), un codexp.
+    la respuesta XML completa + campos extraídos + match con BD.
     """
     import os
-    from modules.gls.soap_client import get_exp_cli
-
     referencia = (referencia or "").strip()
     if not referencia:
         raise HTTPException(status_code=400, detail="Falta el parámetro 'referencia'")
 
     uid = os.environ.get("GLS_UID_CLIENTE", "")
+    url = os.environ.get("GLS_URL", "")
     if not uid:
         raise HTTPException(status_code=500, detail="GLS_UID_CLIENTE no configurado")
 
-    result = await get_exp_cli(uid_cliente=uid, codigo=referencia)
+    # Llamada al cliente real (usa la lógica de modules/logistica/gls.py)
+    from modules.logistica.gls import GLSClient, GLSError
 
-    # Buscar en BD si existe alguna orden con esa RefC para mostrarlo en el diagnóstico
-    orden_local = await db.ordenes.find_one(
-        {"numero_autorizacion": referencia},
-        {"_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1, "estado": 1, "gls_envios": 1},
+    cli = GLSClient(
+        url=url,
+        uid_cliente=uid,
+        remitente=None,  # no hace falta para tracking
+        mcp_env=os.environ.get("MCP_ENV", "production"),
     )
+
+    error_msg = None
+    raw_xml = ""
+    tracking = None
+    try:
+        # Llamada SOAP cruda para capturar el XML
+        xml_body = cli._build_get_exp_cli_xml(codigo=referencia)
+        raw_xml = await cli._soap_call(action="GetExpCli", body_xml=xml_body)
+        tracking = cli._parse_get_exp_cli_response(raw_xml, referencia)
+    except GLSError as e:
+        error_msg = f"GLSError: {e}"
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {e}"
+
+    # Match en BD
+    orden_match_refc = await db.ordenes.find_one(
+        {"numero_autorizacion": referencia},
+        {"_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1,
+         "estado": 1, "cp_envio": 1, "gls_envios": 1},
+    )
+
+    # Si GLS devolvió un codbarras real distinto, también buscar por codbarras
+    orden_match_codbarras = None
+    cb = getattr(tracking, "codbarras", "") if tracking else ""
+    if cb and cb != referencia:
+        orden_match_codbarras = await db.ordenes.find_one(
+            {"gls_envios.codbarras": cb},
+            {"_id": 0, "id": 1, "numero_orden": 1, "numero_autorizacion": 1},
+        )
 
     return {
         "referencia_consultada": referencia,
         "uid_usado": f"{uid[:8]}...{uid[-4:]}" if uid else None,
-        "endpoint_gls": os.environ.get("GLS_URL", ""),
-        "respuesta_gls": result,
-        "orden_local_match": orden_local,
-        "interpretacion": (
-            "GLS encontró expediciones con esta referencia"
-            if (result.get("success") and result.get("expediciones"))
-            else (
-                f"GLS no encontró expediciones con esta referencia. Detalle: {result.get('error') or 'sin error explícito'}"
-            )
+        "endpoint_gls": url,
+        "campos_extraidos": {
+            "success": tracking.success if tracking else None,
+            "codbarras_real": getattr(tracking, "codbarras", None),
+            "codexp": getattr(tracking, "codexp", None),
+            "refc_devuelta": getattr(tracking, "refc_devuelta", None),
+            "cp_destino": getattr(tracking, "cp_destino", None),
+            "estado_actual": getattr(tracking, "estado_actual", None),
+            "n_eventos": len(tracking.eventos) if tracking else 0,
+        },
+        "url_tracking_construida": (
+            f"https://mygls.gls-spain.es/e/{getattr(tracking, 'codexp', '')}/{getattr(tracking, 'cp_destino', '')}"
+            if tracking and getattr(tracking, "codexp", "") and getattr(tracking, "cp_destino", "")
+            else None
         ),
+        "error": error_msg,
+        "match_bd_por_numero_autorizacion": orden_match_refc,
+        "match_bd_por_codbarras_real": orden_match_codbarras,
+        "raw_xml_response": raw_xml[:6000] if raw_xml else None,
     }

@@ -471,6 +471,15 @@ xmlns:soap12="{SOAP12_NS}">
     def _parse_get_exp_cli_response(
         self, response_text: str, codbarras: str,
     ) -> ResultadoTracking:
+        """
+        Parsea la respuesta GetExpCli de GLS.
+
+        IMPORTANTE: cuando se invoca con `codigo` = numero_autorizacion (RefC),
+        el XML devuelve el codbarras REAL en `<codbar>` y el código de expedición
+        en `<codexp>`. Es CRÍTICO extraer ambos para:
+        - Vincular correctamente el envío a la orden por codbarras real (no la RefC).
+        - Construir la URL de tracking público mygls.gls-spain.es/e/{codexp}/{cp}.
+        """
         try:
             root = ET.fromstring(response_text)
         except ET.ParseError as exc:
@@ -489,6 +498,42 @@ xmlns:soap12="{SOAP12_NS}">
             el = self._find_by_localname(parent, name)
             return (el.text or "").strip() if el is not None and el.text else ""
 
+        # ── codbarras REAL desde el XML (atributo del nodo <exp> o hijo <codbar>) ──
+        codbarras_real = (
+            exp_el.get("codbar")
+            or exp_el.get("codbarras")
+            or _txt(exp_el, "codbar")
+            or _txt(exp_el, "codbarras")
+            or codbarras  # fallback al pasado por argumento
+        )
+
+        # ── codexp desde el XML (atributo o hijo) — para URL tracking público ──
+        codexp = (
+            exp_el.get("codexp")
+            or exp_el.get("CodExp")
+            or _txt(exp_el, "codexp")
+            or _txt(exp_el, "CodExp")
+            or ""
+        )
+
+        # ── refC devuelta (para diagnosticar si match con numero_autorizacion) ──
+        refc_devuelta = (
+            exp_el.get("refc")
+            or exp_el.get("RefC")
+            or _txt(exp_el, "refc")
+            or _txt(exp_el, "RefC")
+            or ""
+        )
+
+        # ── CP destinatario desde respuesta (para construir URL si no la tenemos) ──
+        cp_destino = (
+            exp_el.get("cpdst")
+            or exp_el.get("cp_destino")
+            or _txt(exp_el, "cpdst")
+            or _txt(exp_el, "cp_destino")
+            or ""
+        )
+
         estado_actual = _txt(exp_el, "estado")
         estado_codigo = _txt(exp_el, "codestado")
         fecha_entrega = _txt(exp_el, "FPEntrega") or _txt(exp_el, "fecha")
@@ -503,15 +548,20 @@ xmlns:soap12="{SOAP12_NS}">
                 codigo=_txt(t_el, "codigo"),
             ))
 
-        return ResultadoTracking(
+        result = ResultadoTracking(
             success=True,
-            codbarras=codbarras,
+            codbarras=codbarras_real,
             estado_actual=estado_actual,
             estado_codigo=estado_codigo,
             fecha_entrega=fecha_entrega,
             eventos=eventos,
             incidencia=incidencia,
         )
+        # Atributos enriquecidos (no en dataclass para mantener compatibilidad)
+        result.codexp = codexp  # type: ignore[attr-defined]
+        result.refc_devuelta = refc_devuelta  # type: ignore[attr-defined]
+        result.cp_destino = cp_destino  # type: ignore[attr-defined]
+        return result
 
     # ──────────────────────────────────────────────────────────────────────
     # Mocks preview

@@ -382,7 +382,8 @@ function SincronizacionHistoricaCard() {
 
   // Validaciones UI (antes de llamar al backend)
   const realRun = !dryRun && isProduction;
-  const confirmacionValida = !realRun || confirmacion === textoConfirmacion;
+  const exigeConfirmacion = realRun && maxOrdenes > 20;
+  const confirmacionValida = !exigeConfirmacion || confirmacion === textoConfirmacion;
   const superaWarning = maxOrdenes > softWarning;
   const warningValido = !realRun || !superaWarning || forzarWarning;
   const puedeEjecutar = !loading && candidatas?.total_candidatas > 0 &&
@@ -437,7 +438,7 @@ function SincronizacionHistoricaCard() {
         dias_atras: diasAtras,
         max_ordenes: maxOrdenes,
         dry_run: dryRun,
-        confirmacion: realRun ? confirmacion : '',
+        confirmacion: exigeConfirmacion ? confirmacion : '',
         forzar_por_encima_del_warning: forzarWarning,
       });
       setResultados(data);
@@ -639,14 +640,14 @@ function SincronizacionHistoricaCard() {
           </label>
         </div>
 
-        {/* Confirmación de texto (solo en run real production) */}
-        {realRun && (
+        {/* Confirmación de texto (solo en run real production con > 20 órdenes) */}
+        {exigeConfirmacion && (
           <div className="bg-amber-50 border border-amber-400 rounded-lg p-3 space-y-2"
                data-testid="panel-confirmacion-real">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-900">
-                <strong>Vas a ejecutar en producción real.</strong> Escribe <code>{textoConfirmacion}</code> para habilitar el botón:
+                <strong>Lote grande ({maxOrdenes} órdenes).</strong> Escribe <code>{textoConfirmacion}</code> para habilitar el botón:
               </p>
             </div>
             <Input

@@ -350,12 +350,13 @@ async def sincronizar_ordenes_gls(
 
     is_real_run = not payload.dry_run and not preview
     if is_real_run:
-        # Confirmación textual obligatoria
-        if payload.confirmacion != CONFIRMACION_TEXTO:
+        # Confirmación textual obligatoria SOLO cuando el lote es grande (> 20 órdenes)
+        # Para lotes pequeños no exigimos CONFIRMO — el usuario ya ve "Ejecutar REAL" en rojo.
+        if payload.max_ordenes > 20 and payload.confirmacion != CONFIRMACION_TEXTO:
             raise HTTPException(
                 400,
-                f"Confirmación requerida: escribe exactamente '{CONFIRMACION_TEXTO}' "
-                "en el campo `confirmacion` para ejecutar en producción.",
+                f"Confirmación requerida para lotes > 20 órdenes: escribe exactamente "
+                f"'{CONFIRMACION_TEXTO}' en el campo `confirmacion`.",
             )
         # Warning por volumen alto
         if (

@@ -158,7 +158,10 @@ export function OrdenDetalleHeader({
             Recogida
           </Button>
         )}
-        {puedeGenerarEnvio && onGenerarEnvio && (
+        {puedeGenerarEnvio && onGenerarEnvio && false && (
+          /* Botón duplicado eliminado: el flujo correcto es el botón "Etiqueta"
+             dentro del panel de Logística (CrearEtiquetaGLSButton), que usa
+             /api/logistica/gls/crear-envio con tracking canónico mygls. */
           <Button 
             variant="outline" 
             size="sm"

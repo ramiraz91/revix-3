@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from config import db
@@ -315,18 +315,11 @@ async def crear_envio_gls(
     # Aviso si ya existe un envío GLS para la orden
     envios_previos = orden.get("gls_envios") or []
     if envios_previos and not data.force_duplicate:
+        ultimo = envios_previos[-1].get("codbarras", "")
         raise HTTPException(
             409,
-            {
-                "code": "envio_ya_existe",
-                "message": (
-                    f"Ya existe un envío GLS para esta orden "
-                    f"(codbarras {envios_previos[-1].get('codbarras','')}). "
-                    f"Pasa force_duplicate=true para crear otro."
-                ),
-                "envios_previos": len(envios_previos),
-                "ultimo_codbarras": envios_previos[-1].get("codbarras", ""),
-            },
+            f"Ya existe un envío GLS para esta orden (codbarras {ultimo}). "
+            f"Pasa force_duplicate=true para crear otro.",
         )
 
     try:
@@ -733,7 +726,30 @@ async def abrir_incidencia(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/gls/etiqueta/{codbarras}")
-async def descargar_etiqueta(codbarras: str, user: dict = Depends(require_auth)):
+async def descargar_etiqueta(
+    codbarras: str,
+    request: Request,
+    token: Optional[str] = None,
+):
+    """Descarga PDF de etiqueta. Acepta auth por header (Bearer) o por query
+    string `?token=...` (para abrir en pestaña nueva desde el frontend)."""
+    import jwt as _jwt
+    from config import JWT_SECRET, JWT_ALGORITHM
+    raw_token: Optional[str] = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        raw_token = auth_header.split(" ", 1)[1].strip()
+    if not raw_token and token:
+        raw_token = token.strip()
+    if not raw_token:
+        raise HTTPException(401, "Autenticación requerida")
+    try:
+        _jwt.decode(raw_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except _jwt.ExpiredSignatureError as exc:
+        raise HTTPException(401, "Token expirado") from exc
+    except _jwt.InvalidTokenError as exc:
+        raise HTTPException(401, "Token inválido") from exc
+
     etiqueta = await db.gls_etiquetas.find_one(
         {"codbarras": codbarras}, {"_id": 0},
         sort=[("creado_en", -1)],

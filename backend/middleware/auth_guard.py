@@ -59,6 +59,15 @@ PUBLIC_EXACT: frozenset[tuple[str, str]] = frozenset({
 })
 
 
+# Paths que aceptan token por query string (?token=...).
+# Son endpoints que devuelven binarios y se abren en pestaña nueva donde el
+# navegador no puede enviar el header Authorization. Restringido al mínimo.
+QUERY_TOKEN_PATHS: tuple[str, ...] = (
+    "/api/logistica/gls/etiqueta/",
+    "/api/gls/etiqueta/",
+)
+
+
 def _is_public(method: str, path: str, prefixes: Iterable[str], exact) -> bool:
     if (method, path) in exact:
         return True
@@ -66,6 +75,10 @@ def _is_public(method: str, path: str, prefixes: Iterable[str], exact) -> bool:
         if path == p or path.startswith(p):
             return True
     return False
+
+
+def _allows_query_token(path: str) -> bool:
+    return any(path.startswith(p) for p in QUERY_TOKEN_PATHS)
 
 
 class AuthGuardMiddleware(BaseHTTPMiddleware):
@@ -95,11 +108,19 @@ class AuthGuardMiddleware(BaseHTTPMiddleware):
         # Verificar Authorization Bearer
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
-            logger.info(f"[auth-guard] 401 sin token: {method} {path}")
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Autenticación requerida"},
-            )
+            # Fallback: token por query string SOLO en paths whitelisted que
+            # devuelven binarios (PDFs) y se abren en pestaña nueva, donde el
+            # navegador no puede enviar el header Authorization.
+            if _allows_query_token(path):
+                qs_token = request.query_params.get("token", "")
+                if qs_token:
+                    auth = f"Bearer {qs_token}"
+            if not auth.startswith("Bearer "):
+                logger.info(f"[auth-guard] 401 sin token: {method} {path}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Autenticación requerida"},
+                )
         token = auth[7:]
         try:
             jwt.decode(token, self.jwt_secret, algorithms=[self.jwt_algorithm])

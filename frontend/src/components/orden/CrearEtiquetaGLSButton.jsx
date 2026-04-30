@@ -90,7 +90,7 @@ export default function CrearEtiquetaGLSButton({
     }
   };
 
-  const handleCrear = async () => {
+  const handleCrear = async (forceDuplicate = false) => {
     const pesoNum = parseFloat(form.peso_kg);
     if (!pesoNum || pesoNum <= 0 || pesoNum > 40) {
       toast.error('Peso inválido (0 < kg ≤ 40)');
@@ -115,6 +115,7 @@ export default function CrearEtiquetaGLSButton({
         dest_telefono: form.dest_telefono,
         dest_movil: form.dest_movil,
         dest_email: form.dest_email,
+        force_duplicate: forceDuplicate || undefined,
       };
       const { data } = await api.post('/logistica/gls/crear-envio', payload);
       const pdfUrl = abrirPdfDesdeBase64(data.etiqueta_pdf_base64);
@@ -131,8 +132,26 @@ export default function CrearEtiquetaGLSButton({
       );
       if (onCreated) onCreated(data);
     } catch (err) {
-      const msg = err?.response?.data?.detail || err?.message || 'Error desconocido';
-      toast.error(`No se pudo crear la etiqueta: ${msg}`);
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      let msg = 'Error desconocido';
+      if (typeof detail === 'string') msg = detail;
+      else if (detail && typeof detail === 'object') {
+        msg = detail.message || detail.msg || JSON.stringify(detail);
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      // Si es 409 (duplicado), preguntar al usuario si quiere forzar
+      if (status === 409 && !forceDuplicate) {
+        if (window.confirm(
+          `${msg}\n\n¿Crear igualmente otra etiqueta? (Atención: generará un nuevo envío en GLS)`,
+        )) {
+          setLoading(false);
+          return handleCrear(true);
+        }
+      } else {
+        toast.error(`No se pudo crear la etiqueta: ${msg}`);
+      }
     } finally {
       setLoading(false);
     }

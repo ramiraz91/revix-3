@@ -239,13 +239,16 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
           )}
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <a href={`/api/logistica/gls/etiqueta/${envioActual.codbarras}`}
-               target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="outline" className="gap-2"
-                      data-testid="gls-btn-ver-etiqueta-pdf">
-                <FileText className="w-4 h-4" /> Ver etiqueta PDF
-              </Button>
-            </a>
+            <Button size="sm" variant="outline" className="gap-2"
+                    data-testid="gls-btn-ver-etiqueta-pdf"
+                    onClick={() => {
+                      const tok = localStorage.getItem('token') || '';
+                      const base = process.env.REACT_APP_BACKEND_URL || '';
+                      const url = `${base}/api/logistica/gls/etiqueta/${envioActual.codbarras}?token=${encodeURIComponent(tok)}`;
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}>
+              <FileText className="w-4 h-4" /> Ver etiqueta PDF
+            </Button>
             <a href={envioActual.tracking_url} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2">
                 <ExternalLink className="w-4 h-4" /> Tracking público GLS

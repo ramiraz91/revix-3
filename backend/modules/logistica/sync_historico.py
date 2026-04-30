@@ -77,6 +77,160 @@ async def _build_client() -> GLSClient:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Helper interno reutilizable: vincular envío GLS por codigo (codbarras/codexp)
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def _vincular_envio_gls_internal(
+    *,
+    orden_id: str,
+    codigo: str,
+    actor_email: str,
+    audit: bool = True,
+) -> dict:
+    """
+    Llama GLS con `codigo` (codexp o codbarras), construye envio_doc canónico
+    y lo persiste en `ordenes.gls_envios` (idempotente por codbarras_real).
+
+    Devuelve: {ok: bool, action: 'creado'|'actualizado'|'skipped', envio: {...}, motivo?: str}.
+    NO lanza excepciones: degrada en {ok: false, motivo}.
+    """
+    if not codigo or not orden_id:
+        return {"ok": False, "motivo": "params_incompletos"}
+
+    try:
+        cli = await _build_client()
+    except Exception as exc:
+        return {"ok": False, "motivo": f"client_init_error: {exc}"}
+
+    try:
+        tracking = await cli.obtener_tracking(codigo.strip())
+    except GLSError as exc:
+        return {"ok": False, "motivo": f"gls_error: {exc}"}
+    except Exception as exc:
+        return {"ok": False, "motivo": f"exception: {type(exc).__name__}: {exc}"}
+
+    if not tracking or not tracking.success:
+        return {"ok": False, "motivo": "no_encontrado_en_gls"}
+
+    orden = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
+    if not orden:
+        return {"ok": False, "motivo": "orden_no_encontrada"}
+
+    codexp = getattr(tracking, "codexp", "") or ""
+    cp_destino = getattr(tracking, "cp_destino", "") or ""
+    observacion = getattr(tracking, "observacion", "") or ""
+    codbarras_real = tracking.codbarras
+
+    if codexp and cp_destino and len(cp_destino) == 5:
+        tracking_url = f"https://mygls.gls-spain.es/e/{codexp}/{cp_destino}"
+        tracking_source = "canonical"
+    else:
+        tracking_url = f"https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match={codbarras_real}"
+        tracking_source = "fallback"
+
+    now = datetime.now(timezone.utc).isoformat()
+    nuevo_envio = {
+        "codbarras": codbarras_real,
+        "codexp": codexp,
+        "cp_destino": cp_destino,
+        "uid_exp": "",
+        "estado": tracking.estado_actual or "",
+        "estado_actual": tracking.estado_actual or "",
+        "estado_codigo": tracking.estado_codigo or "",
+        "fecha_creacion": now,
+        "ultima_actualizacion": now,
+        "tracking_url": tracking_url,
+        "tracking_source": tracking_source,
+        "observacion": observacion,
+        "incidencia": tracking.incidencia or "",
+        "eventos": [
+            {"fecha": e.fecha, "estado": e.estado, "plaza": e.plaza, "codigo": e.codigo}
+            for e in (tracking.eventos or [])
+        ],
+        "vinculado_manualmente_por": actor_email,
+        "mock_preview": False,
+    }
+
+    existentes = orden.get("gls_envios") or []
+    if any(e.get("codbarras") == codbarras_real for e in existentes):
+        await db.ordenes.update_one(
+            {"id": orden["id"], "gls_envios.codbarras": codbarras_real},
+            {"$set": {
+                "gls_envios.$.codexp": codexp,
+                "gls_envios.$.cp_destino": cp_destino,
+                "gls_envios.$.tracking_url": tracking_url,
+                "gls_envios.$.tracking_source": tracking_source,
+                "gls_envios.$.estado_actual": tracking.estado_actual or "",
+                "gls_envios.$.observacion": observacion,
+                "gls_envios.$.eventos": nuevo_envio["eventos"],
+                "gls_envios.$.ultima_actualizacion": now,
+                "updated_at": now,
+            }},
+        )
+        action = "actualizado"
+    else:
+        await db.ordenes.update_one(
+            {"id": orden["id"]},
+            {"$push": {"gls_envios": nuevo_envio}, "$set": {"updated_at": now, "agencia_envio": "GLS"}},
+        )
+        action = "creado"
+
+    if audit:
+        try:
+            await db.audit_logs.insert_one({
+                "source": "auto_vincular", "agent_id": None,
+                "tool": "auto_vincular_gls",
+                "params": {"orden_id": orden_id, "codigo": codigo},
+                "result_summary": {"action": action, "codbarras": codbarras_real, "codexp": codexp},
+                "error": None, "duration_ms": 0,
+                "timestamp": now, "timestamp_dt": datetime.now(timezone.utc),
+                "actor": actor_email,
+            })
+        except Exception:
+            pass
+
+    return {
+        "ok": True, "action": action,
+        "envio": {
+            "codbarras": codbarras_real, "codexp": codexp,
+            "cp_destino": cp_destino, "tracking_url": tracking_url,
+            "estado": tracking.estado_actual,
+        },
+    }
+
+
+async def auto_vincular_gls_si_aplica(
+    orden_id: str,
+    codigo: Optional[str],
+    agencia: Optional[str],
+    actor_email: str,
+) -> Optional[dict]:
+    """
+    Heurística: si el código parece de GLS (10–14 dígitos) y la agencia está vacía
+    o contiene 'GLS', dispara la vinculación. Si falla, no propaga el error.
+
+    Devuelve el dict de resultado o None si no aplica.
+    """
+    c = (codigo or "").strip()
+    if not c or not orden_id:
+        return None
+    if not c.isdigit() or not (10 <= len(c) <= 14):
+        return None
+    a = (agencia or "").upper()
+    if a and "GLS" not in a:
+        return None
+    if _is_preview():
+        return None  # mocks no útiles aquí
+    try:
+        return await _vincular_envio_gls_internal(
+            orden_id=orden_id, codigo=c, actor_email=actor_email, audit=True,
+        )
+    except Exception as exc:
+        logger.warning(f"auto_vincular_gls_si_aplica falló para {orden_id}: {exc}")
+        return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Mock preview (solo cuando MCP_ENV=preview)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1062,4 +1216,172 @@ async def vincular_envio_por_codigo(
             "tracking_url": tracking_url,
             "estado": tracking.estado_actual,
         },
+    }
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint: Sync histórico por codigo_recogida_salida (órdenes de la extranet GLS)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SyncRecogidaSalidaRequest(BaseModel):
+    dry_run: bool = True
+    max_ordenes: int = Field(default=100, ge=1, le=500)
+    incluir_ya_vinculadas: bool = False  # si True, re-procesa también las que ya tienen gls_envios
+
+
+@router.post("/gls/vincular-historico-por-recogida-salida")
+async def vincular_historico_por_recogida_salida(
+    payload: SyncRecogidaSalidaRequest,
+    user: dict = Depends(require_admin),
+):
+    """
+    Itera órdenes con `codigo_recogida_salida` no vacío (heurística GLS: 10-14 dígitos)
+    y agencia GLS o vacía. Para cada una llama GLS, extrae codexp/cp_destino y vincula.
+
+    Idempotente. En `dry_run` no escribe.
+    """
+    actor = user.get("email", "")
+    q: dict = {
+        "codigo_recogida_salida": {"$exists": True, "$nin": ["", None]},
+        "$or": [
+            {"agencia_envio": {"$in": [None, "", "GLS", "gls"]}},
+            {"agencia_envio": {"$regex": "GLS", "$options": "i"}},
+        ],
+    }
+    if not payload.incluir_ya_vinculadas:
+        q["$and"] = [
+            {"$or": [
+                {"gls_envios": {"$exists": False}},
+                {"gls_envios": {"$size": 0}},
+            ]},
+        ]
+
+    proj = {"_id": 0, "id": 1, "numero_orden": 1, "agencia_envio": 1,
+            "codigo_recogida_salida": 1, "gls_envios": 1}
+    candidatas = await db.ordenes.find(q, proj).limit(payload.max_ordenes).to_list(payload.max_ordenes)
+
+    resultados = []
+    ok = 0
+    for o in candidatas:
+        codigo = (o.get("codigo_recogida_salida") or "").strip()
+        if not codigo.isdigit() or not (10 <= len(codigo) <= 14):
+            resultados.append({
+                "orden_id": o["id"], "numero_orden": o.get("numero_orden"),
+                "codigo": codigo, "status": "skipped", "reason": "codigo_no_numerico_GLS",
+            })
+            continue
+        if payload.dry_run:
+            resultados.append({
+                "orden_id": o["id"], "numero_orden": o.get("numero_orden"),
+                "codigo": codigo, "status": "would_process",
+            })
+            continue
+        r = await _vincular_envio_gls_internal(
+            orden_id=o["id"], codigo=codigo, actor_email=actor, audit=True,
+        )
+        if r.get("ok"):
+            ok += 1
+            resultados.append({
+                "orden_id": o["id"], "numero_orden": o.get("numero_orden"),
+                "codigo": codigo, "status": "ok", "action": r["action"],
+                "tracking_url": r["envio"]["tracking_url"],
+            })
+        else:
+            resultados.append({
+                "orden_id": o["id"], "numero_orden": o.get("numero_orden"),
+                "codigo": codigo, "status": "error", "reason": r.get("motivo"),
+            })
+
+    return {
+        "ok": True,
+        "dry_run": payload.dry_run,
+        "candidatas_total": len(candidatas),
+        "vinculadas": ok,
+        "resultados": resultados,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Endpoint: Importador CSV en lote (numero_autorizacion,codexp)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class CSVImportLine(BaseModel):
+    numero_autorizacion: str
+    codexp: str
+
+
+class CSVImportRequest(BaseModel):
+    lineas: list[CSVImportLine]
+    dry_run: bool = True
+
+
+@router.post("/gls/vincular-bulk-csv")
+async def vincular_bulk_csv(
+    payload: CSVImportRequest,
+    user: dict = Depends(require_admin),
+):
+    """
+    Importador en lote: cada línea contiene `numero_autorizacion,codexp`.
+    Para cada línea:
+      1. Busca la orden en BD por `numero_autorizacion` (case-insensitive).
+      2. Llama GLS con el `codexp`.
+      3. Vincula si encuentra.
+    """
+    if len(payload.lineas) > 500:
+        raise HTTPException(400, "Máximo 500 líneas por lote.")
+
+    actor = user.get("email", "")
+    resultados = []
+    ok = 0
+
+    for linea in payload.lineas:
+        na = (linea.numero_autorizacion or "").strip()
+        codexp = (linea.codexp or "").strip()
+        base = {"numero_autorizacion": na, "codexp": codexp}
+
+        if not na or not codexp:
+            resultados.append({**base, "status": "error", "reason": "campos_vacios"})
+            continue
+        if not codexp.isdigit() or not (8 <= len(codexp) <= 14):
+            resultados.append({**base, "status": "error", "reason": "codexp_invalido"})
+            continue
+
+        orden = await db.ordenes.find_one(
+            {"numero_autorizacion": {"$regex": f"^{re.escape(na)}$", "$options": "i"}},
+            {"_id": 0, "id": 1, "numero_orden": 1},
+        )
+        if not orden:
+            resultados.append({**base, "status": "error", "reason": "orden_no_encontrada"})
+            continue
+
+        if payload.dry_run:
+            resultados.append({
+                **base, "status": "would_process",
+                "orden_id": orden["id"], "numero_orden": orden.get("numero_orden"),
+            })
+            continue
+
+        r = await _vincular_envio_gls_internal(
+            orden_id=orden["id"], codigo=codexp, actor_email=actor, audit=True,
+        )
+        if r.get("ok"):
+            ok += 1
+            resultados.append({
+                **base, "status": "ok", "action": r["action"],
+                "orden_id": orden["id"], "numero_orden": orden.get("numero_orden"),
+                "tracking_url": r["envio"]["tracking_url"],
+            })
+        else:
+            resultados.append({
+                **base, "status": "error", "reason": r.get("motivo"),
+                "orden_id": orden["id"], "numero_orden": orden.get("numero_orden"),
+            })
+
+    return {
+        "ok": True,
+        "dry_run": payload.dry_run,
+        "total_lineas": len(payload.lineas),
+        "vinculadas": ok,
+        "resultados": resultados,
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Truck, Save, ShieldCheck, RefreshCw, CheckCircle2, XCircle,
-  AlertTriangle, Loader2, Info, Link2, Search,
+  AlertTriangle, Loader2, Info, Link2, Search, FileSpreadsheet, Upload, ListChecks,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -327,6 +327,12 @@ export default function AjustesGLS() {
           {/* Vinculación manual por codexp/codbarras */}
           <VincularEnvioManualCard />
 
+          {/* Importador CSV en lote: numero_autorizacion,codexp */}
+          <ImportadorCSVCard />
+
+          {/* Sync histórico por codigo_recogida_salida */}
+          <SyncRecogidaSalidaCard />
+
           {/* Sincronización histórica */}
           <SincronizacionHistoricaCard />
         </TabsContent>
@@ -526,6 +532,291 @@ function VincularEnvioManualCard() {
             data-testid="link-result"
           >
             <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(linkResult, null, 2)}</pre>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Importador CSV en lote: numero_autorizacion,codexp
+// ──────────────────────────────────────────────────────────────────────────────
+
+function ImportadorCSVCard() {
+  const [csv, setCsv] = useState('');
+  const [dryRun, setDryRun] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  const parseCSV = (text) => {
+    const out = [];
+    text.split(/\r?\n/).forEach((raw) => {
+      const ln = raw.trim();
+      if (!ln || ln.startsWith('#')) return;
+      const parts = ln.split(/[,;\t]/).map((s) => s.trim());
+      if (parts.length < 2) return;
+      const [na, ce] = parts;
+      if (na && ce) out.push({ numero_autorizacion: na, codexp: ce });
+    });
+    return out;
+  };
+
+  const lineas = parseCSV(csv);
+
+  const handleSubmit = async () => {
+    if (lineas.length === 0) {
+      toast.error('No hay líneas válidas (formato: numero_autorizacion,codexp)');
+      return;
+    }
+    if (lineas.length > 500) {
+      toast.error('Máximo 500 líneas por lote.');
+      return;
+    }
+    setLoading(true);
+    setResultado(null);
+    try {
+      const r = await API.post('/api/logistica/gls/vincular-bulk-csv', {
+        lineas,
+        dry_run: dryRun,
+      });
+      setResultado(r.data);
+      if (dryRun) {
+        toast.success(`Dry-run: ${r.data.total_lineas} líneas analizadas`);
+      } else {
+        toast.success(`${r.data.vinculadas}/${r.data.total_lineas} envíos vinculados`);
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || 'Error procesando CSV';
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card data-testid="card-importador-csv">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <FileSpreadsheet className="w-4 h-4 text-violet-600" />
+          Importador CSV en lote
+        </CardTitle>
+        <CardDescription>
+          Pega un CSV con formato <code className="font-mono text-xs bg-slate-100 px-1">numero_autorizacion,codexp</code>{' '}
+          (una línea por orden). Se admiten separadores coma, punto-y-coma o tabulador. Las líneas que empiezan por
+          <code className="font-mono text-xs bg-slate-100 px-1">#</code> se ignoran. Máximo 500 líneas.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <textarea
+          value={csv}
+          onChange={(e) => setCsv(e.target.value)}
+          rows={8}
+          placeholder={`# numero_autorizacion,codexp\n26BE002120,1288560505\n26BE003344,1288601234`}
+          className="w-full font-mono text-xs rounded-md border border-slate-300 p-3 bg-white"
+          data-testid="textarea-csv"
+        />
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="text-xs text-muted-foreground">
+            Líneas válidas detectadas: <span className="font-bold text-slate-800">{lineas.length}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dryRun}
+                onChange={(e) => setDryRun(e.target.checked)}
+                data-testid="check-csv-dryrun"
+              />
+              Dry-run (simular sin escribir)
+            </label>
+            <Button
+              onClick={handleSubmit}
+              disabled={loading || lineas.length === 0}
+              data-testid="btn-csv-importar"
+            >
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              {dryRun ? 'Simular' : 'Importar'}
+            </Button>
+          </div>
+        </div>
+
+        {resultado && (
+          <div className="rounded-lg border p-3 bg-slate-50" data-testid="csv-resultado">
+            <p className="text-xs text-muted-foreground mb-2">
+              {resultado.dry_run ? 'Resultado dry-run' : 'Resultado'}: {resultado.vinculadas}/{resultado.total_lineas} ok
+            </p>
+            <div className="max-h-80 overflow-y-auto rounded border bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1">numero_autorizacion</th>
+                    <th className="text-left px-2 py-1">codexp</th>
+                    <th className="text-left px-2 py-1">orden</th>
+                    <th className="text-left px-2 py-1">status</th>
+                    <th className="text-left px-2 py-1">detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(resultado.resultados || []).map((r, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-2 py-1 font-mono">{r.numero_autorizacion}</td>
+                      <td className="px-2 py-1 font-mono">{r.codexp}</td>
+                      <td className="px-2 py-1">{r.numero_orden || '—'}</td>
+                      <td className="px-2 py-1">
+                        {r.status === 'ok' ? (
+                          <Badge className="bg-green-100 text-green-800 border-green-300">{r.action || 'ok'}</Badge>
+                        ) : r.status === 'would_process' ? (
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-300">would_process</Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800 border-red-300">{r.status}</Badge>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-slate-600">
+                        {r.tracking_url ? (
+                          <a href={r.tracking_url} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                            tracking
+                          </a>
+                        ) : (
+                          r.reason || ''
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Sync histórico por codigo_recogida_salida (órdenes de la extranet GLS)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function SyncRecogidaSalidaCard() {
+  const [dryRun, setDryRun] = useState(true);
+  const [maxOrdenes, setMaxOrdenes] = useState(50);
+  const [loading, setLoading] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setResultado(null);
+    try {
+      const r = await API.post('/api/logistica/gls/vincular-historico-por-recogida-salida', {
+        dry_run: dryRun,
+        max_ordenes: Number(maxOrdenes) || 50,
+        incluir_ya_vinculadas: false,
+      });
+      setResultado(r.data);
+      if (dryRun) {
+        toast.success(`Dry-run: ${r.data.candidatas_total} candidatas analizadas`);
+      } else {
+        toast.success(`${r.data.vinculadas}/${r.data.candidatas_total} envíos vinculados`);
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || 'Error en sync';
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card data-testid="card-sync-recogida-salida">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ListChecks className="w-4 h-4 text-cyan-600" />
+          Sync histórico por <code className="font-mono text-xs bg-slate-100 px-1">codigo_recogida_salida</code>
+        </CardTitle>
+        <CardDescription>
+          Recorre órdenes con <code className="font-mono text-xs bg-slate-100 px-1">codigo_recogida_salida</code> relleno (10–14 dígitos)
+          y agencia GLS o vacía, sin envío vinculado. Para cada una llama GLS, extrae codexp/cp_destino y construye la URL
+          canónica de tracking. Idempotente.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="w-32">
+            <Label className="text-xs">Máx órdenes</Label>
+            <Input
+              type="number" min={1} max={500}
+              value={maxOrdenes}
+              onChange={(e) => setMaxOrdenes(e.target.value)}
+              className="mt-1"
+              data-testid="input-sync-rs-max"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer pb-2">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              data-testid="check-sync-rs-dryrun"
+            />
+            Dry-run
+          </label>
+          <Button
+            onClick={handleSubmit}
+            disabled={loading}
+            data-testid="btn-sync-rs-run"
+          >
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            {dryRun ? 'Simular' : 'Ejecutar'}
+          </Button>
+        </div>
+
+        {resultado && (
+          <div className="rounded-lg border p-3 bg-slate-50" data-testid="sync-rs-resultado">
+            <p className="text-xs text-muted-foreground mb-2">
+              Candidatas: <span className="font-bold">{resultado.candidatas_total}</span> · Vinculadas:{' '}
+              <span className="font-bold text-green-700">{resultado.vinculadas}</span>
+              {resultado.dry_run && ' · (dry-run)'}
+            </p>
+            <div className="max-h-64 overflow-y-auto rounded border bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1">orden</th>
+                    <th className="text-left px-2 py-1">código</th>
+                    <th className="text-left px-2 py-1">status</th>
+                    <th className="text-left px-2 py-1">detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(resultado.resultados || []).map((r, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-2 py-1">{r.numero_orden || '—'}</td>
+                      <td className="px-2 py-1 font-mono">{r.codigo}</td>
+                      <td className="px-2 py-1">
+                        {r.status === 'ok' ? (
+                          <Badge className="bg-green-100 text-green-800 border-green-300">{r.action || 'ok'}</Badge>
+                        ) : r.status === 'would_process' ? (
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-300">would_process</Badge>
+                        ) : (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-300">{r.status}</Badge>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-slate-600">
+                        {r.tracking_url ? (
+                          <a href={r.tracking_url} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                            tracking
+                          </a>
+                        ) : (
+                          r.reason || ''
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </CardContent>

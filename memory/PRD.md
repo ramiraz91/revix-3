@@ -11,6 +11,34 @@ CRM/ERP para taller de reparacion de telefonia movil (Revix.es).
 
 ---
 
+## Latest — 2026-04-29 (39) · GLS auto-vinculación + CSV bulk + botón "Seguir mi envío"
+
+### Solicitud del usuario
+"Sí al importador CSV (numero_autorizacion,codexp). En /seguimiento/{token} botón clickable directo a `https://mygls.gls-spain.es/e/{codexp}/{cp}` en lugar del codbarras como texto. Para nuevas etiquetas y para órdenes con `codigo_recogida_salida` ya relleno, vincular automáticamente sin intervención manual."
+
+### Hallazgos
+- **Campo confirmado**: el tramitador guarda el código GLS manual en `ordenes.codigo_recogida_salida` (junto a `agencia_envio`). Para envíos creados desde el CRM, `shipment_service.py` ya lo rellenaba con codbarras. Para órdenes de la extranet, viene rellenado a mano.
+
+### Cambios aplicados
+
+#### Backend
+1. **`sync_historico.py`** — nuevo helper `_vincular_envio_gls_internal()` y wrapper `auto_vincular_gls_si_aplica()` (heurística: dígitos 10–14, agencia GLS o vacía, no preview, degrada en silencio).
+2. **`PATCH /ordenes/{id}/envio`** y **`PATCH /ordenes/{id}/estado`** disparan `auto_vincular_gls_si_aplica` cuando se rellena `codigo_recogida_salida` o `codigo_envio`. Persiste `gls_envios[]` con codexp + cp_destino + URL canónica.
+3. **`POST /api/logistica/gls/vincular-historico-por-recogida-salida`** — itera órdenes con codigo_recogida_salida (10-14 dígitos) sin gls_envios; idempotente; dry-run + max_ordenes.
+4. **`POST /api/logistica/gls/vincular-bulk-csv`** — importador en lote con `lineas: [{numero_autorizacion, codexp}]`; dry-run; máx 500.
+5. **`shipment_service.py` `crear_envio`** — al crear etiqueta nueva: guarda `codigo_recogida_salida = codexp || codbarras`, añade `codexp`, `cp_destino`, `tracking_url` canónica y `tracking_source` al `gls_envios[]`. Agencia auto = "GLS".
+
+#### Frontend
+- **`AjustesGLS.jsx`** — 2 nuevas cards: `ImportadorCSVCard` (textarea CSV con preview + tabla resultados) y `SyncRecogidaSalidaCard` (sync masivo dry-run/real).
+- **`Seguimiento.jsx`** — el codbarras ya no aparece como texto plano; ahora botón **"Seguir mi envío"** (azul/emerald) que abre `mygls.gls-spain.es/e/{codexp}/{cp}` en pestaña nueva. Fallback a búsqueda GLS por codbarras si no hay codexp aún.
+
+### Validación end-to-end (curl producción real)
+- `POST /vincular-bulk-csv` real con `26be123456,1288560505` → ✅ vinculó DEMO-002 → `https://mygls.gls-spain.es/e/1288560505/28760`
+- `POST /seguimiento/verificar` (cliente) → ✅ devuelve `logistics_v2.tracking_url_publico` correcto.
+- `POST /vincular-historico-por-recogida-salida` dry-run → ✅ idempotente.
+
+---
+
 ## Latest — 2026-04-29 (38) · GLS: vinculación manual por codexp + diagnóstico API SOAP
 
 ### Solicitud del usuario

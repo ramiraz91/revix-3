@@ -473,10 +473,11 @@ export default function Seguimiento() {
                   <a
                     href={orden.logistics_v2.tracking_url_publico || orden.logistics_v2.tracking_url || "https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/"}
                     target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
                     data-testid="seguimiento-link-tracking-gls"
                   >
-                    Ver tracking completo en GLS →
+                    <Truck className="w-4 h-4" />
+                    Seguir mi envío
                   </a>
                 </CardContent>
               </Card>
@@ -751,22 +752,43 @@ export default function Seguimiento() {
               </CardContent>
             </Card>
 
-            {/* Shipping Confirmation when Enviado */}
-            {orden.estado === 'enviado' && (orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (
-              <Card className="border-emerald-200 bg-emerald-50">
-                <CardContent className="py-4">
-                  <div className="flex items-center gap-4">
-                    <Truck className="w-8 h-8 text-emerald-600" />
-                    <div>
-                      <p className="font-semibold text-emerald-800">¡Tu dispositivo está en camino!</p>
-                      <p className="text-sm text-emerald-700">
-                        {orden.agencia_envio && <>Agencia: {orden.agencia_envio} | </>}Código: <span className="font-mono">{orden.codigo_seguimiento_salida || orden.codigo_recogida_salida}</span>
-                      </p>
+            {/* Shipping Confirmation when Enviado — solo si NO se mostró ya logistics_v2 (que ya tiene su botón) */}
+            {orden.estado === 'enviado' && !orden.logistics_v2?.codbarras && (orden.codigo_seguimiento_salida || orden.codigo_recogida_salida) && (() => {
+              const codigo = orden.codigo_seguimiento_salida || orden.codigo_recogida_salida || '';
+              const agencia = (orden.agencia_envio || '').toUpperCase();
+              const esGLS = !agencia || agencia.includes('GLS');
+              // Si tenemos codexp en logistics_v2 (vinculación previa), priorizamos
+              const trackingUrl = orden.logistics_v2?.tracking_url_publico
+                || (esGLS ? `https://www.gls-spain.es/es/ayuda/seguimiento-de-envio/?match=${encodeURIComponent(codigo)}` : null);
+              return (
+                <Card className="border-emerald-200 bg-emerald-50">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-4">
+                        <Truck className="w-8 h-8 text-emerald-600" />
+                        <div>
+                          <p className="font-semibold text-emerald-800">¡Tu dispositivo está en camino!</p>
+                          <p className="text-sm text-emerald-700">
+                            {orden.agencia_envio && <>Agencia: <span className="font-medium">{orden.agencia_envio}</span></>}
+                          </p>
+                        </div>
+                      </div>
+                      {trackingUrl && (
+                        <a
+                          href={trackingUrl}
+                          target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+                          data-testid="btn-seguir-envio-fallback"
+                        >
+                          <Truck className="w-4 h-4" />
+                          Seguir mi envío
+                        </a>
+                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* Photos */}
             {orden.fotos && orden.fotos.length > 0 && (

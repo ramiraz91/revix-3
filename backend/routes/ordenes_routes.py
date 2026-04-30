@@ -1553,7 +1553,7 @@ async def eliminar_orden(orden_id: str, user: dict = Depends(require_admin)):
 # ==================== ENVÍO Y AUTORIZACIÓN ====================
 
 @router.patch("/ordenes/{orden_id}/envio")
-async def actualizar_envio_orden(orden_id: str, data: EnvioAuthUpdate):
+async def actualizar_envio_orden(orden_id: str, data: EnvioAuthUpdate, user: dict = Depends(require_auth)):
     """Update shipping and authorization data inline."""
     existing = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
     if not existing:
@@ -1561,8 +1561,26 @@ async def actualizar_envio_orden(orden_id: str, data: EnvioAuthUpdate):
     update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
     update_fields['updated_at'] = datetime.now(timezone.utc).isoformat()
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_fields})
+
+    # Auto-vinculación GLS si el tramitador rellenó codigo_recogida_salida con código GLS
+    auto_vinc = None
+    nuevo_codigo = data.codigo_recogida_salida
+    nueva_agencia = data.agencia_envio if data.agencia_envio is not None else existing.get("agencia_envio")
+    if nuevo_codigo:
+        try:
+            from modules.logistica.sync_historico import auto_vincular_gls_si_aplica
+            auto_vinc = await auto_vincular_gls_si_aplica(
+                orden_id=orden_id, codigo=nuevo_codigo,
+                agencia=nueva_agencia, actor_email=user.get("email", ""),
+            )
+        except Exception as exc:
+            logger.warning(f"auto-vincular tras patch envio falló: {exc}")
+
     updated = await db.ordenes.find_one({"id": orden_id}, {"_id": 0})
-    return _normalizar_orden_doc(updated)
+    out = _normalizar_orden_doc(updated)
+    if auto_vinc is not None:
+        out["_auto_vinculacion_gls"] = auto_vinc
+    return out
 
 # ==================== TRANSICIONES DE ESTADO VÁLIDAS ====================
 
@@ -1736,6 +1754,17 @@ async def cambiar_estado_orden(orden_id: str, request: CambioEstadoRequest, user
     if request.codigo_envio:
         update_data["codigo_recogida_salida"] = request.codigo_envio
     await db.ordenes.update_one({"id": orden_id}, {"$set": update_data})
+
+    # Auto-vinculación GLS si el codigo_envio luce a código GLS (10-14 dígitos)
+    if request.codigo_envio:
+        try:
+            from modules.logistica.sync_historico import auto_vincular_gls_si_aplica
+            await auto_vincular_gls_si_aplica(
+                orden_id=orden_id, codigo=request.codigo_envio,
+                agencia=orden.get("agencia_envio"), actor_email=user.get("email", ""),
+            )
+        except Exception as exc:
+            logger.warning(f"auto-vincular tras cambio_estado falló: {exc}")
 
     await registrar_evento_ot(
         ot_doc=orden,

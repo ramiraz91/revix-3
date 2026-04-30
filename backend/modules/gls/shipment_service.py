@@ -513,6 +513,16 @@ async def create_shipment(
 
     if result["success"]:
         # Update the order with GLS codes and references
+        codexp_creado = envio_data.get("codexp", "") or ""
+        cp_dst_creado = data.get("dest_cp", "") or ""
+        # URL canónica (mygls) si tenemos codexp + cp_destino válido (5 dígitos)
+        if codexp_creado and cp_dst_creado and len(cp_dst_creado) == 5 and cp_dst_creado.isdigit():
+            tracking_url_envio = f"https://mygls.gls-spain.es/e/{codexp_creado}/{cp_dst_creado}"
+            tracking_source_envio = "canonical"
+        else:
+            tracking_url_envio = initial_tracking_data["tracking_url"]
+            tracking_source_envio = initial_tracking_data.get("tracking_source", "fallback")
+
         orden_update = {
             "agencia_envio": "GLS",
             "updated_at": now,
@@ -521,19 +531,29 @@ async def create_shipment(
             "id": shipment_id,
             "tipo": tipo,
             "codbarras": codbarras,
-            "tracking_url": initial_tracking_data["tracking_url"],
+            "codexp": codexp_creado,
+            "cp_destino": cp_dst_creado,
+            "tracking_url": tracking_url_envio,
+            "tracking_source": tracking_source_envio,
             "estado_gls": "grabado",
+            "estado_actual": "GRABADO",
+            "estado_codigo": "-10",
             "created_at": now,
+            "ultima_actualizacion": now,
             "created_by": user_email,
+            "mock_preview": False,
         }
-        
-        # Asignar código según tipo
+
+        # Asignar código según tipo. Para el envío de salida preferimos guardar
+        # codexp (si lo tenemos) para que la URL pública canónica esté disponible
+        # incluso antes de la primera sincronización; si no hay codexp, fallback
+        # al codbarras (compatibilidad histórica).
         if tipo == "recogida":
             orden_update["codigo_recogida_entrada"] = codbarras
         elif tipo == "devolucion":
             orden_update["codigo_devolucion"] = codbarras
         else:
-            orden_update["codigo_recogida_salida"] = codbarras
+            orden_update["codigo_recogida_salida"] = codexp_creado or codbarras
 
         if orden_id:
             await db.ordenes.update_one(

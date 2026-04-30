@@ -116,6 +116,55 @@ def _assert_client_safe(html: str, where: str = "") -> None:
             raise AssertionError(msg)
 
 
+def _sanitize_client_link(raw_url: Optional[str]) -> Optional[str]:
+    """Sanea una URL destinada a un email de CLIENTE:
+      - Si el dominio es preview/localhost → reemplaza por FRONTEND_URL seguro.
+      - Si el path es interno del CRM (/ordenes/, /crm/, /dashboard/, etc.) →
+        lo reescribe a /consulta (portal público). El token, si se pasa en el
+        caller, ya se añade vía _build_client_link; aquí solo evitamos leak.
+
+    Devuelve una URL segura o None si la entrada era None.
+    """
+    if not raw_url:
+        return raw_url
+    try:
+        from urllib.parse import urlparse, urlunparse, urlencode, parse_qs
+        parsed = urlparse(raw_url.strip())
+        host = (parsed.netloc or "").lower()
+        path = parsed.path or "/"
+        unsafe_host = any(p in host for p in _UNSAFE_URL_PATTERNS)
+        unsafe_path = bool(re.match(
+            r"^/(ordenes|crm|dashboard|inventario|proveedores)/?", path,
+            re.IGNORECASE,
+        ))
+        if not unsafe_host and not unsafe_path:
+            return raw_url
+        # Reconstruir: forzar FRONTEND_URL como base; si el path era interno,
+        # redirigir al portal público /consulta (preservando query si existía).
+        safe_base = urlparse(FRONTEND_URL)
+        new_scheme = safe_base.scheme or "https"
+        new_netloc = safe_base.netloc
+        new_path = "/consulta" if unsafe_path else (path if path.startswith("/") else "/" + path)
+        new_query = parsed.query
+        # Si no había query con codigo= y el path era un /ordenes/{uuid}, intentamos
+        # extraer el UUID y dejarlo como query param para que el frontend lo interprete.
+        if unsafe_path and "codigo=" not in (new_query or ""):
+            m = re.search(r"/ordenes/([a-f0-9-]{8,})", path, re.IGNORECASE)
+            if m:
+                qs = parse_qs(new_query) if new_query else {}
+                qs["orden_id"] = [m.group(1)]
+                new_query = urlencode({k: v[0] for k, v in qs.items()})
+        rebuilt = urlunparse((new_scheme, new_netloc, new_path, "", new_query, ""))
+        logger.warning(
+            "🧼 [email-sanitize] link_url saneada: %r → %r", raw_url, rebuilt,
+        )
+        return rebuilt
+    except Exception as exc:
+        logger.error(f"[email-sanitize] fallo saneando {raw_url!r}: {exc}")
+        # Fallback ultra-seguro
+        return f"{FRONTEND_URL}/consulta"
+
+
 # Configurar Resend
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -190,11 +239,17 @@ def send_email(
 
     `audience`:
       - "client" (default): valida que el HTML no contenga URLs internas del CRM.
+        Si se detecta un link_url contaminado (dominio preview o path interno),
+        se SANEA automáticamente (reescritura a /consulta) y se loguea warning.
       - "admin": permite URLs internas (/crm/, /ordenes/, etc).
     """
     if not is_configured():
         logger.warning("📧 Resend no configurado — email a %s omitido", to)
         return False
+
+    # Salvaguarda proactiva: si va a cliente, saneamos el link_url antes de render.
+    if audience == "client":
+        link_url = _sanitize_client_link(link_url)
 
     html = _build_html(titulo, contenido, link_url, link_text)
 

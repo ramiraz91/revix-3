@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Truck, RefreshCw, AlertTriangle, CheckCircle2, Clock, Loader2,
-  FileText, ExternalLink, PackageSearch,
+  FileText, ExternalLink, PackageSearch, XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
   const [incidenciaDialog, setIncidenciaDialog] = useState(null); // {codbarras}
   const [incidenciaText, setIncidenciaText] = useState('');
   const [creandoIncidencia, setCreandoIncidencia] = useState(false);
+  const [anulando, setAnulando] = useState(false);
 
   const fetchDetail = async () => {
     if (!orden?.id) return;
@@ -113,6 +114,39 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
       toast.error(e?.response?.data?.detail || 'Error creando incidencia');
     } finally {
       setCreandoIncidencia(false);
+    }
+  };
+
+  const handleAnular = async () => {
+    if (!envioActual?.codbarras) return;
+    const motivo = window.prompt(
+      `¿Seguro que quieres ANULAR el envío ${envioActual.codbarras} en GLS?\n\n` +
+      `Esta acción es irreversible y solo es posible si GLS aún no lo recogió.\n\n` +
+      `Indica un motivo (opcional):`,
+      '',
+    );
+    if (motivo === null) return;  // cancelado
+    setAnulando(true);
+    try {
+      const { data } = await api.post('/logistica/gls/anular-envio', {
+        order_id: orden.id,
+        codbarras: envioActual.codbarras,
+        motivo: motivo || undefined,
+      });
+      if (data.ya_anulado) {
+        toast.info('El envío ya estaba anulado');
+      } else {
+        toast.success(data.mensaje || 'Envío anulado correctamente');
+      }
+      await fetchDetail();
+      if (onUpdate) onUpdate();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail
+        : (detail?.message || JSON.stringify(detail) || 'Error al anular');
+      toast.error(msg);
+    } finally {
+      setAnulando(false);
     }
   };
 
@@ -259,6 +293,16 @@ export default function GLSEnvioPanel({ orden, onUpdate }) {
                     data-testid="gls-btn-abrir-incidencia">
               <AlertTriangle className="w-4 h-4" /> Abrir incidencia
             </Button>
+            {envioActual.estado !== 'anulado' && (
+              <Button size="sm" variant="outline"
+                      className="gap-2 text-red-700 border-red-400 hover:bg-red-100"
+                      disabled={anulando}
+                      onClick={handleAnular}
+                      data-testid="gls-btn-anular-envio">
+                {anulando ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Anular envío
+              </Button>
+            )}
             <CrearEtiquetaGLSButton
               orden={orden}
               onCreated={() => { fetchDetail(); if (onUpdate) onUpdate(); }}

@@ -236,6 +236,48 @@ class GLSClient:
         )
         return self._parse_get_exp_cli_response(response_text, codbarras)
 
+    async def anular_envio(self, codbarras: str) -> dict:
+        """
+        Anula un envío en GLS por codbarras (no eliminable si ya está en ruta).
+
+        Devuelve {ok: bool, mensaje: str, raw: str}.
+        En preview simula éxito sin llamada real.
+        """
+        if self.mcp_env == "preview":
+            return {"ok": True, "mensaje": "Anulado (preview/mock)", "raw": ""}
+
+        self._ensure_configured()
+        body = (
+            f'<Anula xmlns="{GLS_NAMESPACE}">\n'
+            f'<docIn>\n'
+            f'  <Servicios uidcliente="{self.uid_cliente}">\n'
+            f'    <Envio codbarras="{codbarras}" />\n'
+            f'  </Servicios>\n'
+            f'</docIn>\n'
+            f'</Anula>'
+        )
+        response_text = await self._soap_call(action="Anula", body_xml=body)
+
+        # GLS responde con XML que contiene <Resultado> o <Error>
+        try:
+            root = ET.fromstring(response_text)
+        except ET.ParseError as exc:
+            return {"ok": False, "mensaje": f"Respuesta GLS no parseable: {exc}", "raw": response_text}
+
+        # Buscar elementos clave
+        error_el = self._find_by_localname(root, "Error")
+        result_el = self._find_by_localname(root, "Resultado")
+        if error_el is not None and (error_el.text or "").strip():
+            return {"ok": False, "mensaje": (error_el.text or "").strip(), "raw": response_text}
+        # Heurística éxito: presencia de <Resultado>OK</Resultado> o ausencia de error
+        result_text = (result_el.text or "").strip().upper() if result_el is not None else ""
+        if result_text and "OK" in result_text:
+            return {"ok": True, "mensaje": "Envío anulado en GLS", "raw": response_text}
+        # Fallback positivo si el XML no contiene errores explícitos
+        if "Error" not in response_text and "Excepcion" not in response_text:
+            return {"ok": True, "mensaje": "Envío anulado en GLS (sin error reportado)", "raw": response_text}
+        return {"ok": False, "mensaje": "Respuesta GLS ambigua", "raw": response_text}
+
     # ──────────────────────────────────────────────────────────────────────
     # Construcción de XML (SOAP 1.2 + CDATA, según spec del usuario)
     # ──────────────────────────────────────────────────────────────────────

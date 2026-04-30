@@ -722,6 +722,93 @@ async def abrir_incidencia(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# POST /gls/anular-envio  (anula un envío en GLS y marca en BD)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class AnularEnvioRequest(BaseModel):
+    order_id: str
+    codbarras: str
+    motivo: Optional[str] = None
+
+
+@router.post("/gls/anular-envio")
+async def anular_envio_gls(
+    payload: AnularEnvioRequest,
+    user: dict = Depends(require_auth),
+):
+    """Anula un envío GLS por codbarras: llama al SOAP `Anula` real y marca
+    el envío como anulado en `ordenes.gls_envios[]`. Idempotente."""
+    if user.get("role") not in ("admin", "master"):
+        raise HTTPException(403, "Solo administradores pueden anular envíos")
+
+    orden = await db.ordenes.find_one({"id": payload.order_id}, {"_id": 0})
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+
+    envios = orden.get("gls_envios") or []
+    envio = next((e for e in envios if e.get("codbarras") == payload.codbarras), None)
+    if not envio:
+        raise HTTPException(404, f"Envío {payload.codbarras} no encontrado en la orden")
+    if envio.get("estado") == "anulado":
+        return {"ok": True, "ya_anulado": True, "mensaje": "El envío ya estaba anulado"}
+
+    client = _build_gls_client()
+    try:
+        resultado = await client.anular_envio(payload.codbarras)
+    except GLSError as exc:
+        logger.error("GLS rechazó anulación %s: %s", payload.codbarras, exc)
+        raise HTTPException(400, f"GLS: {exc}") from exc
+
+    if not resultado.get("ok"):
+        raise HTTPException(
+            400,
+            f"GLS no pudo anular el envío: {resultado.get('mensaje', 'error desconocido')}",
+        )
+
+    now = _now_iso()
+    actor = user.get("email", "")
+    motivo = (payload.motivo or "").strip()
+    await db.ordenes.update_one(
+        {"id": payload.order_id, "gls_envios.codbarras": payload.codbarras},
+        {"$set": {
+            "gls_envios.$.estado": "anulado",
+            "gls_envios.$.estado_actual": "ANULADO",
+            "gls_envios.$.estado_codigo": "0",
+            "gls_envios.$.es_final": True,
+            "gls_envios.$.anulado_en": now,
+            "gls_envios.$.anulado_por": actor,
+            "gls_envios.$.motivo_anulacion": motivo,
+            "gls_envios.$.ultima_actualizacion": now,
+            "updated_at": now,
+        }},
+    )
+    try:
+        await db.audit_logs.insert_one({
+            "source": "logistica_gls", "agent_id": None,
+            "tool": "anular_envio_gls",
+            "params": {
+                "order_id": payload.order_id,
+                "codbarras": payload.codbarras,
+                "motivo": motivo,
+            },
+            "result_summary": {"ok": True, "mensaje": resultado.get("mensaje", "")},
+            "error": None, "duration_ms": 0,
+            "timestamp": now, "timestamp_dt": datetime.now(timezone.utc),
+            "actor": actor,
+        })
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "codbarras": payload.codbarras,
+        "mensaje": resultado.get("mensaje", "Envío anulado correctamente"),
+    }
+
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # GET /gls/etiqueta/{codbarras}  (re-descargar PDF desde cache)
 # ──────────────────────────────────────────────────────────────────────────────
 
